@@ -13,12 +13,13 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Set up Python {% raw %}${{ matrix.python-version }}{% endraw %}
         run: uv python install {% raw %}${{ matrix.python-version }}{% endraw %}
@@ -42,7 +43,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Create issue on failure
         uses: actions/github-script@v7
