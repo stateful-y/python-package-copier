@@ -47,7 +47,10 @@ jobs:
       - name: Format CHANGELOG with pre-commit
         run: |
           # Install and run pre-commit hooks on CHANGELOG.md
+          # This will format the file if needed; ignore errors since the file might already be formatted
           uvx pre-commit run --files CHANGELOG.md || true
+
+          git add CHANGELOG.md
 
       - name: Create Pull Request for CHANGELOG
         uses: peter-evans/create-pull-request@v7
@@ -65,6 +68,8 @@ jobs:
           base: main
           delete-branch: true
           author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          signoff: true
           labels: |
             changelog
             automated
