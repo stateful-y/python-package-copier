@@ -58,6 +58,7 @@ jobs:
 
             This PR was automatically created by the release workflow.
           branch: changelog-{% raw %}${{ steps.changelog.outputs.version }}{% endraw %}
+          base: main
           delete-branch: true
           author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           labels: |
