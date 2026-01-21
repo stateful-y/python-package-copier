@@ -114,6 +114,28 @@ The pre-commit hook will validate your commit messages automatically.
 
 Releases are automated via GitHub Actions. Here's how it works:
 
+### Initial Setup (One-time)
+
+Before you can create releases, you need to set up a Personal Access Token:
+
+1. **Create a Fine-grained Personal Access Token**:
+   - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+   - Click "Generate new token"
+   - Configure:
+     - **Token name**: `RELEASE_AUTOMATION_TOKEN`
+     - **Expiration**: 90 days or longer
+     - **Repository access**: Only select repositories → Choose this repository
+     - **Permissions**:
+       - Contents: Read and write
+       - Pull requests: Read and write
+       - Workflows: Read and write
+
+2. **Add token as repository secret**:
+   - Go to repository Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `PAT_TOKEN`
+   - Value: Paste your generated token
+
 ### Creating a Release
 
 1. **Ensure all changes follow conventional commits** - The changelog is auto-generated from commit messages
