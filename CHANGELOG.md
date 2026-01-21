@@ -18,30 +18,13 @@ This **minor release** includes 13 commits.
 
 ### Bug Fixes
 - Remove non-functional include_docker prompt  ([#5](https://github.com/gtauzin/python-package-copier-template/pull/5)) by @gtauzin
-- Use PR instead of direct push for CHANGELOG updates  ([#8](https://github.com/gtauzin/python-package-copier-template/pull/8)) by @gtauzin
-- Add base branch to PR creation for detached HEAD state  ([#9](https://github.com/gtauzin/python-package-copier-template/pull/9)) by @gtauzin
-- Use PAT token for release workflow PR creation  ([#10](https://github.com/gtauzin/python-package-copier-template/pull/10)) by @gtauzin
-- Use RELEASE_AUTOMATION_TOKEN for release workflow PR creation  ([#11](https://github.com/gtauzin/python-package-copier-template/pull/11)) by @gtauzin
-- Create GitHub Release after changelog PR is merged  ([#13](https://github.com/gtauzin/python-package-copier-template/pull/13)) by @gtauzin
-- Ensure changelog PR commits are signed and pass lint checks  ([#15](https://github.com/gtauzin/python-package-copier-template/pull/15)) by @gtauzin
-- Ensure changelog PRs include pre-commit formatting changes  ([#17](https://github.com/gtauzin/python-package-copier-template/pull/17)) by @gtauzin
-- Remove trailing spaces from git-cliff generated CHANGELOG  ([#19](https://github.com/gtauzin/python-package-copier-template/pull/19)) by @gtauzin
-- Use --latest flag and add pre-commit validation to changelog workflow  ([#23](https://github.com/gtauzin/python-package-copier-template/pull/23)) by @gtauzin
+- Use PR instead of direct push for CHANGELOG updates  ([#8](https://github.com/gtauzin/python-package-copier-template/pull/8), [#9](https://github.com/gtauzin/python-package-copier-template/pull/9), [#10](https://github.com/gtauzin/python-package-copier-template/pull/10), [#11](https://github.com/gtauzin/python-package-copier-template/pull/11)) by @gtauzin
+- Create GitHub Release after changelog PR is merged  ([#13](https://github.com/gtauzin/python-package-copier-template/pull/13), [#15](https://github.com/gtauzin/python-package-copier-template/pull/15), [#17](https://github.com/gtauzin/python-package-copier-template/pull/17), [#19](https://github.com/gtauzin/python-package-copier-template/pull/19), [#23](https://github.com/gtauzin/python-package-copier-template/pull/23)) by @gtauzin
 
 ### New Contributors
 
 Thanks to all contributors for this release:
 - @gtauzin
-## [Unreleased]
-
-### Added
-- Automated release notes generation with git-cliff
-- Conventional commit enforcement with commitizen
-- Automatic CHANGELOG.md updates on release
-- GitHub Release creation with generated notes
-
-### Removed
-- Removed non-functional `include_docker` prompt that had no implementation
 
 ## [0.1.0] - 2026-01-20
 
