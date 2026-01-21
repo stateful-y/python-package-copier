@@ -111,7 +111,7 @@ def lint(session: nox.Session) -> None:
     session.run("ruff", "check", "src", "tests", external=True)
 
     # Run ty
-    session.run("ty", "src", external=True)
+    session.run("ty", "check", "src", external=True)
 
 
 @nox.session(venv_backend="uv")
