@@ -29,10 +29,10 @@ jobs:
           TAG_NAME="${GITHUB_REF#refs/tags/}"
 
           # Generate changelog for this release only
-          RELEASE_NOTES=$(git-cliff --config .git-cliff.toml --tag "$TAG_NAME" --unreleased --strip header)
+          RELEASE_NOTES=$(git-cliff --config .git-cliff.toml --latest --strip header)
 
           # Prepend new release to existing CHANGELOG.md without regenerating entire file
-          git-cliff --config .git-cliff.toml --tag "$TAG_NAME" --unreleased --prepend CHANGELOG.md
+          git-cliff --config .git-cliff.toml --latest --prepend CHANGELOG.md
 
           # Save release notes to output and file
           echo "notes<<EOF" >> $GITHUB_OUTPUT
@@ -40,6 +40,14 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
           echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run pre-commit on generated CHANGELOG
+        run: |
+          # Run pre-commit to ensure the generated file is properly formatted
+          uvx pre-commit run --files CHANGELOG.md || true
 
       - name: Create Pull Request for CHANGELOG
         uses: peter-evans/create-pull-request@v7
