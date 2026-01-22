@@ -11,8 +11,9 @@
 | **Linter** | ruff | Code linting |
 | **Type Checker** | ty | Static type checking |
 | **Test Framework** | pytest | Unit testing |
-| **Test Automation** | nox | Multi-environment testing |
+| **Docstring Testing** | pytest-doctest | Test code examples in docstrings |
 | **Coverage** | pytest-cov | Code coverage |
+| **Test Automation** | nox | Multi-environment testing |
 | **Pre-commit** | pre-commit | Git hooks |
 | **Documentation** | MkDocs | Static site generator |
 | **Doc Theme** | Material | Beautiful theme |
@@ -21,6 +22,8 @@
 | **CI/CD** | GitHub Actions | Automation platform |
 | **Coverage Reporting** | Codecov | Test coverage tracking |
 | **Dependency Updates** | Dependabot | Automated updates |
+| **Changelog** | git-cliff | Automated changelog generation |
+| **Commit Convention** | commitizen | Conventional commits enforcement |
 
 ## Generated Project Structure
 
@@ -131,6 +134,7 @@ Central configuration containing:
 Task automation sessions:
 - `tests` - Run tests on Python 3.10-3.14
 - `tests_coverage` - Run tests with coverage
+- `doctest` - Run docstring examples
 - `fix` - Auto-format and fix code issues
 - `lint` - Check code quality
 - `build_docs` - Build documentation

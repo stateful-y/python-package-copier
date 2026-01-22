@@ -167,6 +167,10 @@ def test_github_workflows(copie):
     # Check for ty
     assert "ty" in content, "ty not found in tests workflow"
 
+    # Check for doctest job
+    assert "doctest:" in content, "doctest job not found in tests workflow"
+    assert "nox -s doctest" in content, "doctest nox session not run in CI"
+
     # Check PR title validation workflow
     pr_title_workflow = result.project_dir / ".github" / "workflows" / "pr-title.yml"
     assert pr_title_workflow.is_file(), "PR title validation workflow not found"
@@ -259,3 +263,32 @@ def test_different_licenses(copie):
         # Check that LICENSE file exists
         license_path = result.project_dir / "LICENSE"
         assert license_path.is_file()
+
+
+def test_doctest_configuration(copie):
+    """Test that doctest configuration is properly set up."""
+    result = copie.copy()
+
+    assert result.exit_code == 0
+    assert result.project_dir.is_dir()
+
+    # Check pyproject.toml contains doctest configuration
+    pyproject_content = (result.project_dir / "pyproject.toml").read_text()
+    assert "[tool.pytest.ini_options.doctest]" in pyproject_content
+    assert "--doctest-modules" in pyproject_content
+    assert "--doctest-continue-on-failure" in pyproject_content
+
+    # Check noxfile has doctest session
+    noxfile_content = (result.project_dir / "noxfile.py").read_text()
+    assert "def doctest(session:" in noxfile_content
+    assert '"--doctest-modules"' in noxfile_content
+
+    # Check justfile has doctest command
+    justfile_content = (result.project_dir / "justfile").read_text()
+    assert "doctest:" in justfile_content
+    assert "--doctest-modules" in justfile_content
+
+    # Check example.py has docstring examples
+    example_py = (result.project_dir / "src" / "test_project" / "example.py").read_text()
+    assert "Examples:" in example_py
+    assert ">>>" in example_py

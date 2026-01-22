@@ -95,6 +95,29 @@ def fix(session: nox.Session) -> None:
 
 
 @nox.session(venv_backend="uv")
+def doctest(session: nox.Session) -> None:
+    """Run docstring examples with pytest."""
+    # Install dependencies
+    session.run_install(
+        "uv",
+        "sync",
+        "--no-default-groups",
+        "--group",
+        "tests",
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+    )
+
+    # Run doctest on source code
+    session.run(
+        "pytest",
+        "--doctest-modules",
+        "--doctest-continue-on-failure",
+        "src/{{ package_name }}",
+        *session.posargs,
+    )
+
+
+@nox.session(venv_backend="uv")
 def lint(session: nox.Session) -> None:
     """Run linters and type checkers."""
     # Install dependencies

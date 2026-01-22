@@ -16,6 +16,10 @@ test:
 test-cov:
     uv run pytest --cov={{ package_name }} --cov-report=html --cov-report=term
 
+# Run docstring examples
+doctest:
+    uv run pytest --doctest-modules --doctest-continue-on-failure src/{{ package_name }}
+
 # Run linters and type checkers
 lint:
     uv run ruff check src tests
