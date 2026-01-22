@@ -82,12 +82,24 @@ def test_generated_pyproject_uses_correct_tools(copie):
 
     content = pyproject_path.read_text()
 
-    # Check for required tools
+    # Check for required tools in dependency groups
     assert "ty" in content, "ty not found in pyproject.toml"
     assert "ruff" in content, "ruff not found in pyproject.toml"
     assert "pytest" in content, "pytest not found in pyproject.toml"
-    assert "nox" in content, "nox not found in pyproject.toml"
     assert "mkdocs" in content, "mkdocs not found in pyproject.toml"
+    assert "pre-commit-uv" in content, "pre-commit-uv not found in pyproject.toml"
+    
+    # Check for dependency groups structure
+    assert "[dependency-groups]" in content, "dependency-groups not found in pyproject.toml"
+    assert "tests" in content, "tests dependency group not found"
+    assert "lint" in content, "lint dependency group not found"
+    assert "docs" in content, "docs dependency group not found"
+    assert "fix" in content, "fix dependency group not found"
+    assert "examples" in content, "examples dependency group not found"
+    assert "dev" in content, "dev dependency group not found"
+    
+    # nox should NOT be in pyproject.toml - it's installed globally via uvx
+    assert "nox" not in content, "nox should not be in pyproject.toml (install globally with uvx)"
 
 
 def test_generated_project_has_correct_license(copie):
