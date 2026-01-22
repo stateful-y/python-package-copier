@@ -27,7 +27,7 @@ def tests_coverage(session: nox.Session) -> None:
         "sync",
         "--no-default-groups",
         "--group",
-        "dev",
+        "tests",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
@@ -66,7 +66,7 @@ def tests(session: nox.Session) -> None:
         "sync",
         "--no-default-groups",
         "--group",
-        "dev",
+        "tests",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
@@ -103,7 +103,7 @@ def lint(session: nox.Session) -> None:
         "sync",
         "--no-default-groups",
         "--group",
-        "dev",
+        "lint",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
@@ -126,6 +126,7 @@ def build_docs(session: nox.Session) -> None:
         "docs",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
+
     # Build the docs
     session.run("mkdocs", "build", "--clean", external=True)
 
@@ -142,23 +143,8 @@ def serve_docs(session: nox.Session) -> None:
         "docs",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
+
     # Build and serve the docs
     session.run("mkdocs", "build", "--clean", external=True)
     session.log("###### Starting local server. Press Control+C to stop server ######")
     session.run("mkdocs", "serve", "-a", "localhost:8080", external=True)
-
-
-@nox.session(venv_backend="uv")
-def deploy_docs(session: nox.Session) -> None:
-    """Build fresh docs and deploy them to GitHub Pages."""
-    # Install dependencies
-    session.run_install(
-        "uv",
-        "sync",
-        "--no-default-groups",
-        "--group",
-        "docs",
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
-    )
-    # Deploy docs to GitHub pages
-    session.run("mkdocs", "gh-deploy", "--clean", external=True)

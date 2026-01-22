@@ -38,7 +38,13 @@ uv run pytest -v
 uvx nox -s tests
 ```
 
-The test suite uses copier to generate actual projects in temp directories and validates the output. See `tests/test_template.py`.
+The test suite uses copier's `run_copy()` to generate actual projects in temp directories (`tmp_path`), then validates:
+- File/directory structure matches expectations
+- Generated content includes required tools and configurations
+- Multiple license options generate correctly
+- GitHub workflows are properly templated with uv and ty
+
+See [tests/test_template.py](tests/test_template.py) for assertion patterns and [tests/conftest.py](tests/conftest.py) for the `copie` fixture with default answers.
 
 ### Code Quality
 ```bash
@@ -125,10 +131,21 @@ When adding files to generated projects:
 
 ### GitHub Actions
 Generated projects include workflows (if `include_github_actions: true`):
-- `tests.yml`: Run nox tests on push/PR
-- `release.yml`: Publish to PyPI on tag push
-- `nightly.yml`: Scheduled dependency testing
+- `tests.yml`: Run nox tests on push/PR with matrix strategy across Python versions
+- `publish-release.yml`: Build and publish to PyPI, create GitHub release on tag push
+- `changelog.yml`: Automated changelog generation with git-cliff on version tags
+- `nightly.yml`: Scheduled dependency testing against latest package versions
 - `dependabot.yml`: Automated dependency updates
+
+### Changelog & Versioning
+Generated projects use automated changelog and version management:
+- **git-cliff**: Generates changelogs from conventional commits (config in `.git-cliff.toml.jinja`)
+- **commitizen**: Enforces conventional commit messages via pre-commit hook
+- **hatch-vcs**: VCS-based versioning (reads from git tags, writes to `_version.py`)
+- Changelog format follows "Keep a Changelog" style
+- On tag push, `changelog.yml` workflow auto-generates CHANGELOG.md
+
+Example commit format: `feat: add new feature` or `fix: resolve bug`
 
 ### ReadTheDocs
 - Always included via `.readthedocs.yml.jinja`
