@@ -88,4 +88,27 @@ jobs:
 
       - name: Run lint checks
         run: nox -s lint
+
+  doctest:
+    name: Docstring examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install nox
+        run: uv tool install nox
+
+      - name: Set up Python
+        run: uv python install {{ python_version }}
+
+      - name: Run docstring tests
+        run: nox -s doctest
 {% endif %}

@@ -126,6 +126,12 @@ markers = [
     "integration: marks tests as integration tests",
 ]
 
+[tool.pytest.ini_options.doctest]
+addopts = [
+    "--doctest-modules",
+    "--doctest-continue-on-failure",
+]
+
 [tool.coverage.paths]
 source = ["src/{{ package_name }}"]
 

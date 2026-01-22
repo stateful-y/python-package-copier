@@ -30,6 +30,9 @@ jobs:
       - name: Run tests with coverage
         run: nox -s tests_coverage
 
+      - name: Run docstring tests
+        run: nox -s doctest
+
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         if: {% raw %}${{ matrix.python-version == '3.12' }}{% endraw %}
