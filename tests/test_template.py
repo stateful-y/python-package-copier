@@ -358,25 +358,24 @@ def test_examples_directory_when_disabled(copie):
     )
 
     assert result.exit_code == 0
-    examples_dir = result.project_dir / "examples"
-    # Directory may exist but should be empty or not have content
-    if examples_dir.exists():
-        # Directory might exist but should not have any meaningful files
-        py_files = list(examples_dir.glob("*.py"))
-        assert len(py_files) == 0 or all(f.read_text().strip() == "" for f in py_files), (
-            "examples/ directory should be empty or not have valid notebooks"
-        )
 
-    # Or the directory doesn't exist, which is also fine
-    # Check notebook file doesn't exist or is empty
-    hello_notebook = result.project_dir / "examples" / "hello.py"
-    if hello_notebook.exists():
-        assert hello_notebook.read_text().strip() == "", "examples/hello.py should be empty"
+    # Examples directory should not exist or be empty when disabled
+    examples_dir = result.project_dir / "examples"
+    assert not examples_dir.is_dir(), "examples/ directory created"
 
     # Marimo should not be in examples dependencies
     pyproject_content = (result.project_dir / "pyproject.toml").read_text()
-    # examples group should be empty
-    assert "examples = []" in pyproject_content or "examples = [\n]" in pyproject_content
+    # examples group should not exist or be empty
+    assert (
+        "examples = [" not in pyproject_content
+        or "examples = []" in pyproject_content
+        or "examples = [\n]" in pyproject_content
+    )
+    # marimo should not be in dependencies
+    assert "marimo" not in pyproject_content
+    assert "plotly" not in pyproject_content
+    # mkdocs-marimo should not be in docs dependencies
+    assert "mkdocs-marimo" not in pyproject_content
 
     # Check noxfile doesn't have run_examples session
     noxfile_content = (result.project_dir / "noxfile.py").read_text()
@@ -392,8 +391,10 @@ def test_examples_directory_when_disabled(copie):
     # Check examples.md doesn't exist or is empty
     examples_md = result.project_dir / "docs" / "examples.md"
     if examples_md.exists():
-        content = examples_md.read_text()
-        assert content.strip() == "", "docs/examples.md should be empty when examples are disabled"
+        content = examples_md.read_text().strip()
+        assert content == "", (
+            f"docs/examples.md should be empty when examples are disabled, but contains: {content[:100]}"
+        )
 
     # Check mkdocs.yml doesn't include examples in nav
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text()
@@ -403,3 +404,75 @@ def test_examples_directory_when_disabled(copie):
     tests_workflow = result.project_dir / ".github" / "workflows" / "tests.yml"
     workflow_content = tests_workflow.read_text()
     assert "run_examples" not in workflow_content
+
+
+def test_github_actions_when_enabled(copie):
+    """Test that GitHub Actions workflows are created when include_actions=True."""
+    result = copie.copy(
+        extra_answers={
+            "include_actions": True,
+        },
+    )
+
+    assert result.exit_code == 0
+
+    # Check .github directory exists
+    github_dir = result.project_dir / ".github"
+    assert github_dir.is_dir(), ".github/ directory not created"
+
+    # Check workflows directory exists
+    workflows_dir = github_dir / "workflows"
+    assert workflows_dir.is_dir(), ".github/workflows/ directory not created"
+
+    # Check for required workflow files
+    assert (workflows_dir / "tests.yml").is_file(), "tests.yml workflow not created"
+    assert (workflows_dir / "publish-release.yml").is_file(), "publish-release.yml workflow not created"
+    assert (workflows_dir / "changelog.yml").is_file(), "changelog.yml workflow not created"
+    assert (workflows_dir / "pr-title.yml").is_file(), "pr-title.yml workflow not created"
+    assert (workflows_dir / "nightly.yml").is_file(), "nightly.yml workflow not created"
+
+    # Check for GitHub configuration files
+    assert (github_dir / "dependabot.yml").is_file(), "dependabot.yml not created"
+    assert (github_dir / "pull_request_template.md").is_file(), "PR template not created"
+
+    # Check ISSUE_TEMPLATE directory
+    issue_template_dir = github_dir / "ISSUE_TEMPLATE"
+    assert issue_template_dir.is_dir(), "ISSUE_TEMPLATE directory not created"
+    assert (issue_template_dir / "bug_report.yml").is_file(), "bug_report.yml not created"
+    assert (issue_template_dir / "feature_request.yml").is_file(), "feature_request.yml not created"
+    assert (issue_template_dir / "config.yml").is_file(), "issue template config.yml not created"
+
+    # Check workflow content uses uv
+    tests_workflow_content = (workflows_dir / "tests.yml").read_text()
+    assert "astral-sh/setup-uv" in tests_workflow_content, "uv not used in tests workflow"
+
+    # Check git-cliff.toml exists (should be included with workflows)
+    assert (result.project_dir / ".git-cliff.toml").is_file(), ".git-cliff.toml not created"
+
+
+def test_github_actions_when_disabled(copie):
+    """Test that GitHub Actions workflows are NOT created when include_actions=False."""
+    result = copie.copy(
+        extra_answers={
+            "include_actions": False,
+        },
+    )
+
+    assert result.exit_code == 0
+
+    # .github directory may exist but workflows should not
+    github_dir = result.project_dir / ".github"
+    if github_dir.is_dir():
+        # Check that workflows directory doesn't exist or is empty
+        workflows_dir = github_dir / "workflows"
+        if workflows_dir.exists():
+            workflow_files = list(workflows_dir.glob("*.yml"))
+            assert len(workflow_files) == 0, (
+                f".github/workflows should be empty but contains: {[f.name for f in workflow_files]}"
+            )
+
+    # git-cliff.toml should not exist or be empty (only needed with workflows)
+    git_cliff = result.project_dir / ".git-cliff.toml"
+    if git_cliff.exists():
+        content = git_cliff.read_text().strip()
+        assert content == "", ".git-cliff.toml should be empty when GitHub Actions are disabled"

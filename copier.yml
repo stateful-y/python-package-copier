@@ -81,7 +81,7 @@ python_version:
     - "3.13"
     - "3.14"
 
-include_github_actions:
+include_actions:
   type: bool
   help: "Include GitHub Actions CI/CD workflows?"
   default: true

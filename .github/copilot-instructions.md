@@ -146,7 +146,7 @@ When adding files to generated projects:
 ## Integration Points
 
 ### GitHub Actions
-Generated projects include workflows (if `include_github_actions: true`):
+Generated projects include workflows (if `include_actions: true`):
 - `tests.yml`: Run nox tests on push/PR with matrix strategy across Python versions
 - `publish-release.yml`: Build and publish to PyPI, create GitHub release on tag push
 - `changelog.yml`: Automated changelog generation with git-cliff on version tags
