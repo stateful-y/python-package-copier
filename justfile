@@ -6,7 +6,7 @@ default:
 
 # Install dependencies
 install:
-    uv sync --group test --group docs
+    uv sync --group dev
 
 # Run tests
 test:

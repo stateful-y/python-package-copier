@@ -15,7 +15,6 @@ dev = [
     {include-group = "lint"},
     {include-group = "docs"},
     {include-group = "fix"},
-    {include-group = "examples"},
 ]
 tests = [
     "copier>=9.11",
@@ -35,7 +34,6 @@ docs = [
 fix = [
   "pre-commit-uv>=4.1",
 ]
-examples = []
 
 [tool.hatch.version]
 source = "vcs"
