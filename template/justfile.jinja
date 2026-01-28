@@ -4,9 +4,10 @@
 default:
     @just --list
 
-# Install dependencies
+# Install dependencies and pre-commit
 install:
     uv sync --group dev
+    uvx pre-commit install
 
 # Run tests
 test:
