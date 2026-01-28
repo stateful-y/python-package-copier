@@ -41,15 +41,17 @@ jobs:
         id: release_notes
         run: |
           VERSION="{% raw %}${{ steps.find_tag.outputs.version }}{% endraw %}"
+          # Strip the 'v' prefix for CHANGELOG lookup (e.g., v0.4.0 -> 0.4.0)
+          VERSION_NO_V="${VERSION#v}"
 
           # Debug: Show what we're working with
-          echo "Looking for version: $VERSION"
+          echo "Looking for version: $VERSION_NO_V (from tag: $VERSION)"
           echo "First 100 lines of CHANGELOG.md:"
           head -n 100 CHANGELOG.md
 
           # Extract the section for this version from CHANGELOG.md
           # This uses awk to get content between the version header and the next version header
-          RELEASE_NOTES=$(awk -v ver="$VERSION" '
+          RELEASE_NOTES=$(awk -v ver="$VERSION_NO_V" '
             /^## \[.*\]/ {
               if (found) exit;
               if ($0 ~ "\\[" ver "\\]") {
@@ -61,7 +63,7 @@ jobs:
           ' CHANGELOG.md | head -c 50000)
 
           if [ -z "$RELEASE_NOTES" ]; then
-            echo "ERROR: No release notes found for version $VERSION"
+            echo "ERROR: No release notes found for version $VERSION_NO_V (tag: $VERSION)"
             echo "Available versions in CHANGELOG.md:"
             grep "^## \[" CHANGELOG.md
             exit 1

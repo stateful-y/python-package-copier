@@ -92,6 +92,7 @@ Generated projects use this opinionated modern Python stack:
 - **ty**: Type checker (not mypy/pyright)
 - **nox**: Task runner with uv backend (installed globally via `uvx nox`, NOT a project dependency)
 - **pytest**: Testing with coverage via `covdefaults`
+- **marimo**: Interactive Python notebooks (optional, if `include_examples: true`)
 
 **Critical**: nox is NOT listed in `template/pyproject.toml.jinja` dependencies. It's installed system-wide with `uv tool install nox` or invoked via `uvx nox`. Generated projects' GitHub workflows use `uv tool install nox` for CI. Do not add nox to dependency groups when testing if it appears in generated projects.
 
@@ -107,6 +108,15 @@ nox.options.default_venv_backend = "uv|virtualenv"
 session.run_install("uv", "sync", "--group", "dev",
     env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location})
 ```
+
+**Generated project sessions**:
+- `tests_coverage`: Run tests with coverage (single Python version)
+- `tests`: Run tests across multiple Python versions (no coverage)
+- `doctest`: Validate docstrings with doctest
+- `examples` (if enabled): Run marimo notebooks as scripts to validate they execute
+- `fix`: Run pre-commit hooks for formatting/linting
+- `lint`: Run ruff and ty for linting/type checking
+- `build_docs` / `serve_docs`: Build or preview documentation
 
 ### Justfile Commands
 The `justfile` provides convenient shortcuts:
@@ -151,7 +161,10 @@ Generated projects include workflows (if `include_actions: true`):
 - `publish-release.yml`: Build and publish to PyPI, create GitHub release on tag push
 - `changelog.yml`: Automated changelog generation with git-cliff on version tags
 - `nightly.yml`: Scheduled dependency testing against latest package versions
+- `pr-title.yml`: Validate PR titles follow conventional commit format
 - `dependabot.yml`: Automated dependency updates
+
+All workflows use `uv tool install nox` to install nox in CI (not as a project dependency).
 
 ### Changelog & Versioning
 Generated projects use automated changelog and version management:
