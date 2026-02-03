@@ -535,3 +535,58 @@ def test_markdown_docs_script_configuration(copie):
     assert "python scripts/export_marimo_examples.py" in rtd_content
     assert "build:" in rtd_content
     assert "python scripts/copy_markdown_docs.py" in rtd_content
+
+
+def test_marimo_notebook_export_to_html(copie):
+    """Test that marimo notebooks are properly exported to standalone HTML."""
+    import subprocess
+
+    result = copie.copy(
+        extra_answers={
+            "include_examples": True,
+        },
+    )
+
+    assert result.exit_code == 0
+
+    # Verify export script exists
+    export_script = result.project_dir / "scripts" / "export_marimo_examples.py"
+    assert export_script.is_file(), "scripts/export_marimo_examples.py not created"
+
+    # Verify docs/examples directory exists
+    docs_examples_dir = result.project_dir / "docs" / "examples"
+    assert docs_examples_dir.is_dir(), "docs/examples/ directory not created"
+
+    # Run the export_examples nox session
+    export_result = subprocess.run(
+        ["uvx", "nox", "-s", "export_examples"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert export_result.returncode == 0, (
+        f"export_examples failed:\nSTDOUT:\n{export_result.stdout}\n\nSTDERR:\n{export_result.stderr}"
+    )
+
+    # Verify HTML file was created
+    hello_html = docs_examples_dir / "hello" / "index.html"
+    assert hello_html.is_file(), (
+        f"hello/index.html not created. docs/examples structure: {list(docs_examples_dir.rglob('*'))}"
+    )
+
+    # Verify HTML content
+    html_content = hello_html.read_text()
+    assert len(html_content) > 1000, "HTML file is suspiciously small"
+
+    # Check for marimo WASM runtime (key indicator of HTML-WASM export)
+    assert "marimo" in html_content.lower(), "HTML doesn't contain marimo references"
+    assert "wasm" in html_content.lower() or "pyodide" in html_content.lower(), (
+        "HTML doesn't contain WASM/Pyodide runtime indicators"
+    )
+
+    # Verify the HTML is standalone (not just a stub)
+    assert "<html" in html_content.lower(), "HTML doesn't have html tag"
+    assert "<script" in html_content.lower(), "HTML doesn't have script tags"
