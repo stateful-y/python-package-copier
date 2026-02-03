@@ -1,0 +1,118 @@
+"""MkDocs hooks for post-build processing."""
+
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+{% if include_examples %}
+
+def on_pre_build(config):
+    """Export marimo notebooks before building documentation.
+
+    This ensures standalone HTML versions are available when mkdocs processes files.
+    """
+    project_root = Path(__file__).parent.parent
+    examples_dir = project_root / "examples"
+
+    if not examples_dir.exists():
+        return
+
+    # Find all marimo notebooks
+    notebooks = list(examples_dir.glob("*.py"))
+    if not notebooks:
+        return
+
+    docs_examples = project_root / "docs" / "examples"
+    docs_examples.mkdir(parents=True, exist_ok=True)
+
+    # Export each notebook
+    for notebook in notebooks:
+        output_dir = docs_examples / notebook.stem
+        output_file = output_dir / "index.html"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "marimo",
+                    "export",
+                    "html-wasm",
+                    str(notebook),
+                    "-o",
+                    str(output_file),
+                    "--mode",
+                    "edit",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            print(f"[hooks] exported {notebook.relative_to(project_root)} -> {output_file.relative_to(project_root)}")
+        except subprocess.CalledProcessError as e:
+            print(f"[hooks] Error exporting {notebook.name}: {e}", file=sys.stderr)
+            if e.stderr:
+                print(e.stderr, file=sys.stderr)
+        except FileNotFoundError:
+            print("[hooks] marimo not found, skipping notebook export", file=sys.stderr)
+            break
+
+
+def on_files(files, config):
+    """Copy standalone HTML notebooks before mkdocs processes files.
+
+    This ensures the files are present when mkdocs serve sets up file watching.
+    """
+    project_root = Path(__file__).parent.parent
+    docs_examples = project_root / "docs" / "examples"
+    site_dir = Path(config["site_dir"])
+
+    if not docs_examples.exists():
+        return files
+
+    # Copy standalone HTML files (excluding CLAUDE.md)
+    for html_dir in docs_examples.iterdir():
+        if not html_dir.is_dir():
+            continue
+
+        index_html = html_dir / "index.html"
+        if not index_html.exists():
+            continue
+
+        # Create target directory in site
+        target_dir = site_dir / "examples" / html_dir.name
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy index.html
+        target_file = target_dir / "index.html"
+        shutil.copy2(index_html, target_file)
+        print(f"[hooks] copied docs/examples/{html_dir.name}/index.html -> site/examples/{html_dir.name}/index.html")
+
+    return files
+{% else %}
+
+def on_files(files, config):
+    """Placeholder when examples are disabled."""
+    return files
+{% endif %}
+
+
+def on_post_build(config):
+    """Copy markdown files for LLM consumption after build completes."""
+    project_root = Path(__file__).parent.parent
+    site_dir = Path(config["site_dir"])
+    docs_dir = Path(config["docs_dir"])
+
+    # Copy markdown files from docs/ to site/
+    copied_count = 0
+    for md_file in docs_dir.rglob("*.md"):
+        relative_path = md_file.relative_to(docs_dir)
+        target_file = site_dir / relative_path
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(md_file, target_file)
+        copied_count += 1
+
+    if copied_count > 0:
+        print(f"[hooks] copied {copied_count} markdown files to site")

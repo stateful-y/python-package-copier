@@ -40,7 +40,6 @@ def tests_coverage(session: nox.Session) -> None:
     session.run(
         "coverage",
         "run",
-        "--parallel-mode",
         "--source=src/{{ package_name }}",
         "-m",
         "pytest",
@@ -49,10 +48,7 @@ def tests_coverage(session: nox.Session) -> None:
         *session.posargs,
     )
 
-    # Combine coverage data from parallel runs
-    session.run("coverage", "combine")
-
-    # HTML report, ignoring parse errors and without contexts
+    # Generate HTML and XML reports
     session.run("coverage", "html", "--ignore-errors", "-d", session.create_tmp())
 
     # XML report for CI
@@ -121,20 +117,6 @@ def doctest(session: nox.Session) -> None:
 {% if include_examples %}
 
 @nox.session(venv_backend="uv")
-def export_examples(session: nox.Session) -> None:
-    """Export marimo examples to HTML for documentation."""
-    session.run_install(
-        "uv",
-        "sync",
-        "--no-default-groups",
-        "--group",
-        "examples",
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
-    )
-    session.run("python", "scripts/export_marimo_examples.py", *session.posargs)
-
-
-@nox.session(venv_backend="uv")
 def run_examples(session: nox.Session) -> None:
     """Run marimo notebook examples to validate they execute."""
     # Install dependencies
@@ -185,16 +167,8 @@ def build_docs(session: nox.Session) -> None:
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
-    {% if include_examples %}
-    # Export marimo examples first
-    session.run("python", "scripts/export_marimo_examples.py")
-    {% endif %}
-
-    # Build the docs
+    # Build the docs (hooks automatically export notebooks and prepare site)
     session.run("mkdocs", "build", "--clean", external=True)
-
-    # Prepare site: copy markdown for LLMs and standalone HTML
-    session.run("python", "scripts/prepare_site.py")
 
 
 
@@ -211,16 +185,6 @@ def serve_docs(session: nox.Session) -> None:
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
-    {% if include_examples %}
-    # Export marimo examples first
-    session.run("python", "scripts/export_marimo_examples.py")
-    {% endif %}
-
-    # Build and serve the docs
-    session.run("mkdocs", "build", "--clean", external=True)
-
-    # Prepare site: copy markdown for LLMs and standalone HTML
-    session.run("python", "scripts/prepare_site.py")
-
+    # Serve the docs (hooks automatically export notebooks and prepare site)
     session.log("###### Starting local server. Press Control+C to stop server ######")
     session.run("mkdocs", "serve", "-a", "localhost:8080", external=True)

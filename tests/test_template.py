@@ -1,5 +1,7 @@
 """Tests for the copier template."""
 
+import pytest
+
 
 def test_template_creates_project(copie):
     """Test that the template creates a valid project."""
@@ -324,20 +326,14 @@ def test_examples_directory_when_enabled(copie):
     assert "plotly" in pyproject_content
     assert "mkdocs-marimo" in pyproject_content
 
-    # Check noxfile has export_examples and run_examples sessions
+    # Check noxfile has run_examples session (export is handled by hooks)
     noxfile_content = (result.project_dir / "noxfile.py").read_text()
-    assert "def export_examples(session:" in noxfile_content
     assert "def run_examples(session:" in noxfile_content
     assert "examples/hello.py" in noxfile_content
-    assert "scripts/export_marimo_examples.py" in noxfile_content
 
-    # Check docs/examples/ directory for exports
+    # Check docs/examples/ directory exists for exports
     docs_examples_dir = result.project_dir / "docs" / "examples"
     assert docs_examples_dir.is_dir(), "docs/examples/ directory not created"
-
-    # Check export script exists
-    export_script = result.project_dir / "scripts" / "export_marimo_examples.py"
-    assert export_script.is_file(), "scripts/export_marimo_examples.py not created"
 
     # Check justfile has example command
     justfile_content = (result.project_dir / "justfile").read_text()
@@ -506,7 +502,7 @@ def test_github_actions_when_disabled(copie):
 
 
 def test_markdown_docs_script_configuration(copie):
-    """Test that copy_markdown_docs.py script is properly configured."""
+    """Test that hooks are properly configured for site preparation."""
     result = copie.copy(
         extra_answers={
             "include_examples": True,
@@ -515,31 +511,36 @@ def test_markdown_docs_script_configuration(copie):
 
     assert result.exit_code == 0
 
-    # Verify prepare_site.py script exists
-    copy_script = result.project_dir / "scripts" / "prepare_site.py"
-    assert copy_script.is_file(), "scripts/prepare_site.py not created"
+    # Verify mkdocs hooks.py exists
+    hooks_file = result.project_dir / "docs" / "hooks.py"
+    assert hooks_file.is_file(), "docs/hooks.py not created"
 
-    # Verify script has correct default docs_dir
-    script_content = copy_script.read_text()
-    assert 'docs_dir = _parse_top_level_value(lines, "docs_dir") or "docs"' in script_content, (
-        "prepare_site.py should default to 'docs' directory"
-    )
+    # Verify hooks.py has all required hooks
+    hooks_content = hooks_file.read_text()
+    assert "on_pre_build" in hooks_content, "on_pre_build hook not found"
+    assert "on_files" in hooks_content, "on_files hook not found"
+    assert "on_post_build" in hooks_content, "on_post_build hook not found"
 
-    # Verify noxfile integrates the script in build_docs
-    noxfile_content = (result.project_dir / "noxfile.py").read_text()
-    assert 'session.run("python", "scripts/prepare_site.py")' in noxfile_content, (
-        "prepare_site.py should be called in noxfile.py"
-    )
+    # Check marimo export logic
+    assert "marimo" in hooks_content.lower(), "hooks.py doesn't handle marimo export"
+    assert "export" in hooks_content, "hooks.py doesn't export notebooks"
 
-    # Verify ReadTheDocs config includes build hooks
-    rtd_config = result.project_dir / ".readthedocs.yml"
-    rtd_content = rtd_config.read_text()
-    assert "post_install:" in rtd_content
-    assert "python scripts/export_marimo_examples.py" in rtd_content
-    assert "build:" in rtd_content
-    assert "python scripts/prepare_site.py" in rtd_content
+    # Check HTML and markdown copying logic
+    assert "shutil.copy2" in hooks_content, "hooks.py doesn't copy files"
+    assert "index.html" in hooks_content, "hooks.py doesn't handle HTML files"
+    assert "markdown" in hooks_content.lower(), "hooks.py doesn't handle markdown files"
+
+    # Verify mkdocs.yml configures hooks
+    mkdocs_content = (result.project_dir / "mkdocs.yml").read_text()
+    assert "hooks:" in mkdocs_content, "mkdocs.yml doesn't configure hooks"
+    assert "docs/hooks.py" in mkdocs_content, "mkdocs.yml doesn't reference hooks.py"
+
+    # Scripts directory may exist for other utilities
+    # export_marimo_examples.py and prepare_site.py are no longer needed (replaced by hooks)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_marimo_notebook_export_to_html(copie):
     """Test that marimo notebooks are properly exported to standalone HTML."""
     import subprocess
@@ -552,17 +553,13 @@ def test_marimo_notebook_export_to_html(copie):
 
     assert result.exit_code == 0
 
-    # Verify export script exists
-    export_script = result.project_dir / "scripts" / "export_marimo_examples.py"
-    assert export_script.is_file(), "scripts/export_marimo_examples.py not created"
-
     # Verify docs/examples directory exists
     docs_examples_dir = result.project_dir / "docs" / "examples"
     assert docs_examples_dir.is_dir(), "docs/examples/ directory not created"
 
-    # Run the export_examples nox session
+    # Run mkdocs build which triggers hooks to export notebooks
     export_result = subprocess.run(
-        ["uvx", "nox", "-s", "export_examples"],
+        ["uvx", "nox", "-s", "build_docs"],
         cwd=result.project_dir,
         capture_output=True,
         text=True,
@@ -599,6 +596,8 @@ def test_marimo_notebook_export_to_html(copie):
     assert html_size_kb > 10, f"HTML file is only {html_size_kb:.1f}KB, suspiciously small"
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_markdown_docs_created_and_clean(copie):
     """Test that markdown files are created during build and are clean (no HTML tags)."""
     import subprocess
@@ -655,6 +654,8 @@ def test_markdown_docs_created_and_clean(copie):
         assert has_markdown, f"{md_file.name} doesn't appear to contain markdown formatting"
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_three_tier_documentation_system(copie):
     """Test that all three documentation tiers work together."""
     import subprocess
@@ -674,9 +675,9 @@ def test_three_tier_documentation_system(copie):
     has_marimo = "marimo-embed-file" in examples_content or "```python {marimo}" in examples_content
     assert has_marimo, "Embedded marimo notebook not found in examples.md"
 
-    # Tier 2: Export standalone HTML
+    # Tier 2: Build docs which triggers hooks to export standalone HTML
     export_result = subprocess.run(
-        ["uvx", "nox", "-s", "export_examples"],
+        ["uvx", "nox", "-s", "build_docs"],
         cwd=result.project_dir,
         capture_output=True,
         text=True,
@@ -715,3 +716,304 @@ def test_three_tier_documentation_system(copie):
     assert examples_md.is_file(), "Tier 1 (embedded) missing"
     assert standalone_html.is_file(), "Tier 2 (standalone HTML) missing"
     assert markdown_copy.is_file(), "Tier 3 (markdown copies) missing"
+
+
+# ============================================================================
+# COMPREHENSIVE SMOKE TESTS (Option A)
+# These tests run all nox sessions to validate the generated project works
+# ============================================================================
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_generated_package_can_be_installed(copie):
+    """Smoke test: verify the generated package can be installed with uv sync.
+
+    This test validates that:
+    - pyproject.toml is valid
+    - All dependencies can be resolved
+    - The package can be installed in a virtual environment
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": True})
+    assert result.exit_code == 0
+
+    # Run uv sync to install the package and all dependencies
+    sync_result = subprocess.run(
+        ["uv", "sync", "--all-groups"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+    assert sync_result.returncode == 0, (
+        f"uv sync failed:\nSTDOUT:\n{sync_result.stdout}\n\nSTDERR:\n{sync_result.stderr}"
+    )
+
+    # Verify the package can be imported
+    import_result = subprocess.run(
+        ["uv", "run", "python", "-c", "import test_project; print(test_project.__version__)"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert import_result.returncode == 0, (
+        f"Package import failed:\nSTDOUT:\n{import_result.stdout}\n\nSTDERR:\n{import_result.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_generated_tests_pass(copie):
+    """Smoke test: run the generated project's tests via nox.
+
+    This validates:
+    - Generated test files are syntactically correct
+    - Tests can be discovered and executed
+    - Test infrastructure (pytest, fixtures) works
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+
+    # Run tests via nox (single Python version for speed)
+    test_result = subprocess.run(
+        ["uvx", "nox", "-s", "tests_coverage"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+
+    assert test_result.returncode == 0, (
+        f"Generated tests failed:\nSTDOUT:\n{test_result.stdout}\n\nSTDERR:\n{test_result.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_lint_session_passes(copie):
+    """Smoke test: run lint session to validate code quality tools work.
+
+    This validates:
+    - ruff configuration is correct
+    - ty type checker works
+    - Generated code passes linting and type checking
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+
+    # Run lint session
+    lint_result = subprocess.run(
+        ["uvx", "nox", "-s", "lint"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+    assert lint_result.returncode == 0, (
+        f"Lint session failed:\nSTDOUT:\n{lint_result.stdout}\n\nSTDERR:\n{lint_result.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_doctest_session_passes(copie):
+    """Smoke test: run doctest session to validate docstring examples.
+
+    This validates:
+    - Docstring examples are syntactically correct
+    - Example code in docstrings executes successfully
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+
+    # Run doctest session
+    doctest_result = subprocess.run(
+        ["uvx", "nox", "-s", "doctest"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+    assert doctest_result.returncode == 0, (
+        f"Doctest session failed:\nSTDOUT:\n{doctest_result.stdout}\n\nSTDERR:\n{doctest_result.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_build_docs_session_passes(copie):
+    """Smoke test: run build_docs session to validate documentation builds.
+
+    This validates:
+    - mkdocs configuration is correct
+    - Documentation dependencies are installed
+    - Documentation can be built successfully
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+
+    # Run build_docs session
+    docs_result = subprocess.run(
+        ["uvx", "nox", "-s", "build_docs"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+
+    assert docs_result.returncode == 0, (
+        f"build_docs failed:\nSTDOUT:\n{docs_result.stdout}\n\nSTDERR:\n{docs_result.stderr}"
+    )
+
+    # Verify site was generated
+    site_dir = result.project_dir / "site"
+    assert site_dir.is_dir()
+    assert (site_dir / "index.html").is_file()
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_examples_session_passes(copie):
+    """Smoke test: run examples session when examples are enabled.
+
+    This validates:
+    - Marimo is properly installed
+    - Example notebooks are syntactically correct
+    - Notebooks can be executed as scripts
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": True})
+    assert result.exit_code == 0
+
+    # Run examples session (run_examples in noxfile)
+    examples_result = subprocess.run(
+        ["uvx", "nox", "-s", "run_examples"],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+    assert examples_result.returncode == 0, (
+        f"run_examples failed:\nSTDOUT:\n{examples_result.stdout}\n\nSTDERR:\n{examples_result.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_full_project_workflow(copie):
+    """Ultimate smoke test: run multiple nox sessions in sequence.
+
+    This simulates a complete developer workflow:
+    1. Install dependencies
+    2. Run linting
+    3. Run tests with coverage
+    4. Run doctests
+    5. Build documentation
+
+    This is the most comprehensive validation that the generated project works.
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": True, "include_actions": True})
+    assert result.exit_code == 0
+
+    # Session sequence to run
+    sessions = [
+        ("lint", 120),
+        ("tests_coverage", 180),
+        ("doctest", 120),
+        ("run_examples", 120),
+        ("build_docs", 180),
+    ]
+
+    for session_name, timeout in sessions:
+        session_result = subprocess.run(
+            ["uvx", "nox", "-s", session_name],
+            cwd=result.project_dir,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+
+        assert session_result.returncode == 0, (
+            f"Session '{session_name}' failed:\nSTDOUT:\n{session_result.stdout}\n\nSTDERR:\n{session_result.stderr}"
+        )
+
+    # Verify all expected outputs exist
+    assert (result.project_dir / "site" / "index.html").is_file(), "Docs not built"
+    assert (result.project_dir / ".coverage").exists() or (result.project_dir / "coverage.xml").exists(), (
+        "Coverage not generated"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_generated_source_files_are_valid_python(copie):
+    """Smoke test: validate that all generated Python files are syntactically correct.
+
+    This uses Python's ast module to parse all generated .py files.
+    """
+    import ast
+
+    result = copie.copy(extra_answers={"include_examples": True})
+    assert result.exit_code == 0
+
+    # Find all Python files in the generated project (excluding site/ and .venv/)
+    python_files = []
+    for py_file in result.project_dir.rglob("*.py"):
+        # Skip generated site directory and virtual environments
+        if "site/" in str(py_file) or ".venv/" in str(py_file) or "__pycache__" in str(py_file):
+            continue
+        python_files.append(py_file)
+
+    assert len(python_files) > 0, "No Python files found in generated project"
+
+    # Try to parse each Python file
+    for py_file in python_files:
+        try:
+            content = py_file.read_text()
+            ast.parse(content)
+        except SyntaxError as e:
+            pytest.fail(f"Syntax error in {py_file.relative_to(result.project_dir)}: {e}")
+
+
+@pytest.mark.integration
+def test_copier_answers_file_generated(copie):
+    """Test that .copier-answers.yml is generated for template updates.
+
+    This file is critical for running 'copier update' in the future.
+    """
+    result = copie.copy(extra_answers={"project_name": "Test Project"})
+    assert result.exit_code == 0
+
+    copier_answers = result.project_dir / ".copier-answers.yml"
+    assert copier_answers.is_file(), ".copier-answers.yml not generated"
+
+    # Verify it contains copier metadata (answers may not be included by default)
+    content = copier_answers.read_text()
+    assert "_commit:" in content or "_src_path:" in content  # copier metadata

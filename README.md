@@ -49,14 +49,42 @@ git clone https://github.com/stateful-y/python-package-copier-template.git
 cd python-package-copier-template
 uv sync --group test --group docs
 
-# Test
+# Run unit tests (recommended during development)
+uv run pytest -m "not slow and not integration"
+
+# Run all tests
 just test
+
+# Run specific test suites
+uv run pytest tests/test_option_values.py -v        # Individual option validation
+uv run pytest tests/test_option_combinations.py -v  # Option combinations & integration
+uv run pytest tests/test_github_workflows.py -v     # Workflow validation
+uv run pytest tests/test_docs_content.py -v         # Documentation tests
+
+# Run integration tests (comprehensive smoke tests)
+uv run pytest -m "integration or slow" -v
 
 # Documentation
 just serve
 ```
 
-See the [Contributing Guide](https://python-package-copier-template.readthedocs.io/contributing/) for details.
+See the [Contributing Guide](https://python-package-copier-template.readthedocs.io/contributing/) and [Testing Documentation](docs/TESTING.md) for details.
+
+## Test Structure
+
+The test suite is comprehensive with 6 focused test modules covering:
+- Individual option values (edge cases, unicode, derivations)
+- Option combinations (license types, Python versions, examples×actions)
+- GitHub Actions workflows
+- Documentation content
+- Generated project functionality (package installation, tests, linting, docs building)
+- Comprehensive smoke tests that run all nox sessions
+
+Tests use pytest markers for efficient execution:
+- Unit tests run in <5 minutes (default in CI for PRs)
+- Integration tests run on main branch (comprehensive validation including all nox sessions)
+
+See [docs/TESTING.md](docs/TESTING.md) for complete test documentation.
 
 ## License
 

@@ -44,14 +44,41 @@ packages = ["template"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 addopts = [
     "--strict-markers",
     "--strict-config",
     "--color=yes",
+    "--tb=short",
+    "-ra",
 ]
 filterwarnings = [
     "ignore::copier._vcs.DirtyLocalWarning",
     "ignore::DeprecationWarning:pathspec",
+]
+markers = [
+    "integration: marks tests as integration tests that run subprocesses (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["tests"]
+omit = [
+    "tests/__pycache__/*",
+    "tests/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
 ]
 
 [tool.ruff]
