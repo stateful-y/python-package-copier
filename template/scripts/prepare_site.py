@@ -363,6 +363,16 @@ def main() -> None:
                 continue
         destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
+    # Copy standalone HTML files from docs/examples/ (excluded from mkdocs)
+    docs_examples = ROOT / "docs" / "examples"
+    if docs_examples.exists():
+        for html_file in docs_examples.rglob("index.html"):
+            relative = html_file.relative_to(docs_examples)
+            target = site_dir / "examples" / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(html_file, target)
+            print(f"[docs] copied {html_file.relative_to(ROOT)} -> {target.relative_to(ROOT)}")  # noqa: T201
+
     print(f"[docs] copied markdown to {site_dir.relative_to(ROOT)}")  # noqa: T201
 
 

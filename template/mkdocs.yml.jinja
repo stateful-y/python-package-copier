@@ -79,6 +79,13 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.tilde
 
+# Exclude exported marimo files from mkdocs processing (copied manually in noxfile)
+{% if include_examples %}
+exclude_docs: |
+  examples/**/index.html
+  examples/**/CLAUDE.md
+{% endif %}
+
 validation:
   nav:
     omitted_files: warn

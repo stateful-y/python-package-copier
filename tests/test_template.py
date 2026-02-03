@@ -354,7 +354,10 @@ def test_examples_directory_when_enabled(copie):
     # Check mkdocs.yml includes examples in nav and has exclude_docs
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text()
     assert "Examples: pages/examples.md" in mkdocs_content
-    assert "exclude_docs: examples/**/index.html" in mkdocs_content
+    # Check for multiline exclude_docs format
+    assert "exclude_docs:" in mkdocs_content
+    assert "examples/**/index.html" in mkdocs_content
+    assert "examples/**/CLAUDE.md" in mkdocs_content
 
     # Check GitHub workflow includes examples job
     tests_workflow = result.project_dir / ".github" / "workflows" / "tests.yml"
@@ -512,20 +515,20 @@ def test_markdown_docs_script_configuration(copie):
 
     assert result.exit_code == 0
 
-    # Verify copy_markdown_docs.py script exists
-    copy_script = result.project_dir / "scripts" / "copy_markdown_docs.py"
-    assert copy_script.is_file(), "scripts/copy_markdown_docs.py not created"
+    # Verify prepare_site.py script exists
+    copy_script = result.project_dir / "scripts" / "prepare_site.py"
+    assert copy_script.is_file(), "scripts/prepare_site.py not created"
 
     # Verify script has correct default docs_dir
     script_content = copy_script.read_text()
     assert 'docs_dir = _parse_top_level_value(lines, "docs_dir") or "docs"' in script_content, (
-        "copy_markdown_docs.py should default to 'docs' directory"
+        "prepare_site.py should default to 'docs' directory"
     )
 
     # Verify noxfile integrates the script in build_docs
     noxfile_content = (result.project_dir / "noxfile.py").read_text()
-    assert 'session.run("python", "scripts/copy_markdown_docs.py")' in noxfile_content, (
-        "copy_markdown_docs.py should be called in noxfile.py"
+    assert 'session.run("python", "scripts/prepare_site.py")' in noxfile_content, (
+        "prepare_site.py should be called in noxfile.py"
     )
 
     # Verify ReadTheDocs config includes build hooks
@@ -534,7 +537,7 @@ def test_markdown_docs_script_configuration(copie):
     assert "post_install:" in rtd_content
     assert "python scripts/export_marimo_examples.py" in rtd_content
     assert "build:" in rtd_content
-    assert "python scripts/copy_markdown_docs.py" in rtd_content
+    assert "python scripts/prepare_site.py" in rtd_content
 
 
 def test_marimo_notebook_export_to_html(copie):
@@ -691,7 +694,9 @@ def test_three_tier_documentation_system(copie):
     # Verify mkdocs excludes standalone HTML from processing
     mkdocs_yml = result.project_dir / "mkdocs.yml"
     mkdocs_content = mkdocs_yml.read_text()
-    assert "exclude_docs: examples/**/index.html" in mkdocs_content, "mkdocs.yml doesn't exclude standalone HTML files"
+    assert "exclude_docs:" in mkdocs_content, "mkdocs.yml doesn't have exclude_docs"
+    assert "examples/**/index.html" in mkdocs_content, "mkdocs.yml doesn't exclude standalone HTML files"
+    assert "examples/**/CLAUDE.md" in mkdocs_content, "mkdocs.yml doesn't exclude CLAUDE.md files"
 
     # Tier 3: Build docs and create markdown copies
     build_result = subprocess.run(

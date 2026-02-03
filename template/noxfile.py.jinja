@@ -193,8 +193,8 @@ def build_docs(session: nox.Session) -> None:
     # Build the docs
     session.run("mkdocs", "build", "--clean", external=True)
 
-    # Copy markdown for LLMs
-    session.run("python", "scripts/copy_markdown_docs.py")
+    # Prepare site: copy markdown for LLMs and standalone HTML
+    session.run("python", "scripts/prepare_site.py")
 
 
 
@@ -218,6 +218,9 @@ def serve_docs(session: nox.Session) -> None:
 
     # Build and serve the docs
     session.run("mkdocs", "build", "--clean", external=True)
-    session.run("python", "scripts/copy_markdown_docs.py")
+
+    # Prepare site: copy markdown for LLMs and standalone HTML
+    session.run("python", "scripts/prepare_site.py")
+
     session.log("###### Starting local server. Press Control+C to stop server ######")
     session.run("mkdocs", "serve", "-a", "localhost:8080", external=True)
