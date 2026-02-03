@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.6.0] - 2026-02-03
+
+This **minor release** includes 3 commits.
+
+
+### Features
+- Include logos across docs and README  ([#44](https://github.com/stateful-y/python-package-template/pull/44)) by @gtauzin
+- Transform template docs to a user-focused structure  ([#46](https://github.com/stateful-y/python-package-template/pull/46)) by @gtauzin
+
+### Refactoring
+- Restructure test suite and improve marimo/MkDocs integration  ([#45](https://github.com/stateful-y/python-package-template/pull/45)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.5.0] - 2026-01-28
 
 This **minor release** includes 3 commits.
