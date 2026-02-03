@@ -120,7 +120,8 @@ def doctest(session: nox.Session) -> None:
 
 {% if include_examples %}
 
-@nox.session(venv_backend="uv")def export_examples(session: nox.Session) -> None:
+@nox.session(venv_backend="uv")
+def export_examples(session: nox.Session) -> None:
     """Export marimo examples to HTML for documentation."""
     session.run_install(
         "uv",
@@ -133,7 +134,8 @@ def doctest(session: nox.Session) -> None:
     session.run("python", "scripts/export_marimo_examples.py", *session.posargs)
 
 
-@nox.session(venv_backend="uv")def run_examples(session: nox.Session) -> None:
+@nox.session(venv_backend="uv")
+def run_examples(session: nox.Session) -> None:
     """Run marimo notebook examples to validate they execute."""
     # Install dependencies
     session.run_install(
