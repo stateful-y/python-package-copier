@@ -1,4 +1,4 @@
-site_name: Python Package Template
+site_name: Python Package Copier
 site_description: A modern Python package template based on copier using uv, ruff, ty, pytest, mkdocs, and nox
 site_author: GitHub Contributors
 site_url: https://python-package-copier.readthedocs.io/

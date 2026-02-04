@@ -1,4 +1,4 @@
-# Python Package Template - AI Coding Agent Instructions
+# Python Package Copier - AI Coding Agent Instructions
 
 ## Project Overview
 
