@@ -232,15 +232,19 @@ def test_justfile_commands_comprehensive(copie):
 
     content = justfile.read_text(encoding="utf-8")
 
-    # Essential commands (note: "fix" was renamed to "format" in template)
+    # Essential commands
     expected_commands = [
         "default:",
         "test:",
-        "format:",  # renamed from fix
-        "lint:",
-        "check:",
+        "test-fast:",
+        "test-slow:",
+        "test-cov:",
+        "doctest:",
+        "fix:",  # single command for format, lint, and type check
+        "docs:",
         "serve:",
-        "docs:",  # renamed from build
+        "clean:",
+        "all:",
     ]
 
     for cmd in expected_commands:
