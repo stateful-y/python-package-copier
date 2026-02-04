@@ -35,15 +35,9 @@ example:
     uv run marimo edit examples/hello.py
 {% endif %}
 
-# Run linters and type checkers
-lint:
-    uv run ruff check src tests
-    uv run ty check src
-
-# Format code and fix issues
-format:
-    uv run ruff format src tests
-    uv run ruff check src tests --fix
+# Format and fix code (via pre-commit)
+fix:
+    uvx nox -s fix
 
 # Build documentation
 docs:
@@ -55,15 +49,14 @@ serve:
 
 # Clean build artifacts
 clean:
+    rm -rf .nox
     rm -rf build dist *.egg-info
     rm -rf .pytest_cache .ty_cache .ruff_cache
     rm -rf htmlcov .coverage coverage.xml
+    rm -rf site
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete
 
-# Run all quality checks (lint, test)
-check: lint test
-
-# Run pre-commit hooks on all files
-pre-commit:
-    uvx pre-commit run --all-files
+# Run all quality checks (fix, test)
+all: fix test

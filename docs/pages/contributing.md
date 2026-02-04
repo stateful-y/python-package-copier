@@ -26,27 +26,63 @@ The template repository uses pytest with markers to categorize tests:
 
 Run fast tests only (recommended during development):
 
-```bash
-just test-fast
-# or directly: uv run pytest -m "not slow and not integration" -v
-# or with nox: uvx nox -s test_fast
-```
+=== "just"
+
+    ```bash
+    just test-fast
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_fast
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -m "not slow and not integration" -v
+    ```
 
 Run slow and integration tests:
 
-```bash
-just test-slow
-# or directly: uv run pytest -m "slow or integration" -v
-# or with nox: uvx nox -s test_slow
-```
+=== "just"
+
+    ```bash
+    just test-slow
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_slow
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -m "slow or integration" -v
+    ```
 
 Run all tests:
 
-```bash
-just test
-# or directly: uv run pytest -v
-# or with nox: uvx nox -s test
-```
+=== "just"
+
+    ```bash
+    just test
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -v
+    ```
 
 ### When to Mark Tests
 
@@ -89,38 +125,117 @@ Generate a test project manually:
 
 ```bash
 uvx copier copy . /tmp/test-project --trust
+```
 
-# Verify the generated project works
+Verify the generated project works:
+
+```bash
 cd /tmp/test-project
 uv sync --group dev
-
-# Run tests
-just test-fast  # Fast tests only
-just test       # All tests
-# or: uv run pytest
-# or: uvx nox -s test_fast
 ```
+
+Run tests in the generated project:
+
+=== "just"
+
+    ```bash
+    just test-fast  # Fast tests only
+    just test       # All tests
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_fast
+    uvx nox -s test
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -m "not slow and not integration"
+    uv run pytest -v
+    ```
 
 ## Code Quality
 
-```bash
-# Format and fix all issues
-just fix
+Format and fix all issues:
 
-# Check code
-just check
-```
+=== "just"
+
+    ```bash
+    just fix
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s fix
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run ruff format src tests
+    uv run ruff check src tests --fix
+    uv run ty check src
+    ```
+
+Check code (fix + test):
+
+=== "just"
+
+    ```bash
+    just check
+    ```
+
+=== "uv run"
+
+    ```bash
+    just fix && just test
+    ```
 
 ## Documentation
 
-```bash
-# Build documentation
-uvx nox -s build_docs
+Build documentation:
 
-# Serve documentation at localhost:8080
-uvx nox -s serve_docs
-# or: just serve
-```
+=== "just"
+
+    ```bash
+    just docs
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s build_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs build
+    ```
+
+Serve documentation at localhost:8080:
+
+=== "just"
+
+    ```bash
+    just serve
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s serve_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs serve
+    ```
 
 ## Modifying the Template
 

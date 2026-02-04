@@ -86,26 +86,76 @@ def test_generated_project_builds(copie):
 See [tests/test_template.py](tests/test_template.py) for assertion patterns.
 
 ### Code Quality
+
+Format and fix code:
+
+=== "just"
+
+    ```bash
+    just fix
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s fix
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run ruff format src tests
+    uv run ruff check src tests --fix
+    uv run ty check src
+    ```
+
+Check without fixing:
+
 ```bash
-# Format and lint (pre-commit hooks)
-uvx nox -s fix
-
-# Check without fixing
 just check
-
-# Direct ruff usage
-uv run ruff check tests/
 ```
 
 ### Documentation
-```bash
-# Build docs
-uvx nox -s build_docs
 
-# Live preview at localhost:8080
-uvx nox -s serve_docs
-# or: just serve
-```
+Build docs:
+
+=== "just"
+
+    ```bash
+    just docs
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s build_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs build
+    ```
+
+Live preview at localhost:8080:
+
+=== "just"
+
+    ```bash
+    just serve
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s serve_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs serve
+    ```
 
 ## Project-Specific Conventions
 
@@ -135,20 +185,60 @@ session.run_install("uv", "sync", "--group", "dev",
 ```
 
 **Generated project sessions**:
+- `test_fast`: Run fast tests only (excludes slow and integration)
+- `test_slow`: Run slow and integration tests only
 - `test_coverage`: Run tests with coverage (single Python version)
 - `test`: Run tests across multiple Python versions (no coverage)
 - `doctest`: Validate docstrings with doctest
-- `examples` (if enabled): Run marimo notebooks as scripts to validate they execute
-- `fix`: Run pre-commit hooks for formatting/linting
-- `lint`: Run ruff and ty for linting/type checking
+- `run_examples` (if enabled): Run marimo notebooks as scripts to validate they execute
+- `fix`: Run pre-commit hooks for formatting/linting/type checking
+- `lint`: Legacy session (use `fix` instead)
 - `build_docs` / `serve_docs`: Build or preview documentation
 
 ### Justfile Commands
-The `justfile` provides convenient shortcuts:
-- `just test`: Quick test run with uv
-- `just fix`: Run pre-commit hooks (formatting/linting)
+The `justfile` provides convenient shortcuts that delegate to either `uv run` (simple) or `uvx nox` (complex):
+
+**Template repository commands**:
+- `just test`: Run all tests
+- `just test-fast`: Fast tests only (recommended for development)
+- `just test-slow`: Slow and integration tests
+- `just fix`: Format and fix code (via nox fix session)
+- `just check`: Fix + test
+- `just docs`: Build documentation
 - `just serve`: Documentation preview
-- Commands delegate to either `uv run` (simple) or `uvx nox` (complex)
+
+**Generated project commands** (same as above, plus):
+- `just test-cov`: Run tests with coverage
+- `just doctest`: Run docstring examples
+- `just example` (if enabled): Run marimo notebook interactively
+
+### Command Documentation Pattern
+All documentation uses mkdocs-material tab syntax to show three equivalent ways to run commands:
+
+```markdown
+=== "just"
+
+    ```bash
+    just test
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -v
+    ```
+```
+
+This three-tier hierarchy serves different needs:
+- **just**: Convenience for everyday development (recommended)
+- **nox**: Multi-version testing and CI/CD
+- **uv run**: Direct tool control when specific options are needed
 
 ### Pre-commit Configuration
 Generated projects include pre-commit hooks for:

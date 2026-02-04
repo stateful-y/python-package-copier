@@ -51,21 +51,19 @@ uv sync --group test --group docs
 
 # Run unit tests (recommended during development)
 uv run pytest -m "not slow and not integration"
+# or: just test-fast
 
 # Run all tests
-just test
+uv run pytest -v
+# or: just test
 
-# Run specific test suites
-uv run pytest tests/test_option_values.py -v        # Individual option validation
-uv run pytest tests/test_option_combinations.py -v  # Option combinations & integration
-uv run pytest tests/test_github_workflows.py -v     # Workflow validation
-uv run pytest tests/test_docs_content.py -v         # Documentation tests
+# Format and fix code
+uvx nox -s fix
+# or: just fix
 
-# Run integration tests (comprehensive smoke tests)
-uv run pytest -m "integration or slow" -v
-
-# Documentation
-just serve
+# Build documentation
+uvx nox -s serve_docs
+# or: just serve
 ```
 
 See the [Contributing Guide](https://python-package-copier.readthedocs.io/pages/contributing/) for complete development and testing documentation.

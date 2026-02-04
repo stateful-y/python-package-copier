@@ -21,17 +21,9 @@ test-fast:
 test-slow:
     uv run pytest -m "slow or integration" -v
 
-# Run linters
-lint:
-    uvx nox -s lint
-
 # Format and fix code (via pre-commit)
-format fix:
+fix:
     uvx nox -s fix
-
-# Check code (lint + format check)
-check: lint
-    uv run ruff format --check
 
 # Build documentation
 docs:
@@ -44,17 +36,12 @@ serve:
 # Clean build artifacts
 clean:
     rm -rf .nox
-    rm -rf .pytest_cache
-    rm -rf .ruff_cache
+    rm -rf build dist *.egg-info
+    rm -rf .pytest_cache .ty_cache .ruff_cache
     rm -rf site
-    rm -rf htmlcov
-    rm -rf .coverage
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete
 
 # Run all checks
-all: check test
-
-# Run pre-commit hooks on all files
-pre-commit:
-    uvx pre-commit run --all-files
+all: fix test

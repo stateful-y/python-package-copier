@@ -52,15 +52,45 @@ git checkout -b feature/my-feature
 
 3. Run tests:
 
-```bash
-uv run pytest
-```
+=== "just"
 
-4. Run linters:
+    ```bash
+    just test
+    ```
 
-```bash
-uvx nox -s fix
-```
+=== "nox"
+
+    ```bash
+    uvx nox -s test
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest
+    ```
+
+4. Format and fix code:
+
+=== "just"
+
+    ```bash
+    just fix
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s fix
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run ruff format src tests
+    uv run ruff check src tests --fix
+    uv run ty check src
+    ```
 
 5. Commit your changes:
 
@@ -90,41 +120,91 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) for commi
 
 Run fast tests only (recommended during development):
 
-```bash
-just test-fast
-# or directly: uv run pytest -m "not slow and not integration"
-# or with nox: uvx nox -s test_fast
-```
+=== "just"
+
+    ```bash
+    just test-fast
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_fast
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -m "not slow and not integration"
+    ```
 
 Run slow and integration tests:
 
-```bash
-just test-slow
-# or directly: uv run pytest -m "slow or integration"
-# or with nox: uvx nox -s test_slow
-```
+=== "just"
+
+    ```bash
+    just test-slow
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_slow
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -m "slow or integration"
+    ```
 
 Run all tests:
 
-```bash
-just test
-# or directly: uv run pytest
-# or with nox: uvx nox -s test
-```
+=== "just"
+
+    ```bash
+    just test
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest
+    ```
 
 Run tests with coverage:
 
-```bash
-just test-cov
-# or directly: uv run pytest --cov={{ package_name }} --cov-report=html
-# or with nox: uvx nox -s test_coverage
-```
+=== "just"
+
+    ```bash
+    just test-cov
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test_coverage
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest --cov={{ package_name }} --cov-report=html
+    ```
 
 Run tests across multiple Python versions:
 
-```bash
-uvx nox -s test
-```
+=== "nox"
+
+    ```bash
+    uvx nox -s test
+    ```
 
 #### When to Mark Tests as Slow or Integration
 
@@ -173,44 +253,81 @@ The CI pipeline uses a two-tier testing strategy optimized for fast feedback:
 
 Format code and fix issues:
 
-```bash
-just format
-```
+=== "just"
 
-Run linters and type checkers:
+    ```bash
+    just fix
+    ```
 
-```bash
-just lint
-```
+=== "nox"
+
+    ```bash
+    uvx nox -s fix
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run ruff format src tests
+    uv run ruff check src tests --fix
+    uv run ty check src
+    ```
 
 Run all quality checks:
 
-```bash
-just check
-# or with nox: uvx nox -s fix
-```
+=== "just"
 
-Run pre-commit hooks:
+    ```bash
+    just check
+    ```
 
-```bash
-just pre-commit
-```
+=== "uv run"
+
+    ```bash
+    just fix && just test
+    ```
 
 ### Documentation
 
 Build documentation:
 
-```bash
-just docs
-# or: uvx nox -s build_docs
-```
+=== "just"
+
+    ```bash
+    just docs
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s build_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs build
+    ```
 
 Serve documentation locally:
 
-```bash
-just serve
-# or: uvx nox -s serve_docs
-```
+=== "just"
+
+    ```bash
+    just serve
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s serve_docs
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs serve
+    ```
 
 View all available commands:
 

@@ -105,12 +105,11 @@ jobs:
           fail_ci_if_error: true
 
   lint:
-    name: Lint and type check
+    name: Lint and format
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -124,8 +123,10 @@ jobs:
       - name: Set up Python
         run: uv python install {{ python_version }}
 
-      - name: Run lint checks
-        run: nox -s lint
+      - name: Run pre-commit with nox
+        run: |
+          uvx nox -s fix
+
 
   doctest:
     name: Docstring examples

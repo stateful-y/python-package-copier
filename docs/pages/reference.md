@@ -195,12 +195,98 @@ Central configuration containing:
 
 Task automation sessions:
 - `test` - Run tests on Python 3.11-3.14
+- `test_fast` - Run fast tests only (excludes slow and integration)
+- `test_slow` - Run slow and integration tests only
 - `test_coverage` - Run tests with coverage
 - `doctest` - Run docstring examples
-- `fix` - Auto-format and fix code issues
-- `lint` - Check code quality
+- `fix` - Auto-format, fix linting issues, and type check (via pre-commit)
+- `lint` - Check code quality (legacy, use `fix` instead)
 - `build_docs` - Build documentation
 - `serve_docs` - Serve docs at localhost:8080
+
+## Command Hierarchy
+
+The template provides three ways to run common tasks, organized by use case:
+
+### Run Tests
+
+=== "just"
+
+    ```bash
+    just test        # Run all tests
+    just test-fast   # Fast tests only
+    just test-slow   # Slow and integration tests
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s test           # Test on Python 3.11-3.14
+    uvx nox -s test_fast      # Fast tests across versions
+    uvx nox -s test_slow      # Slow tests across versions
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run pytest -v                           # Run all tests with verbosity
+    uv run pytest -m "not slow and not integration"  # Fast tests only
+    uv run pytest -k test_specific             # Run specific test
+    ```
+
+### Format and Fix Code
+
+=== "just"
+
+    ```bash
+    just fix         # Format and fix code
+    just all         # Fix + test
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s fix   # Format and fix (used in CI)
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run ruff format src tests
+    uv run ruff check src tests --fix
+    uv run ty check src
+    ```
+
+### Build Documentation
+
+=== "just"
+
+    ```bash
+    just docs        # Build documentation
+    just serve       # Preview at localhost:8080
+    ```
+
+=== "nox"
+
+    ```bash
+    uvx nox -s build_docs  # Build documentation
+    uvx nox -s serve_docs  # Preview at localhost:8080
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run mkdocs build                  # Build documentation
+    uv run mkdocs serve                  # Preview at localhost:8080
+    uv run mkdocs serve -a localhost:9000  # Custom port
+    ```
+
+**Use Case Summary**:
+- **just**: Convenience for everyday development (recommended)
+- **nox**: Multi-version testing and CI/CD
+- **uv run**: Direct tool control when specific options are needed
+
+**CI/CD Note**: GitHub Actions workflows use `uv tool install nox` followed by `nox` commands (not `uvx nox`) to leverage build caching and faster execution.
 
 ### mkdocs.yml
 

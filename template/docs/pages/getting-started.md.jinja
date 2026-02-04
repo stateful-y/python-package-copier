@@ -8,19 +8,29 @@ This guide will help you install and start using {{ project_name }} in minutes.
 
 Choose your preferred package manager:
 
-```bash
-# Using pip
-pip install {{ package_name }}
+=== "pip"
 
-# Using uv (recommended - faster and more reliable)
-uv add {{ package_name }}
+    ```bash
+    pip install {{ package_name }}
+    ```
 
-# Using conda
-conda install -c conda-forge {{ package_name }}
+=== "uv"
 
-# Using mamba
-mamba install -c conda-forge {{ package_name }}
-```
+    ```bash
+    uv add {{ package_name }}
+    ```
+
+=== "conda"
+
+    ```bash
+    conda install -c conda-forge {{ package_name }}
+    ```
+
+=== "mamba"
+
+    ```bash
+    mamba install -c conda-forge {{ package_name }}
+    ```
 
 > **Note**: For conda/mamba, ensure the package is published to conda-forge first.
 
@@ -112,12 +122,17 @@ For hands-on learning with interactive notebooks, see the [Examples](examples.md
 
 Or run locally:
 
-```bash
-# Open interactive notebook
-just example
+=== "just"
 
-# Or directly with marimo
-uv run marimo edit examples/hello.py
+    ```bash
+    just example
+    ```
+
+=== "uv run"
+
+    ```bash
+    uv run marimo edit examples/hello.py
+    ```
 ```
 {% endif %}
 
