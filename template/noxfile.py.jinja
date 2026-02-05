@@ -104,7 +104,7 @@ def test_fast(session: nox.Session) -> None:
         "pytest",
         "tests",
         "-m",
-        "not slow and not integration",
+        "not slow and not integration{% if include_examples %} and not example{% endif %}",
         "-n",
         "auto",
         *session.posargs,
@@ -135,6 +135,35 @@ def test_slow(session: nox.Session) -> None:
         *session.posargs,
     )
 
+{% if include_examples %}
+@nox.session(venv_backend="uv")
+def test_examples(session: nox.Session) -> None:
+    """Run marimo notebook examples to validate they execute (using pytest)."""
+    # Install dependencies (both tests and examples groups needed)
+    session.run_install(
+        "uv",
+        "sync",
+        "--no-default-groups",
+        "--group",
+        "tests",
+        "--group",
+        "examples",
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+    )
+
+    # Run example tests in parallel using pytest with pytest-xdist with no coverage
+    session.run(
+        "pytest",
+        "tests/test_examples.py",
+        "-m",
+        "example",
+        "-n",
+        "auto",
+        "-v",
+        "--no-cov",
+        *session.posargs,
+    )
+{% endif %}
 
 @nox.session(venv_backend="uv")
 def fix(session: nox.Session) -> None:
@@ -173,37 +202,6 @@ def doctest(session: nox.Session) -> None:
         "src/{{ package_name }}",
         *session.posargs,
     )
-
-{% if include_examples %}
-
-@nox.session(venv_backend="uv")
-def test_examples(session: nox.Session) -> None:
-    """Run marimo notebook examples to validate they execute (using pytest)."""
-    # Install dependencies (both tests and examples groups needed)
-    session.run_install(
-        "uv",
-        "sync",
-        "--no-default-groups",
-        "--group",
-        "tests",
-        "--group",
-        "examples",
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
-    )
-
-    # Run example tests in parallel using pytest with pytest-xdist with no coverage
-    session.run(
-        "pytest",
-        "tests/test_examples.py",
-        "-m",
-        "example",
-        "-n",
-        "auto",
-        "-v",
-        "--no-cov",
-        *session.posargs,
-    )
-{% endif %}
 
 
 @nox.session(venv_backend="uv")
