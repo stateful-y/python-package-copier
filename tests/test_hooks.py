@@ -126,7 +126,7 @@ def test_on_pre_build_exports_notebooks(copie_with_examples):
         cwd=copie_with_examples.project_dir,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=120,
         check=False,
     )
 

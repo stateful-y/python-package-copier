@@ -241,7 +241,7 @@ def test_justfile_commands_comprehensive(copie):
         "test-cov:",
         "doctest:",
         "fix:",  # single command for format, lint, and type check
-        "docs:",
+        "build:",
         "serve:",
         "clean:",
         "all:",

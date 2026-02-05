@@ -39,19 +39,21 @@ test-examples:
 {% endif %}
 # Run linters and type checkers
 lint:
-    uvx nox -s lint
+    uv run ruff check src tests
+    uv run ty check src
 
 # Format and fix code (via pre-commit)
 fix:
-    uvx nox -s fix
+    uvx pre-commit run --all-files --show-diff-on-failure
 
 # Build documentation
-docs:
-    uvx nox -s build_docs
+build:
+    uv run mkdocs build --clean
 
 # Serve documentation locally
-serve:
-    uvx nox -s serve_docs
+serve: build
+    @echo "###### Starting local server. Press Control+C to stop server ######"
+    uv run mkdocs serve -a localhost:8080
 
 # Clean build artifacts
 clean:

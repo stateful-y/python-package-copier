@@ -252,9 +252,7 @@ The template provides three ways to run common tasks, organized by use case:
 === "uv run"
 
     ```bash
-    uv run ruff format src tests
-    uv run ruff check src tests --fix
-    uv run ty check src
+    uvx pre-commit run --all-files --show-diff-on-failure
     ```
 
 ### Build Documentation
@@ -262,23 +260,22 @@ The template provides three ways to run common tasks, organized by use case:
 === "just"
 
     ```bash
-    just docs        # Build documentation
-    just serve       # Preview at localhost:8080
+    just build       # Build documentation
+    just serve       # Build and preview at localhost:8080
     ```
 
 === "nox"
 
     ```bash
     uvx nox -s build_docs  # Build documentation
-    uvx nox -s serve_docs  # Preview at localhost:8080
+    uvx nox -s serve_docs  # Build and preview at localhost:8080
     ```
 
 === "uv run"
 
     ```bash
-    uv run mkdocs build                  # Build documentation
-    uv run mkdocs serve                  # Preview at localhost:8080
-    uv run mkdocs serve -a localhost:9000  # Custom port
+    uv run mkdocs build --clean              # Build documentation
+    uv run mkdocs serve -a localhost:8080    # Preview at localhost:8080
     ```
 
 **Use Case Summary**:

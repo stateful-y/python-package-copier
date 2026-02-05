@@ -198,16 +198,16 @@ session.run_install("uv", "sync", "--group", "dev",
 - `build_docs` / `serve_docs`: Build or preview documentation
 
 ### Justfile Commands
-The `justfile` provides convenient shortcuts that delegate to either `uv run` (simple) or `uvx nox` (complex):
+The `justfile` provides convenient shortcuts that use direct `uv` commands for simplicity:
 
 **Template repository commands**:
 - `just install`: Install dependencies and pre-commit hooks
 - `just test`: Run all tests
 - `just test-fast`: Fast tests only (recommended for development)
 - `just test-slow`: Slow and integration tests
-- `just fix`: Format and fix code (via nox fix session)
+- `just fix`: Format and fix code (via pre-commit)
 - `just check`: Fix + test
-- `just docs`: Build documentation
+- `just build`: Build documentation
 - `just serve`: Documentation preview
 - `just clean`: Remove build artifacts, caches, and temporary files
 - `just all`: Run fix + test
@@ -215,6 +215,7 @@ The `justfile` provides convenient shortcuts that delegate to either `uv run` (s
 **Generated project commands** (same as above, plus):
 - `just test-cov`: Run tests with coverage
 - `just doctest`: Run docstring examples
+- `just lint`: Run linters and type checkers
 - `just example` (if enabled): Run marimo notebook interactively
 
 ### Command Documentation Pattern
