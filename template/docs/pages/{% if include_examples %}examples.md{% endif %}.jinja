@@ -49,11 +49,41 @@ Explore real-world applications of {{ project_name }} through interactive exampl
 
 Try the interactive notebook below - you can modify and run the code directly in your browser:
 
-/// marimo-embed-file
-    filepath: examples/hello.py
-    height: 400px
+/// marimo-embed
+    height: 800px
     mode: read
-    show_source: true
+    app_width: medium
+
+```python
+@app.cell
+def __():
+    import marimo as mo
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # Create interactive sliders
+    freq = mo.ui.slider(1, 10, value=2, label="Frequency")
+    amp = mo.ui.slider(0.1, 2, value=1, label="Amplitude")
+
+    mo.hstack([freq, amp])
+    return
+
+@app.cell
+def __():
+    # Plot the sine wave
+    x = np.linspace(0, 10, 1000)
+    y = amp.value * np.sin(freq.value * x)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, y)
+    plt.title('Interactive Sine Wave')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.grid(True)
+    plt.gca()
+    return
+```
+
 ///
 
 ## Standalone HTML Notebooks

@@ -74,10 +74,9 @@ site/
 
 # build
 uv.lock
-src/{{ project_slug }}/_version.py
+src/{{ package_name }}/_version.py
 
-{% if include_examples %}
-# Documentation examples
+{% if include_examples %}# Documentation examples
 docs/examples/*/
 
 {% endif %}

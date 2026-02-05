@@ -310,6 +310,24 @@ class TestExamplesPage:
         # Should have iframe or links to examples
         assert "examples/" in content or "iframe" in content.lower()
 
+    def test_examples_page_uses_marimo_embed_with_inline_code(self, copie):
+        """Test that examples page uses marimo-embed with inline code instead of marimo-embed-file."""
+        result = copie.copy(extra_answers={"include_examples": True})
+        assert result.exit_code == 0
+
+        examples_page = result.project_dir / "docs" / "pages" / "examples.md"
+        assert examples_page.is_file()
+
+        content = examples_page.read_text(encoding="utf-8")
+
+        # Should use marimo-embed with inline code, not marimo-embed-file
+        assert "/// marimo-embed" in content
+        assert "marimo-embed-file" not in content
+        assert "filepath:" not in content
+        # Should have inline Python code with @app.cell
+        assert "@app.cell" in content
+        assert "import marimo as mo" in content
+
 
 class TestMkdocsConfiguration:
     """Test mkdocs.yml configuration."""
@@ -475,22 +493,20 @@ class TestMkdocsConfiguration:
         assert "docs/hooks.py" in hooks
 
     def test_mkdocs_yml_has_emoji_extension_configured(self, copie):
-        """Test that mkdocs.yml has emoji extension with proper configuration for Material icons."""
+        """Test that mkdocs.yml has emoji extension configured."""
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
         mkdocs_file = result.project_dir / "mkdocs.yml"
         assert mkdocs_file.is_file()
 
-        # Read as text since yaml.full_load can't handle !!python/name tags
+        # Read as text to check for the emoji extension
         content = mkdocs_file.read_text(encoding="utf-8")
 
-        # Check that pymdownx.emoji is configured with emoji_index and emoji_generator
-        assert "pymdownx.emoji:" in content
-        assert "emoji_index:" in content
-        assert "!!python/name:material.extensions.emoji.twemoji" in content
-        assert "emoji_generator:" in content
-        assert "!!python/name:material.extensions.emoji.to_svg" in content
+        # Check that pymdownx.emoji is configured (simplified config without Python name resolution)
+        assert "pymdownx.emoji" in content
+        # Should NOT have !!python/name tags (these cause issues with some YAML parsers)
+        assert "!!python/name:" not in content
 
 
 class TestDocumentationVariableSubstitution:

@@ -389,7 +389,6 @@ def _is_excluded(relative_posix: str, patterns: list[str]) -> bool:
 
 def on_post_build(config):
     """Copy markdown files for LLM consumption after build completes."""
-    project_root = Path(__file__).parent.parent
     site_dir = Path(config["site_dir"])
     docs_dir = Path(config["docs_dir"])
 

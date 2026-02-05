@@ -76,6 +76,21 @@ def test_gitignore_excludes_examples_when_disabled(copie):
     assert "docs/examples/*/" not in content
 
 
+def test_gitignore_uses_project_name_for_version_file(copie):
+    """Test that .gitignore uses project_name variable (not project_slug) for the version file path."""
+    result = copie.copy(extra_answers={"package_name": "my_package", "project_slug": "my-project"})
+
+    gitignore = result.project_dir / ".gitignore"
+    assert gitignore.is_file()
+
+    content = gitignore.read_text(encoding="utf-8")
+
+    # Should use package_name in the version file path
+    assert "src/my_package/_version.py" in content
+    # Should NOT use project_slug
+    assert "src/my-project/_version.py" not in content
+
+
 def test_generated_project_structure(copie):
     """Test that the generated project has the correct structure."""
     result = copie.copy()
@@ -147,6 +162,23 @@ def test_pyproject_has_interrogate_config(copie):
     assert "ignore-init-method = true" in content
     assert "fail-under = 75" in content
     assert '"setup.py", "docs", "build", "tests", "*_version.py"' in content
+
+
+def test_pyproject_ruff_ignores_docs_directory(copie):
+    """Test that pyproject.toml configures ruff to ignore prints and unused args in docs/."""
+    result = copie.copy()
+
+    pyproject_path = result.project_dir / "pyproject.toml"
+    assert pyproject_path.is_file()
+
+    content = pyproject_path.read_text(encoding="utf-8")
+
+    # Should have per-file-ignores section with docs/** configuration
+    assert "[tool.ruff.lint.per-file-ignores]" in content
+    # Should ignore prints (T201) and unused args (ARG001) in docs
+    assert '"docs/**/*"' in content
+    assert "T201" in content  # Print statement
+    assert "ARG001" in content  # Unused function argument
 
 
 def test_generated_project_has_correct_license(copie):
@@ -749,8 +781,8 @@ def test_three_tier_documentation_system(copie):
     # Tier 1: Verify embedded marimo setup in examples.md
     examples_md = result.project_dir / "docs" / "pages" / "examples.md"
     examples_content = examples_md.read_text(encoding="utf-8")
-    # Check for either marimo embed directive or inline marimo code
-    has_marimo = "marimo-embed-file" in examples_content or "```python {marimo}" in examples_content
+    # Check for marimo-embed directive with inline code
+    has_marimo = "/// marimo-embed" in examples_content and "@app.cell" in examples_content
     assert has_marimo, "Embedded marimo notebook not found in examples.md"
 
     # Tier 2: Build docs which triggers hooks to export standalone HTML
