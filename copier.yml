@@ -14,6 +14,9 @@ _exclude:
   - "htmlcov"
   - "*.egg-info"
 
+_skip_if_exists:
+  - "docs"
+
 _envops:
   block_start_string: "{%"
   block_end_string: "%}"
@@ -36,15 +39,6 @@ project_slug:
   type: str
   help: "Project slug for URLs and repositories (e.g., 'my-awesome-package')"
   default: "{{ project_name.lower().replace(' ', '-').replace('_', '-') }}"
-
-version:
-  type: str
-  default: "0.1.0"
-  help: "Initial package version"
-  validator: >-
-    {% if not (version | regex_search('^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$')) -%}
-    Version must follow semantic versioning format (e.g., '0.1.0', '1.2.3', '2.0.0-alpha.1', '1.0.0+build.123')
-    {%- endif %}
 
 description:
   type: str

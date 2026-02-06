@@ -245,7 +245,7 @@ Mark your tests appropriately to help maintain fast feedback during development:
   - Require complex setup or teardown
   - Exercise end-to-end workflows
 {% if include_examples %}
-- Use `@pytest.mark.example` for tests that:
+- `@pytest.mark.example` is used in `tests/test_examples.py` to:
   - Validate example notebooks execute without errors
   - Run notebooks in the `examples/` directory
   - Test interactive documentation and tutorials
@@ -385,32 +385,32 @@ View all available commands:
 just --list
 ```
 
-{% if include_examples %}
-### Adding Examples
+{% if include_examples %}### Adding Examples
 
-To add a new example notebook:
+All examples are interactive [marimo](https://marimo.io) notebooks that combine code, markdown, and visualizations. Follow these guidelines:
 
 1. Create a new marimo notebook in `examples/<name>.py`:
 
-   ```bash
-   uv run marimo new examples/<name>.py
-   ```
+   === "just"
 
-2. Develop your example in the marimo editor
+       ```bash
+       just example <name>.py
+       ```
 
-3. Test it runs correctly in interactive mode:
+   === "uv run"
 
-   ```bash
-   uv run marimo edit examples/<name>.py
-   ```
+       ```bash
+       uv run marimo new examples/<name>.py
+       ```
 
-4. Validate it executes as a script (how it will run in tests):
+2. Develop your example in the marimo editor, ollowing the standardized structure:
+   - **Overview**: Explain what readers will learn (flexible length)
+   - **Numbered sections**: Main concepts as `## 1.`, `## 2.`, `## 3.`
+   - **Key Takeaways**: Bullet points summarizing important lessons
+   - **Next Steps**: Context for progression to related notebooks
+   - Use `hide_code=True` for utility functions (sliders, data generation, visualization)
 
-   ```bash
-   uv run python examples/<name>.py
-   ```
-
-5. Run the example test suite to verify it passes:
+3. Run the example test suite to verify it passes:
 
    === "just"
 
@@ -430,13 +430,13 @@ To add a new example notebook:
        uv run pytest tests/test_examples.py -m example
        ```
 
-6. Add a link to your example in `docs/pages/examples.md`:
+4. Add a link to your example in `docs/pages/examples.md`:
 
    ```markdown
    - [Example Name](../examples/<name>/) - Brief description
    ```
 
-7. Commit all changes including the notebook file
+5. The mkdocs hooks automatically exports notebooks to HTML during docs build
 
 All notebooks in `examples/` are automatically discovered and tested by `test_examples.py` using pytest's parametrization feature, which runs them in parallel for fast validation.
 

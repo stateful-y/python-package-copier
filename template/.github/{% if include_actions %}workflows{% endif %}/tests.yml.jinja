@@ -150,9 +150,8 @@ jobs:
 
       - name: Run docstring tests
         run: nox -s doctest
-{% if include_examples %}
 
-  examples:
+{% if include_examples %}  examples:
     name: Run example notebooks
     runs-on: ubuntu-latest
 

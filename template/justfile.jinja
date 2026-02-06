@@ -31,7 +31,7 @@ doctest:
 {% if include_examples %}
 # Run marimo example notebook interactively
 example file='':
-    uv run marimo edit examples/{{file}}
+    {% raw %}uv run marimo edit examples/{{file}}{% endraw %}
 
 # Test all example notebooks
 test-examples:
