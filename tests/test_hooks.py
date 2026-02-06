@@ -90,6 +90,8 @@ def test_on_post_build_copies_markdown(copie_with_examples, tmp_path):
         sys.path.pop(0)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_on_files_copies_html(copie_with_examples, tmp_path):
     """Test that on_files hook copies standalone HTML files."""
     import subprocess
@@ -116,6 +118,8 @@ def test_on_files_copies_html(copie_with_examples, tmp_path):
     assert html_size > 10000, f"HTML file too small ({html_size} bytes), may not be properly exported"
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_on_pre_build_exports_notebooks(copie_with_examples):
     """Test that on_pre_build exports marimo notebooks."""
     import subprocess
@@ -185,6 +189,8 @@ def test_hooks_integrated_in_mkdocs_yml(copie_with_examples):
     assert "docs/hooks.py" in content, "hooks.py not referenced in mkdocs.yml"
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_on_post_build_converts_html_to_markdown(copie_with_examples, tmp_path):
     """Test that on_post_build converts HTML to markdown for LLM consumption."""
     import subprocess
