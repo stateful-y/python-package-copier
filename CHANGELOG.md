@@ -6,17 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.9.0] - 2026-02-07
+## [0.9.1] - 2026-02-07
 
-This **minor release** includes 3 commits.
+This **patch release** includes 3 commits.
 
 
-### Refactoring
-- Cleanup template configuration and documentation  ([#68](https://github.com/stateful-y/python-package-copier/pull/68)) by @gtauzin
-
-### Miscellaneous Tasks
-- Update logos by @gtauzin
-- Update logos with transparent backgrounds by @gtauzin
+### Bug Fixes
+- Remove pre-build dependency from serve commands and fix hooks indentation by @gtauzin
+- Example link in docs by @gtauzin
+- Use relative path for standalone notebook link in examples.md by @gtauzin
 
 ### Contributors
 
