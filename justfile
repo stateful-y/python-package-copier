@@ -17,9 +17,9 @@ test:
 test-fast:
     uv run pytest tests/ -m "not slow and not integration" -n auto -v
 
-# Run slow tests (includes integration tests) - no parallelization to avoid race conditions
+# Run slow tests (includes integration tests)
 test-slow:
-    uv run pytest tests/ -m "slow or integration" -v
+    uv run pytest tests/ -m "slow or integration" -n auto -v
 
 # Format and fix code (via pre-commit)
 fix:

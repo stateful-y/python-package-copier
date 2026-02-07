@@ -40,7 +40,7 @@ def test_coverage(session: nox.Session) -> None:
     # Clear all .coverage* files
     session.run("coverage", "erase")
 
-    # Run unit tests under coverage
+    # Run unit tests under coverage with parallel execution
     session.run(
         "coverage",
         "run",
@@ -52,6 +52,8 @@ def test_coverage(session: nox.Session) -> None:
         "-m",
         "not example",
     {% endif %}
+        "-n",
+        "auto",
         f"--junitxml=junit.{session.python}.xml",
         *session.posargs,
     )
@@ -126,12 +128,14 @@ def test_slow(session: nox.Session) -> None:
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
-    # Run slow/integration tests only - no parallelization to avoid race conditions
+    # Run slow/integration tests only with parallel execution
     session.run(
         "pytest",
         "tests",
         "-m",
         "slow or integration",
+        "-n",
+        "auto",
         "-v",
         *session.posargs,
     )
@@ -152,12 +156,14 @@ def test_examples(session: nox.Session) -> None:
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
-    # Run example tests using pytest with no coverage - no parallelization to avoid race conditions
+    # Run example tests in parallel using pytest with pytest-xdist with no coverage
     session.run(
         "pytest",
         "tests",
         "-m",
         "example",
+        "-n",
+        "auto",
         "-v",
         "--no-cov",
         *session.posargs,

@@ -17,13 +17,13 @@ test:
 test-fast:
     uv run pytest -m "not slow and not integration" -n auto -v
 
-# Run slow tests (includes integration tests) - no parallelization to avoid race conditions
+# Run slow tests (includes integration tests)
 test-slow:
-    uv run pytest -m "slow or integration" -v
+    uv run pytest -m "slow or integration" -n auto -v
 
 # Run tests with coverage
 test-cov:
-    uv run pytest --cov={{ package_name }} --cov-report=html --cov-report=term
+    uv run pytest --cov={{ package_name }} --cov-report=html --cov-report=term -n auto
 
 # Run docstring examples
 test-docstrings:
@@ -33,9 +33,9 @@ test-docstrings:
 example file='':
     {% raw %}uv run marimo edit examples/{{file}}{% endraw %}
 
-# Test all example notebooks - no parallelization to avoid race conditions
+# Test all example notebooks
 test-examples:
-    uv run pytest tests -m example -v --no-cov
+    uv run pytest tests -m example -n auto -v --no-cov
 {% endif %}
 # Run linters and type checkers
 lint:
