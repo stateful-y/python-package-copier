@@ -130,6 +130,24 @@ graph LR
 
 **Required environment protection**: `pypi` environment with required reviewers configured
 
+#### Configuring Manual Approval for PyPI
+
+To enable the manual approval gate before PyPI publishing, configure GitHub environment protection rules:
+
+1. Navigate to repository **Settings → Environments**
+2. Create or select the `pypi` environment
+3. Enable **Required reviewers** under *Deployment protection rules*
+4. Add one or more reviewers who must approve before PyPI publication
+5. (Optional) Enable **Wait timer** to delay deployment after approval
+
+When a release is ready:
+- The workflow will pause at the "Wait for approval" step
+- Designated reviewers receive a notification
+- Reviewers can inspect the GitHub Release and artifacts before approving
+- Once approved, the package is automatically published to PyPI
+
+**Note**: Environment protection rules require **public repositories** or **GitHub Pro/Team/Enterprise** plans.
+
 ### tests.yml - Continuous Integration
 
 Runs on every push and pull request:

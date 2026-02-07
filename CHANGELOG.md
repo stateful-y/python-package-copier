@@ -99,11 +99,11 @@ This **minor release** includes 7 commits.
 ### Miscellaneous Tasks
 - Standardize test command naming across nox, justfile, and CI  ([#55](https://github.com/stateful-y/python-package-copier/pull/55)) by @gtauzin
 
-### Contributors
+`### Contributors
 
 Thanks to all contributors for this release:
 - @gtauzin
-
+`
 ## [0.6.0] - 2026-02-03
 
 This **minor release** includes 4 commits.
