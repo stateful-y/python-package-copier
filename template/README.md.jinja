@@ -1,4 +1,11 @@
-![{{ project_name }}](https://raw.githubusercontent.com/{{ github_username }}/{{ project_slug }}/main/docs/assets/logo_dark.png)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/{{ github_username }}/{{ project_slug }}/main/docs/assets/logo_light.png">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/{{ github_username }}/{{ project_slug }}/main/docs/assets/logo_dark.png">
+    <img src="https://raw.githubusercontent.com/{{ github_username }}/{{ project_slug }}/main/docs/assets/logo_light.png" alt="{{ project_name }}">
+  </picture>
+</p>
+
 
 [![Python Version](https://img.shields.io/pypi/pyversions/{{ package_name }})](https://pypi.org/project/{{ package_name }}/)
 [![License](https://img.shields.io/github/license/{{ github_username }}/{{ project_slug }})](https://github.com/{{ github_username }}/{{ project_slug }}/blob/main/LICENSE)
