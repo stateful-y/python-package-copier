@@ -12,6 +12,7 @@ def test_template_creates_project(copie):
         "noxfile.py",
         "mkdocs.yml",
         ".pre-commit-config.yaml",
+        "CODE_OF_CONDUCT.md",
     ]
     expected_dirs = [
         "src",
@@ -1471,3 +1472,18 @@ def test_generated_project_all_tests_pass(copie):
     assert "test_examples.py" in test_result.stdout
     assert "notebook_file" in test_result.stdout  # parametrized test name
     assert "passed" in test_result.stdout.lower()
+
+def test_code_of_conduct_content(copie):
+    """Test that CODE_OF_CONDUCT.md is generated with correct email."""
+    custom_email = "test@example.com"
+    result = copie.copy(extra_answers={"author_email": custom_email})
+
+    assert result.exit_code == 0
+    assert result.exception is None
+
+    coc_path = result.project_dir / "CODE_OF_CONDUCT.md"
+    assert coc_path.is_file()
+
+    content = coc_path.read_text()
+    assert f"contacting the project team at {custom_email}" in content
+    assert "gtauzin@stateful-y.io" not in content
