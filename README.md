@@ -73,5 +73,7 @@ See the [Contributing Guide](https://python-package-copier.readthedocs.io/pages/
 MIT License - see the [LICENSE](LICENSE) file for details.
 
 <p align="center">
-  <img src="docs/assets/made_by_stateful-y.png" alt="Made by stateful-y" width="200">
+  <a href="https://stateful-y.io">
+    <img src="docs/assets/made_by_stateful-y.png" alt="Made by stateful-y" width="200">
+  </a>
 </p>
