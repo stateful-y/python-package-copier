@@ -1473,6 +1473,7 @@ def test_generated_project_all_tests_pass(copie):
     assert "notebook_file" in test_result.stdout  # parametrized test name
     assert "passed" in test_result.stdout.lower()
 
+
 def test_code_of_conduct_content(copie):
     """Test that CODE_OF_CONDUCT.md is generated with correct email."""
     custom_email = "test@example.com"
