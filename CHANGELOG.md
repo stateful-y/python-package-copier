@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.10.2] - 2026-02-08
+
+This **patch release** includes 3 commits.
+
+
+### Features
+- Add dark mode logo support to generated project README  ([#78](https://github.com/stateful-y/python-package-copier/pull/78)) by @gtauzin
+- Add stateful-y branding footer to READMEs  ([#79](https://github.com/stateful-y/python-package-copier/pull/79)) by @gtauzin
+
+### Miscellaneous Tasks
+- Add link to stateful-y.io on footer image  ([#80](https://github.com/stateful-y/python-package-copier/pull/80)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.10.1] - 2026-02-08
 
 This **patch release** includes 1 commit.
