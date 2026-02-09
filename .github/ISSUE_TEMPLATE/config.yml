@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/stateful-y/python-package-copier/discussions
     about: Please use GitHub Discussions for questions and general discussions
   - name: Documentation
-    url: https://stateful-y.github.io/python-package-copier/
+    url: https://python-package-copier.readthedocs.io/
     about: Check the documentation for guides and references
