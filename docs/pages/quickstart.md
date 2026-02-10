@@ -121,7 +121,7 @@ git push origin v0.1.0
 
 This triggers: changelog generation → PR creation → (after merge) GitHub release → **manual approval** → PyPI publish.
 
-See the [Contributing Guide](../pages/contributing/) for detailed release process documentation.
+See the [Contributing Guide](contributing.md) for detailed release process documentation.
 
 ### ReadTheDocs (Documentation)
 
