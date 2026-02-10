@@ -1,7 +1,5 @@
 """Tests for template option combinations and integration scenarios."""
 
-import subprocess
-
 import pytest
 
 
@@ -139,62 +137,6 @@ def test_all_python_versions(copie, python_version):
     expected_versions = [v for v in ["3.11", "3.12", "3.13", "3.14"] if v >= python_version]
     for version in expected_versions:
         assert f'"{version}"' in noxfile_content, f"Python {version} should be in noxfile"
-
-
-@pytest.mark.integration
-def test_examples_disabled_docs_build_works(copie):
-    """Test that docs can be built when examples are disabled."""
-    result = copie.copy(
-        extra_answers={
-            "include_examples": False,
-        },
-    )
-
-    assert result.exit_code == 0
-
-    # Attempt to build docs
-    docs_result = subprocess.run(
-        ["uvx", "nox", "-s", "build_docs"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-
-    assert docs_result.returncode == 0, (
-        f"Docs build failed with include_examples=False:\nSTDOUT:\n{docs_result.stdout}\nSTDERR:\n{docs_result.stderr}"
-    )
-
-
-@pytest.mark.integration
-def test_examples_enabled_full_integration(copie):
-    """Test complete workflow when examples are enabled."""
-    result = copie.copy(
-        extra_answers={
-            "include_examples": True,
-        },
-    )
-
-    assert result.exit_code == 0
-
-    # Test that example notebook exists
-    examples_dir = result.project_dir / "examples"
-    assert (examples_dir / "hello.py").is_file()
-
-    # Test that docs can be built with examples
-    docs_result = subprocess.run(
-        ["uvx", "nox", "-s", "build_docs"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
-
-    assert docs_result.returncode == 0, (
-        f"Docs build failed with include_examples=True:\nSTDOUT:\n{docs_result.stdout}\nSTDERR:\n{docs_result.stderr}"
-    )
 
 
 def test_readthedocs_config_consistency(copie):

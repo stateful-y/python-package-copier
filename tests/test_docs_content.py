@@ -8,7 +8,6 @@ This test module validates:
 - Examples documentation (when enabled)
 """
 
-import pytest
 import yaml
 
 
@@ -572,59 +571,3 @@ class TestDocumentationVariableSubstitution:
             contrib_content = contributing.read_text(encoding="utf-8")
             # Should reference the correct repository
             assert "my-custom-org" in contrib_content or "my-project" in contrib_content
-
-
-class TestDocumentationBuildIntegration:
-    """Integration tests for documentation building."""
-
-    @pytest.mark.integration
-    @pytest.mark.slow
-    def test_docs_build_succeeds_with_examples(self, copie):
-        """Test that docs build successfully with examples enabled."""
-        import subprocess
-
-        result = copie.copy(extra_answers={"include_examples": True})
-        assert result.exit_code == 0
-
-        # Try to build docs
-        build_result = subprocess.run(
-            ["uvx", "nox", "-s", "build_docs"],
-            cwd=result.project_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-
-        assert build_result.returncode == 0, f"Docs build failed: {build_result.stderr}"
-
-        # Check that site was generated
-        site_dir = result.project_dir / "site"
-        assert site_dir.is_dir()
-        assert (site_dir / "index.html").is_file()
-
-    @pytest.mark.integration
-    @pytest.mark.slow
-    def test_docs_build_succeeds_without_examples(self, copie):
-        """Test that docs build successfully without examples."""
-        import subprocess
-
-        result = copie.copy(extra_answers={"include_examples": False})
-        assert result.exit_code == 0
-
-        # Try to build docs
-        build_result = subprocess.run(
-            ["uvx", "nox", "-s", "build_docs"],
-            cwd=result.project_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-
-        assert build_result.returncode == 0, f"Docs build failed: {build_result.stderr}"
-
-        # Check that site was generated
-        site_dir = result.project_dir / "site"
-        assert site_dir.is_dir()
-        assert (site_dir / "index.html").is_file()

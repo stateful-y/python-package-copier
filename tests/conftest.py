@@ -62,9 +62,168 @@ class CopierResult:
         self.exception = None
 
 
+@pytest.fixture(scope="session")
+def session_projects_dir(tmp_path_factory):
+    """Session-scoped temp directory for generated projects.
+
+    This directory persists for the entire test session and is shared
+    across all tests using session-scoped project fixtures.
+    """
+    return tmp_path_factory.mktemp("session_projects")
+
+
+@pytest.fixture(scope="session")
+def copie_session_default(session_projects_dir):
+    """Session-scoped: Generated project with DEFAULT values.
+
+    This fixture generates a project once per test session with:
+    - include_examples=True
+    - include_actions=True
+    - All default template values
+
+    Use this for read-only tests that validate project structure and content.
+    Multiple tests can share this fixture, reducing generation overhead.
+    """
+    template_dir = Path(__file__).parent.parent
+    project_dir = session_projects_dir / "default-project"
+
+    # Default answers
+    answers = {
+        "project_name": "Test Project",
+        "project_slug": "test-project",
+        "package_name": "test_project",
+        "description": "A test project",
+        "author_name": "Test Author",
+        "author_email": "test@example.com",
+        "github_username": "testuser",
+        "version": "0.1.0",
+        "min_python_version": "3.11",
+        "max_python_version": "3.14",
+        "license": "MIT",
+        "include_actions": True,
+        "include_examples": True,
+    }
+
+    # Generate project once
+    result = run_copy(
+        str(template_dir),
+        str(project_dir),
+        data=answers,
+        defaults=True,
+        overwrite=True,
+        unsafe=True,
+        vcs_ref="HEAD",
+    )
+
+    return CopierResult(project_dir=project_dir, result=result)
+
+
+@pytest.fixture(scope="session")
+def copie_session_minimal(session_projects_dir):
+    """Session-scoped: Generated project with MINIMAL values.
+
+    This fixture generates a project once per test session with:
+    - include_examples=False
+    - include_actions=False
+    - Minimal optional features
+
+    Use this for read-only tests that validate minimal project structure.
+    """
+    template_dir = Path(__file__).parent.parent
+    project_dir = session_projects_dir / "minimal-project"
+
+    # Minimal answers
+    answers = {
+        "project_name": "Minimal Project",
+        "project_slug": "minimal-project",
+        "package_name": "minimal_project",
+        "description": "A minimal test project",
+        "author_name": "Test Author",
+        "author_email": "test@example.com",
+        "github_username": "testuser",
+        "version": "0.1.0",
+        "min_python_version": "3.11",
+        "max_python_version": "3.14",
+        "license": "MIT",
+        "include_actions": False,
+        "include_examples": False,
+    }
+
+    # Generate project once
+    result = run_copy(
+        str(template_dir),
+        str(project_dir),
+        data=answers,
+        defaults=True,
+        overwrite=True,
+        unsafe=True,
+        vcs_ref="HEAD",
+    )
+
+    return CopierResult(project_dir=project_dir, result=result)
+
+
+@pytest.fixture(scope="session")
+def copie_session_custom(session_projects_dir):
+    """Session-scoped: Generated project with CUSTOM values.
+
+    This fixture generates a project once per test session with:
+    - Custom project/package names
+    - Custom version (1.5.0)
+    - Apache-2.0 license
+    - Python 3.12+
+
+    Use this for read-only tests that validate custom value propagation.
+    """
+    template_dir = Path(__file__).parent.parent
+    project_dir = session_projects_dir / "custom-project"
+
+    # Custom answers
+    answers = {
+        "project_name": "Custom Package",
+        "project_slug": "custom-package",
+        "package_name": "custom_package",
+        "description": "A custom package for advanced testing scenarios",
+        "author_name": "Dr. Jane Doe",
+        "author_email": "jane.doe@research.org",
+        "github_username": "research-lab",
+        "version": "1.5.0",
+        "min_python_version": "3.12",
+        "max_python_version": "3.14",
+        "license": "Apache-2.0",
+        "include_actions": True,
+        "include_examples": True,
+    }
+
+    # Generate project once
+    result = run_copy(
+        str(template_dir),
+        str(project_dir),
+        data=answers,
+        defaults=True,
+        overwrite=True,
+        unsafe=True,
+        vcs_ref="HEAD",
+    )
+
+    return CopierResult(project_dir=project_dir, result=result)
+
+
 @pytest.fixture
 def copie(tmp_path):
-    """Fixture that provides a copier test helper."""
+    """Fixture that provides a copier test helper.
+
+    This is a function-scoped fixture that generates a fresh project
+    for each test. Use this when:
+    - Tests need unique configurations (e.g., different licenses, versions)
+    - Tests are parameterized with different option values
+    - Tests modify generated files
+
+    For read-only structure/content validation, prefer session-scoped fixtures:
+    - copie_session_default
+    - copie_session_minimal
+    - copie_session_custom
+    """
     template_dir = Path(__file__).parent.parent
     return CopierTestFixture(template_dir, tmp_path)
 
