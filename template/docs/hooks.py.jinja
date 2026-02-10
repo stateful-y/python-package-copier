@@ -406,13 +406,13 @@ def _inject_rtd_css(html_file: Path) -> None:
     html_content = html_file.read_text(encoding="utf-8")
 
     # CSS to hide the RTD flyout menu
-    rtd_css = \"\"\"
+    rtd_css = """
   <style>
     readthedocs-flyout {
       display: none;
     }
   </style>
-\"\"\"
+"""
 
     # Inject the CSS before the closing </head> tag
     if "</head>" in html_content:
