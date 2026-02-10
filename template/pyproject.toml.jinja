@@ -21,7 +21,11 @@ classifiers = [
 {%- endfor %}
 ]
 dependencies = [
-
+{% if include_examples %}
+    "numpy>=2.3.0",
+    "pandas>=2.2.0",
+    "plotly>=6.5.0",
+{% endif %}
 ]
 
 [project.scripts]
@@ -58,9 +62,6 @@ fix = [
 ]
 {% if include_examples %}examples = [
     "marimo>=0.19.0",
-    "numpy>=2.3.0", # required by plotly
-    "pandas>=2.2.0", # required by plotly
-    "plotly>=6.5.0",
 ]{% endif %}
 
 [project.urls]
