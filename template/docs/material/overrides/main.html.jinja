@@ -13,5 +13,14 @@
   {{ super() }}
   <meta name="readthedocs-addons-api-version" content="1" />
 {% endblock %}
+
+{% block extrahead %}
+  {{ super() }}
+  <style>
+    readthedocs-flyout {
+      display: none;
+    }
+  </style>
+{% endblock %}
 {% endraw %}
 {% endif %}
