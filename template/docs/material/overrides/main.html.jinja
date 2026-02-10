@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% raw %}{% extends "base.html" %}
 
 {% block outdated %}
   You're not viewing the latest version.
@@ -6,8 +6,9 @@
     <strong>Click here to go to latest.</strong>
   </a>
 {% endblock %}
-
+{% endraw %}
 {% if include_examples %}
+{% raw %}
 {% block extrahead %}
   {{ super() }}
   <style>
@@ -33,4 +34,5 @@
     });
   </script>
 {% endblock %}
+{% endraw %}
 {% endif %}
