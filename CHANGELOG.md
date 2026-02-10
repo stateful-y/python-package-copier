@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.11.0] - 2026-02-10
+
+This **minor release** includes 6 commits.
+
+
+### Features
+- Move RTD version box to header (conditional)  ([#87](https://github.com/stateful-y/python-package-copier/pull/87)) by @gtauzin
+- Apply RTD version box move to root docs  ([#90](https://github.com/stateful-y/python-package-copier/pull/90)) by @gtauzin
+
+### Bug Fixes
+- Point issue template config to readthedocs  ([#85](https://github.com/stateful-y/python-package-copier/pull/85)) by @gtauzin
+- Ensure dependencies are available in notebooks and project  ([#88](https://github.com/stateful-y/python-package-copier/pull/88)) by @gtauzin
+- Correct RTD version box integration using official meta/js approach  ([#91](https://github.com/stateful-y/python-package-copier/pull/91)) by @gtauzin
+
+### Documentation
+- Fix relative link in quickstart guide by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.10.2] - 2026-02-09
 
 This **patch release** includes 5 commits.
