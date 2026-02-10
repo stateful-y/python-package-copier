@@ -3,7 +3,7 @@
 import pytest
 
 
-def test_template_creates_project(copie):
+def test_template_creates_project(copie_session_default):
     """Test that the template creates a valid project."""
     expected_files = [
         ".gitignore",
@@ -24,7 +24,7 @@ def test_template_creates_project(copie):
         "examples",
     ]
 
-    result = copie.copy()
+    result = copie_session_default
 
     assert result.exit_code == 0, result.exception
     assert result.exception is None
@@ -40,9 +40,9 @@ def test_template_creates_project(copie):
     assert (result.project_dir / ".git-cliff.toml").is_file()
 
 
-def test_readthedocs_config_included(copie):
+def test_readthedocs_config_included(copie_session_default):
     """Test that ReadTheDocs config is always included."""
-    result = copie.copy()
+    result = copie_session_default
 
     assert result.exit_code == 0, result.exception
     assert result.exception is None
@@ -92,9 +92,9 @@ def test_gitignore_uses_project_name_for_version_file(copie):
     assert "src/my-project/_version.py" not in content
 
 
-def test_generated_project_structure(copie):
+def test_generated_project_structure(copie_session_default):
     """Test that the generated project has the correct structure."""
-    result = copie.copy()
+    result = copie_session_default
 
     # Check source files
     src_dir = result.project_dir / "src" / "test_project"
@@ -120,9 +120,9 @@ def test_generated_project_structure(copie):
     assert (workflows_dir / "nightly.yml").is_file()
 
 
-def test_generated_pyproject_uses_correct_tools(copie):
+def test_generated_pyproject_uses_correct_tools(copie_session_default):
     """Test that the generated pyproject.toml uses the correct tools."""
-    result = copie.copy()
+    result = copie_session_default
 
     pyproject_path = result.project_dir / "pyproject.toml"
     assert pyproject_path.is_file()
@@ -149,9 +149,9 @@ def test_generated_pyproject_uses_correct_tools(copie):
     assert "nox" not in content, "nox should not be in pyproject.toml (install globally with uvx)"
 
 
-def test_pyproject_has_interrogate_config(copie):
+def test_pyproject_has_interrogate_config(copie_session_default):
     """Test that pyproject.toml includes interrogate configuration."""
-    result = copie.copy()
+    result = copie_session_default
 
     pyproject_path = result.project_dir / "pyproject.toml"
     assert pyproject_path.is_file()
@@ -197,9 +197,9 @@ def test_generated_project_has_correct_license(copie):
     assert "MIT" in content
 
 
-def test_noxfile_configuration(copie):
+def test_noxfile_configuration(copie_session_default):
     """Test that noxfile is properly configured."""
-    result = copie.copy()
+    result = copie_session_default
 
     noxfile_path = result.project_dir / "noxfile.py"
     assert noxfile_path.is_file()
@@ -213,9 +213,9 @@ def test_noxfile_configuration(copie):
     assert "ty" in content, "ty not found in noxfile.py"
 
 
-def test_precommit_configuration(copie):
+def test_precommit_configuration(copie_session_default):
     """Test that pre-commit config is properly set up."""
-    result = copie.copy()
+    result = copie_session_default
 
     precommit_path = result.project_dir / ".pre-commit-config.yaml"
     assert precommit_path.is_file()
@@ -232,9 +232,9 @@ def test_precommit_configuration(copie):
     assert "commitizen" in content, "commitizen not found in pre-commit config"
 
 
-def test_precommit_interrogate_checks_only_src(copie):
+def test_precommit_interrogate_checks_only_src(copie_session_default):
     """Test that interrogate pre-commit hook only checks src/ directory."""
-    result = copie.copy()
+    result = copie_session_default
 
     precommit_path = result.project_dir / ".pre-commit-config.yaml"
     assert precommit_path.is_file()
@@ -247,9 +247,9 @@ def test_precommit_interrogate_checks_only_src(copie):
     assert r"exclude: .*_version\.py$" in content
 
 
-def test_precommit_ty_uses_uv_run(copie):
+def test_precommit_ty_uses_uv_run(copie_session_default):
     """Test that ty pre-commit hook uses uv run with proper configuration."""
-    result = copie.copy()
+    result = copie_session_default
 
     precommit_path = result.project_dir / ".pre-commit-config.yaml"
     assert precommit_path.is_file()
@@ -262,9 +262,9 @@ def test_precommit_ty_uses_uv_run(copie):
     assert "pass_filenames: false" in content
 
 
-def test_github_workflows(copie):
+def test_github_workflows(copie_session_default):
     """Test that GitHub workflows are properly configured."""
-    result = copie.copy()
+    result = copie_session_default
 
     tests_workflow = result.project_dir / ".github" / "workflows" / "tests.yml"
     assert tests_workflow.is_file()
@@ -292,9 +292,9 @@ def test_github_workflows(copie):
     assert "docs" in pr_title_content
 
 
-def test_release_workflow(copie):
+def test_release_workflow(copie_session_default):
     """Test that release workflow includes changelog automation."""
-    result = copie.copy()
+    result = copie_session_default
 
     # Check changelog.yml workflow
     changelog_workflow = result.project_dir / ".github" / "workflows" / "changelog.yml"
@@ -320,9 +320,9 @@ def test_release_workflow(copie):
     )
 
 
-def test_commitizen_configuration(copie):
+def test_commitizen_configuration(copie_session_default):
     """Test that commitizen is properly configured."""
-    result = copie.copy()
+    result = copie_session_default
 
     pyproject_path = result.project_dir / "pyproject.toml"
     assert pyproject_path.is_file()
@@ -334,9 +334,9 @@ def test_commitizen_configuration(copie):
     assert "cz_conventional_commits" in content, "conventional commits not configured"
 
 
-def test_git_cliff_configuration(copie):
+def test_git_cliff_configuration(copie_session_default):
     """Test that git-cliff configuration exists."""
-    result = copie.copy()
+    result = copie_session_default
 
     cliff_config = result.project_dir / ".git-cliff.toml"
     assert cliff_config.is_file()
@@ -884,186 +884,35 @@ def test_generated_package_can_be_installed(copie):
 
 @pytest.mark.integration
 @pytest.mark.slow
-def test_generated_tests_pass(copie):
-    """Smoke test: run the generated project's tests via nox.
+def test_generated_project_nox_sessions(copie_session_default):
+    """Consolidated smoke test: run all nox sessions on a generated project.
 
-    This validates:
-    - Generated test files are syntactically correct
-    - Tests can be discovered and executed
-    - Test infrastructure (pytest, fixtures) works
+    This comprehensive test validates that all development workflows work:
+    - test_coverage: Tests run and coverage is generated
+    - lint: Code quality checks pass (ruff, ty)
+    - test_docstrings: Doctests pass
+    - test_examples: Example notebooks execute successfully
+    - build_docs: Documentation builds without errors
+
+    Using session-scoped fixture to avoid regenerating project multiple times.
+    This test replaces individual session tests for better performance.
     """
     import subprocess
 
-    result = copie.copy(extra_answers={"include_examples": False})
+    result = copie_session_default
     assert result.exit_code == 0
 
-    # Run tests via nox (single Python version for speed)
-    test_result = subprocess.run(
-        ["uvx", "nox", "-s", "test_coverage"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
-
-    assert test_result.returncode == 0, (
-        f"Generated tests failed:\nSTDOUT:\n{test_result.stdout}\n\nSTDERR:\n{test_result.stderr}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.slow
-def test_lint_session_passes(copie):
-    """Smoke test: run lint session to validate code quality tools work.
-
-    This validates:
-    - ruff configuration is correct
-    - ty type checker works
-    - Generated code passes linting and type checking
-    """
-    import subprocess
-
-    result = copie.copy(extra_answers={"include_examples": False})
-    assert result.exit_code == 0
-
-    # Run lint session
-    lint_result = subprocess.run(
-        ["uvx", "nox", "-s", "lint"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-
-    assert lint_result.returncode == 0, (
-        f"Lint session failed:\nSTDOUT:\n{lint_result.stdout}\n\nSTDERR:\n{lint_result.stderr}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.slow
-def test_doctest_session_passes(copie):
-    """Smoke test: run test_docstrings session to validate docstring examples.
-
-    This validates:
-    - Docstring examples are syntactically correct
-    - Example code in docstrings executes successfully
-    """
-    import subprocess
-
-    result = copie.copy(extra_answers={"include_examples": False})
-    assert result.exit_code == 0
-
-    # Run test_docstrings session
-    doctest_result = subprocess.run(
-        ["uvx", "nox", "-s", "test_docstrings"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-
-    assert doctest_result.returncode == 0, (
-        f"Doctest session failed:\nSTDOUT:\n{doctest_result.stdout}\n\nSTDERR:\n{doctest_result.stderr}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.slow
-def test_build_docs_session_passes(copie):
-    """Smoke test: run build_docs session to validate documentation builds.
-
-    This validates:
-    - mkdocs configuration is correct
-    - Documentation dependencies are installed
-    - Documentation can be built successfully
-    """
-    import subprocess
-
-    result = copie.copy(extra_answers={"include_examples": False})
-    assert result.exit_code == 0
-
-    # Run build_docs session
-    docs_result = subprocess.run(
-        ["uvx", "nox", "-s", "build_docs"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
-
-    assert docs_result.returncode == 0, (
-        f"build_docs failed:\nSTDOUT:\n{docs_result.stdout}\n\nSTDERR:\n{docs_result.stderr}"
-    )
-
-    # Verify site was generated
-    site_dir = result.project_dir / "site"
-    assert site_dir.is_dir()
-    assert (site_dir / "index.html").is_file()
-
-
-@pytest.mark.integration
-@pytest.mark.slow
-def test_examples_session_passes(copie):
-    """Smoke test: run examples session when examples are enabled.
-
-    This validates:
-    - Marimo is properly installed
-    - Example notebooks are syntactically correct
-    - Notebooks can be executed as scripts
-    """
-    import subprocess
-
-    result = copie.copy(extra_answers={"include_examples": True})
-    assert result.exit_code == 0
-
-    # Run examples session (test_examples in noxfile)
-    examples_result = subprocess.run(
-        ["uvx", "nox", "-s", "test_examples"],
-        cwd=result.project_dir,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-
-    assert examples_result.returncode == 0, (
-        f"test_examples failed:\nSTDOUT:\n{examples_result.stdout}\n\nSTDERR:\n{examples_result.stderr}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.slow
-def test_full_project_workflow(copie):
-    """Ultimate smoke test: run multiple nox sessions in sequence.
-
-    This simulates a complete developer workflow:
-    1. Install dependencies
-    2. Run linting
-    3. Run tests with coverage
-    4. Run doctests
-    5. Build documentation
-
-    This is the most comprehensive validation that the generated project works.
-    """
-    import subprocess
-
-    result = copie.copy(extra_answers={"include_examples": True, "include_actions": True})
-    assert result.exit_code == 0
-
-    # Session sequence to run
-    sessions = [
-        ("test_coverage", 180),
-        ("test_docstrings", 120),
-        ("test_examples", 120),
-        ("build_docs", 180),
+    # Define all nox sessions to test with timeouts
+    sessions_to_test = [
+        ("test_coverage", 180, "Tests and coverage generation"),
+        ("lint", 120, "Code quality checks (ruff + ty)"),
+        ("test_docstrings", 120, "Docstring tests"),
+        ("test_examples", 120, "Example notebook execution"),
+        ("build_docs", 180, "Documentation build"),
     ]
 
-    for session_name, timeout in sessions:
+    # Run each session and collect results
+    for session_name, timeout, description in sessions_to_test:
         session_result = subprocess.run(
             ["uvx", "nox", "-s", session_name],
             cwd=result.project_dir,
@@ -1074,13 +923,15 @@ def test_full_project_workflow(copie):
         )
 
         assert session_result.returncode == 0, (
-            f"Session '{session_name}' failed:\nSTDOUT:\n{session_result.stdout}\n\nSTDERR:\n{session_result.stderr}"
+            f"Session '{session_name}' ({description}) failed:\n"
+            f"STDOUT:\n{session_result.stdout}\n\n"
+            f"STDERR:\n{session_result.stderr}"
         )
 
-    # Verify all expected outputs exist
-    assert (result.project_dir / "site" / "index.html").is_file(), "Docs not built"
+    # Verify expected outputs exist
+    assert (result.project_dir / "site" / "index.html").is_file(), "Docs site not generated"
     assert (result.project_dir / ".coverage").exists() or (result.project_dir / "coverage.xml").exists(), (
-        "Coverage not generated"
+        "Coverage file not generated"
     )
 
 
