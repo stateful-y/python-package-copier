@@ -392,6 +392,32 @@ def _fix_marimo_filename(html_file: Path, notebook_name: str) -> None:
     )
 
     html_file.write_text(html_content, encoding="utf-8")
+
+
+def _inject_rtd_css(html_file: Path) -> None:
+    """Inject CSS to hide Read The Docs version menu flyout in marimo notebooks.
+
+    This ensures marimo notebooks have the same clean appearance as other documentation
+    pages by hiding the RTD version selector that appears in the bottom right corner.
+    """
+    if not html_file.exists():
+        return
+
+    html_content = html_file.read_text(encoding="utf-8")
+
+    # CSS to hide the RTD flyout menu
+    rtd_css = """
+  <style>
+    readthedocs-flyout {
+      display: none;
+    }
+  </style>
+"""
+
+    # Inject the CSS before the closing </head> tag
+    if "</head>" in html_content:
+        html_content = html_content.replace("</head>", f"{rtd_css}</head>", 1)
+        html_file.write_text(html_content, encoding="utf-8")
 {% endif %}
 
 
@@ -426,6 +452,9 @@ def on_post_build(config):
 
             # Fix the marimo filename to show the actual notebook name in browser tabs
             _fix_marimo_filename(target_dir / "index.html", html_dir.name)
+
+            # Inject CSS to hide RTD version menu in marimo notebooks
+            _inject_rtd_css(target_dir / "index.html")
 
             print(f"[hooks] copied examples/{html_dir.name}/ to site")
 {% endif %}
