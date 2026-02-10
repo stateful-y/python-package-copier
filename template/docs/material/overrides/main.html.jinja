@@ -9,30 +9,18 @@
 {% endraw %}
 {% if include_examples %}
 {% raw %}
+{% block site_meta %}
+  {{ super() }}
+  <meta name="readthedocs-addons-api-version" content="1" />
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
   <style>
-    .rtd-version-material {
-      margin-left: auto;
-      background: transparent;
-      box-shadow: none;
+    readthedocs-flyout {
+      display: none;
     }
   </style>
-{% endblock %}
-
-{% block scripts %}
-  {{ super() }}
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const versionBox = document.querySelector(".rst-versions");
-      const header = document.querySelector(".md-header__inner");
-
-      if (versionBox && header) {
-        header.appendChild(versionBox);
-        versionBox.classList.add("rtd-version-material");
-      }
-    });
-  </script>
 {% endblock %}
 {% endraw %}
 {% endif %}
