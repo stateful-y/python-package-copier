@@ -65,6 +65,9 @@ nav:
   - Reference: pages/reference.md
   - Contributing: pages/contributing.md
 
+extra_javascript:
+  - javascripts/readthedocs.js
+
 watch:
   - mkdocs.yml
   - docs
