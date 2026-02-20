@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.0] - 2026-02-10
+
+This **minor release** includes 4 commits.
+
+
+### Bug Fixes
+- Replace default 'notebook.py' filename in marimo HTML exports  ([#94](https://github.com/stateful-y/python-package-copier/pull/94)) by @gtauzin
+- Update RTD build command and mkdocs config  ([#93](https://github.com/stateful-y/python-package-copier/pull/93)) by @gtauzin
+
+### Documentation
+- Hide RTD version menu in marimo notebooks  ([#95](https://github.com/stateful-y/python-package-copier/pull/95)) by @gtauzin
+
+### Performance
+- Optimize test suite with session-scoped fixtures  ([#96](https://github.com/stateful-y/python-package-copier/pull/96)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.11.0] - 2026-02-10
 
 This **minor release** includes 6 commits.
