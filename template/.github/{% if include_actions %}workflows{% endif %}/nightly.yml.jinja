@@ -35,7 +35,7 @@ jobs:
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
-        if: {% raw %}${{ matrix.python-version == '3.12' }}{% endraw %}
+        if: {% raw %}${{ matrix.python-version == '3.12' && secrets.CODECOV_TOKEN != '' }}{% endraw %}
         with:
           token: {% raw %}${{ secrets.CODECOV_TOKEN }}{% endraw %}
 

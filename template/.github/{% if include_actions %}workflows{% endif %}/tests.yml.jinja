@@ -89,7 +89,7 @@ jobs:
         run: nox -s test --python {% raw %}${{ matrix.python-version }}{% endraw %}
 
       - name: Upload test results to Codecov
-        if: {% raw %}${{ !cancelled() }} && matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}'{% endraw %}
+        if: {% raw %}${{ !cancelled() && matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}' && secrets.CODECOV_TOKEN != '' }}{% endraw %}
         uses: codecov/test-results-action@v1
         with:
           token: {% raw %}${{ secrets.CODECOV_TOKEN }}{% endraw %}
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v5
-        if: {% raw %}matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}'{% endraw %}
+        if: {% raw %}${{ matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}' && secrets.CODECOV_TOKEN != '' }}{% endraw %}
         with:
           token: {% raw %}${{ secrets.CODECOV_TOKEN }}{% endraw %}
           files: {% raw %}'${{ github.workspace }}/coverage.${{ matrix.python-version }}.xml'{% endraw %}
