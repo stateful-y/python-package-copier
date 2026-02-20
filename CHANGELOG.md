@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.13.0] - 2026-02-20
+
+This **minor release** includes 2 commits.
+
+
+### Documentation
+- Improve marimo notebook section in contributing guide  ([#98](https://github.com/stateful-y/python-package-copier/pull/98)) by @gtauzin
+- Export examples as both static HTML and interactive WASM  ([#99](https://github.com/stateful-y/python-package-copier/pull/99)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.12.0] - 2026-02-10
 
 This **minor release** includes 4 commits.
