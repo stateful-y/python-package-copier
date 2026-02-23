@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.13.4] - 2026-02-23
+
+This **patch release** includes 2 commits.
+
+
+### Bug Fixes
+- Add --no-cov to test_fast session  ([#108](https://github.com/stateful-y/python-package-copier/pull/108)) by @gtauzin
+- Remove pytest script entry from pyproject.toml template  ([#109](https://github.com/stateful-y/python-package-copier/pull/109)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.13.3] - 2026-02-20
 
 This **patch release** includes 1 commit.
