@@ -247,7 +247,9 @@ def build_docs(session: nox.Session) -> None:
         "--no-default-groups",
         "--group",
         "docs",
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+{% if include_examples %}        "--group",
+        "examples",
+{% endif %}        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
     # Build the docs (hooks automatically export notebooks and prepare site)
@@ -265,7 +267,9 @@ def serve_docs(session: nox.Session) -> None:
         "--no-default-groups",
         "--group",
         "docs",
-        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+{% if include_examples %}        "--group",
+        "examples",
+{% endif %}        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
 
     # Serve the docs (hooks automatically export notebooks and prepare site)

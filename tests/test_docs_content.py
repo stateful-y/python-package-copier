@@ -336,11 +336,11 @@ class TestExamplesPage:
 
         content = examples_page.read_text(encoding="utf-8")
 
-        # Should have Interactive Demo section with View/Editable links
+        # Should have Interactive Demo section with View/Open in marimo links
         assert "## Interactive Demo" in content
         assert "/examples/hello/" in content
         assert "/examples/hello/edit/" in content
-        assert "WASM" in content
+        assert "marimo" in content
         # Should have Running Examples Locally section
         assert "## Running Examples Locally" in content
         assert "just example" in content

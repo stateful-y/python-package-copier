@@ -1,24 +1,20 @@
+# /// script
+# requires-python = ">={{ min_python_version }}"
+# dependencies = [
+#     "numpy",
+#     "plotly",
+# ]
+# ///
 import marimo
 
 __generated_with = "0.9.0"
 app = marimo.App(width="medium")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     return (mo,)
-
-
-@app.cell
-async def _():
-    import sys
-
-    if "pyodide" in sys.modules:
-        import micropip
-
-        await micropip.install(["plotly", "numpy", "pandas"])
-    return
 
 
 @app.cell(hide_code=True)
@@ -60,11 +56,15 @@ def _(mo, num_points):
     return
 
 
-@app.cell
-def _(num_points):
-    import plotly.express as px
+@app.cell(hide_code=True)
+def _():
     import numpy as np
+    import plotly.express as px
+    return np, px
 
+
+@app.cell
+def _(np, num_points, px):
     # Set random seed for reproducibility
     np.random.seed(42)
 
@@ -86,7 +86,7 @@ def _(num_points):
 
     fig.update_traces(marker=dict(size=8, opacity=0.7))
     fig
-    return categories, fig, n, np, px, x, y
+    return categories, fig, n, x, y
 
 
 @app.cell(hide_code=True)

@@ -40,7 +40,8 @@ def test_hooks_file_created_with_examples(copie_with_examples):
     # Verify marimo export logic is present
     assert "marimo" in hooks_content, "marimo export logic not found"
     assert "export" in hooks_content, "export logic not found"
-    assert "html-wasm" in hooks_content, "html-wasm export mode not found"
+    assert "--no-sandbox" in hooks_content, "--no-sandbox flag not found"
+    assert "marimo.app" in hooks_content, "marimo.app playground link not found"
 
 
 def test_hooks_file_created_without_examples(copie_without_examples):
