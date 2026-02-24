@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.14.0] - 2026-02-24
+
+This **minor release** includes 1 commit.
+
+
+### Features
+- Replace WASM export with PEP 723 notebooks and marimo.app playground links  ([#111](https://github.com/stateful-y/python-package-copier/pull/111)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.13.4] - 2026-02-23
 
 This **patch release** includes 2 commits.
