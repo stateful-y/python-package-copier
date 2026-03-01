@@ -50,7 +50,7 @@ def test_option_combinations(copie, include_examples, include_actions):
         assert "on_pre_build" in hooks_content, "on_pre_build should exist when include_examples=True"
         assert "marimo" in hooks_content, "marimo logic should exist when include_examples=True"
     else:
-        assert "on_pre_build" not in hooks_content, "on_pre_build should not exist when include_examples=False"
+        assert "on_pre_build" in hooks_content, "on_pre_build should always exist for API page generation"
         assert "marimo" not in hooks_content, "marimo logic should not exist when include_examples=False"
 
     # Test pyproject.toml dependencies

@@ -53,8 +53,8 @@ def test_hooks_file_created_without_examples(copie_without_examples):
     hooks_content = hooks_file.read_text(encoding="utf-8")
     assert "on_post_build" in hooks_content, "on_post_build hook not found"
 
-    # on_pre_build should not exist when examples disabled
-    assert "on_pre_build" not in hooks_content, "on_pre_build should not exist without examples"
+    # on_pre_build should always exist (for API page generation)
+    assert "on_pre_build" in hooks_content, "on_pre_build should exist for API page generation"
 
 
 def test_on_post_build_copies_markdown(copie_with_examples, tmp_path):
@@ -386,9 +386,11 @@ def test_markdown_accessible_after_docs_build(copie_with_examples):
     ]
 
     for page in pages:
-        html_path = (
-            site_dir / f"{page if page == 'index' else page}/index.html" if page != "index" else site_dir / "index.html"
-        )
+        # MkDocs uses directory URLs: pages/foo.md → pages/foo/index.html
+        if page == "index":
+            html_path = site_dir / f"{page}.html"
+        else:
+            html_path = site_dir / f"{page}/index.html"
         md_path = site_dir / f"{page}.md"
 
         assert html_path.is_file(), f"HTML not found: {html_path}"

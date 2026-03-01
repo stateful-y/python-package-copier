@@ -54,7 +54,7 @@ When creating a new project with `uvx copier copy gh:stateful-y/python-package-c
 
 ## Generated Project Structure
 
-```
+```text
 my-package/
 ├── .github/
 │   ├── ISSUE_TEMPLATE/

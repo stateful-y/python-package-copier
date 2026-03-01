@@ -84,7 +84,9 @@ src/{{ package_name }}/_version.py
 {% if include_examples %}# Documentation examples
 docs/examples/*/
 
-{% endif %}
+{% endif %}# Auto-generated API submodule pages (created by docs/hooks.py)
+docs/pages/api/
+
 # AI Assistant Instructions
 CLAUDE.md
 CLAUDE_INSTRUCTIONS.md

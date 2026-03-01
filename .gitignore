@@ -167,5 +167,8 @@ Desktop.ini
 # Copier
 .copier-answers.yml
 
+# Generated project workspaces
+.generated/
+
 # uv
 uv.lock

@@ -50,20 +50,27 @@ cd python-package-copier
 uv sync --group test --group docs
 
 # Run unit tests (recommended during development)
-uv run pytest -m "not slow and not integration"
-# or: just test-fast
+just test-fast
 
 # Run all tests
-uv run pytest -v
-# or: just test
+just test
 
 # Format and fix code
-uvx nox -s fix
-# or: just fix
+just fix
 
 # Build documentation
-uvx nox -s serve_docs
-# or: just serve
+just serve
+```
+
+### Test Generated Projects
+
+`just gen` generates a temporary project, runs a recipe inside it, and cleans up:
+
+```bash
+just gen build                  # Build docs (with examples)
+just gen test                   # Run tests
+just gen lint                   # Run linters
+just examples=false gen build   # Without examples
 ```
 
 See the [Contributing Guide](https://python-package-copier.readthedocs.io/pages/contributing/) for complete development and testing documentation.

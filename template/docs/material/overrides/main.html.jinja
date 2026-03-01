@@ -6,9 +6,7 @@
     <strong>Click here to go to latest.</strong>
   </a>
 {% endblock %}
-{% endraw %}
-{% if include_examples %}
-{% raw %}
+
 {% block site_meta %}
   {{ super() }}
   <meta name="readthedocs-addons-api-version" content="1" />
@@ -21,6 +19,4 @@
       display: none;
     }
   </style>
-{% endblock %}
-{% endraw %}
-{% endif %}
+{% endblock %}{% endraw %}

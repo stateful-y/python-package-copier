@@ -2,7 +2,11 @@
 
 import pytest
 
-from {{ package_name }}.hello import hello
+from {{ package_name }}.hello import Greeter, hello
+
+# ---------------------------------------------------------------------------
+# hello() function
+# ---------------------------------------------------------------------------
 
 
 def test_hello_default():
@@ -28,3 +32,52 @@ def test_hello_with_name():
 def test_hello_parametrized(name, expected):
     """Test hello function with multiple inputs."""
     assert hello(name) == expected
+
+
+# ---------------------------------------------------------------------------
+# Greeter class
+# ---------------------------------------------------------------------------
+
+
+class TestGreeter:
+    """Tests for the Greeter class."""
+
+    def test_default_greeting(self):
+        """Test default greeting produces 'Hello, World!'."""
+        g = Greeter()
+        assert g.greet("World") == "Hello, World!"
+
+    def test_custom_greeting(self):
+        """Test custom greeting word and punctuation."""
+        g = Greeter("Hi", ".")
+        assert g.greet("Python") == "Hi, Python."
+
+    def test_count_increments(self):
+        """Test that the greeting counter increments on each call."""
+        g = Greeter()
+        assert g.count == 0
+        g.greet("a")
+        g.greet("b")
+        assert g.count == 2
+
+    def test_reset(self):
+        """Test that reset zeroes the counter."""
+        g = Greeter()
+        g.greet("test")
+        g.reset()
+        assert g.count == 0
+
+    def test_repr(self):
+        """Test developer-friendly representation."""
+        g = Greeter("Hey", "?")
+        assert repr(g) == "Greeter(greeting='Hey', punctuation='?')"
+
+    def test_invalid_greeting_type(self):
+        """Test TypeError raised for non-string greeting."""
+        with pytest.raises(TypeError, match="greeting must be a string"):
+            Greeter(123)  # type: ignore[arg-type]
+
+    def test_invalid_punctuation_type(self):
+        """Test TypeError raised for non-string punctuation."""
+        with pytest.raises(TypeError, match="punctuation must be a string"):
+            Greeter("Hi", 42)  # type: ignore[arg-type]

@@ -158,8 +158,8 @@ class TestAPIReferencePage:
         api_reference = result.project_dir / "docs" / "pages" / "api-reference.md"
         content = api_reference.read_text(encoding="utf-8")
 
-        # Should reference the package
-        assert "custom_pkg" in content
+        # Should reference the package via the API_TABLE placeholder
+        assert "API_TABLE" in content or "custom_pkg" in content
 
     def test_api_reference_has_code_documentation(self, copie):
         """Test that API reference includes code documentation."""
@@ -169,8 +169,8 @@ class TestAPIReferencePage:
         api_reference = result.project_dir / "docs" / "pages" / "api-reference.md"
         content = api_reference.read_text(encoding="utf-8")
 
-        # Should have code blocks or API documentation syntax
-        assert "```" in content or "::: " in content  # mkdocstrings syntax
+        # Should have API_TABLE placeholder (resolved at build time by hooks)
+        assert "<!-- API_TABLE -->" in content
 
 
 class TestContributingPage:
@@ -326,8 +326,8 @@ class TestExamplesPage:
         # Should have iframe or links to examples
         assert "examples/" in content or "iframe" in content.lower()
 
-    def test_examples_page_uses_marimo_embed_with_inline_code(self, copie):
-        """Test that examples page has interactive demo section with standalone notebook link."""
+    def test_examples_page_uses_gallery_placeholder(self, copie):
+        """Test that examples page has gallery placeholder and running instructions."""
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
@@ -336,11 +336,8 @@ class TestExamplesPage:
 
         content = examples_page.read_text(encoding="utf-8")
 
-        # Should have Interactive Demo section with View/Open in marimo links
-        assert "## Interactive Demo" in content
-        assert "/examples/hello/" in content
-        assert "/examples/hello/edit/" in content
-        assert "marimo" in content
+        # Should have GALLERY placeholder for dynamic gallery generation
+        assert "<!-- GALLERY -->" in content
         # Should have Running Examples Locally section
         assert "## Running Examples Locally" in content
         assert "just example" in content
