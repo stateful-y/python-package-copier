@@ -1,6 +1,7 @@
 # /// script
 # requires-python = ">={{ min_python_version }}"
 # dependencies = [
+#     "{{ package_name }}",
 #     "numpy",
 #     "plotly",
 # ]
@@ -8,6 +9,10 @@
 import marimo
 
 __generated_with = "0.9.0"
+__gallery__ = {
+    "title": "Hello {{ project_name }}",
+    "description": "Interactive scatter plot demonstrating {{ project_name }} with marimo notebooks.",
+}
 app = marimo.App(width="medium")
 
 
@@ -34,6 +39,26 @@ def _(mo):
         """
     )
     return
+
+
+@app.cell
+def _(mo):
+    from {{ package_name }}.hello import Greeter, hello
+
+    greeter = Greeter("Welcome to")
+    message = greeter.greet("{{ project_name }}")
+
+    mo.md(
+        f"""
+        ## Package Demo
+
+        Using the `hello` module from **{{ project_name }}**:
+
+        - `hello()` → *{hello()}*
+        - `Greeter("Welcome to").greet("{{ project_name }}")` → *{message}*
+        """
+    )
+    return Greeter, greeter, hello, message
 
 
 @app.cell
@@ -93,15 +118,27 @@ def _(np, num_points, px):
 def _(mo):
     mo.md(
         """
-        ---
+        ## Key Takeaways
+
+        - **Reactive execution**: marimo cells automatically re-run when their dependencies change
+        - **Interactive widgets**: sliders, dropdowns, and other UI elements update plots in real time
+        - **Plotly integration**: rich, interactive charts work seamlessly inside marimo notebooks
+        - **Pure Python**: every notebook is a valid `.py` file — version control, CI, and scripting just work
+
+        ## Next Steps
+
+        | Topic | Resource |
+        |-------|----------|
+        | User Guide | [User Guide](../pages/user-guide/) |
+        | API Reference | [API Reference](../pages/api/) |
+        | Contributing | [Contributing Guide](../pages/contributing/) |
+        | marimo docs | [marimo.io](https://marimo.io) |
 
         **Try these commands:**
 
         - Run this notebook interactively: `just example`
         - Execute as a script: `python examples/hello.py`
         - Deploy as an app: `marimo run examples/hello.py`
-
-        Learn more at [marimo.io](https://marimo.io)
         """
     )
     return

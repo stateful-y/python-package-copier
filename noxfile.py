@@ -119,6 +119,31 @@ def lint(session: nox.Session) -> None:
     # Run ruff check
     session.run("ruff", "check", "tests/", external=True)
 
+    # Run rumdl markdown linter
+    session.run("uvx", "rumdl", "check", ".", external=True)
+
+
+@nox.session(venv_backend="uv")
+def link_docs(session: nox.Session) -> None:
+    """Check the built documentation for dead links."""
+    from pathlib import Path
+
+    site_dir = Path("site")
+    if not site_dir.exists():
+        session.error("site/ directory not found. Run 'just build' or 'nox -s build_docs' first.")
+
+    session.run(
+        "uvx",
+        "linkchecker",
+        str(site_dir / "index.html"),
+        "--no-status",
+        "--no-warnings",
+        "--ignore-url",
+        "material/overrides",
+        *session.posargs,
+        external=True,
+    )
+
 
 @nox.session(venv_backend="uv")
 def build_docs(session: nox.Session) -> None:

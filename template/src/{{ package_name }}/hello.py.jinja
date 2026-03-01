@@ -1,19 +1,153 @@
-"""Example module for {{ project_name }}."""
+"""Example module for {{ project_name }}.
+
+Provides a simple greeting function and a configurable `Greeter` class
+to demonstrate API reference documentation with numpy-style docstrings.
+"""
+
+from __future__ import annotations
 
 
 def hello(name: str = "World") -> str:
     """Return a greeting message.
 
-    Args:
-        name: The name to greet. Defaults to "World".
+    Parameters
+    ----------
+    name : str, optional
+        The name to greet, by default ``"World"``.
 
-    Returns:
-        A greeting message.
+    Returns
+    -------
+    str
+        A greeting string in the form ``"Hello, {name}!"``.
 
-    Examples:
-        >>> hello()
-        'Hello, World!'
-        >>> hello("Python")
-        'Hello, Python!'
+    Examples
+    --------
+    >>> hello()
+    'Hello, World!'
+    >>> hello("Python")
+    'Hello, Python!'
+
+    See Also
+    --------
+    `Greeter` : A configurable greeting class.
     """
     return f"Hello, {name}!"
+
+
+class Greeter:
+    """A configurable greeter that produces formatted messages.
+
+    The ``Greeter`` stores a *greeting* word and an optional *punctuation*
+    character so that repeated calls to ``greet`` share a consistent
+    style.  The docstring format follows the NumPy convention [1]
+    and the ``greet`` method uses f-string interpolation [2].
+
+    Parameters
+    ----------
+    greeting : str, default=`"Hello"`
+        The greeting word.
+    punctuation : str, default=`"!"`
+        Trailing punctuation appended to every message.
+
+    Attributes
+    ----------
+    greeting : str
+        The greeting word used in messages.
+    punctuation : str
+        The punctuation appended to messages.
+    count : int
+        Running total of greetings produced by this instance.
+
+    Raises
+    ------
+    TypeError
+        If ``greeting`` or ``punctuation`` is not a string.
+
+    Notes
+    -----
+    This class is intentionally minimal and serves as a documentation
+    example.  It demonstrates how parameters, attributes, methods, and
+    other numpy-style docstring sections render on the API reference
+    pages.
+
+    References
+    ----------
+    1. [NumPy docstring guide](https://numpydoc.readthedocs.io/en/latest/format.html):
+        the docstring convention used by this project.
+    2. [PEP 498 — Literal String Interpolation](https://peps.python.org/pep-0498/):
+        f-string syntax used by ``greet``.
+
+    Examples
+    --------
+    >>> g = Greeter()
+    >>> g.greet("World")
+    'Hello, World!'
+
+    >>> g = Greeter("Hi", ".")
+    >>> g.greet("Python")
+    'Hi, Python.'
+    >>> g.count
+    1
+
+    See Also
+    --------
+    `hello` : A simpler functional greeting helper.
+    """
+
+    def __init__(self, greeting: str = "Hello", punctuation: str = "!") -> None:
+        if not isinstance(greeting, str):
+            msg = f"greeting must be a string, got {type(greeting).__name__}"
+            raise TypeError(msg)
+        if not isinstance(punctuation, str):
+            msg = f"punctuation must be a string, got {type(punctuation).__name__}"
+            raise TypeError(msg)
+        self.greeting = greeting
+        self.punctuation = punctuation
+        self.count: int = 0
+
+    def greet(self, name: str = "World") -> str:
+        """Produce a greeting for the given name.
+
+        Parameters
+        ----------
+        name : str, optional
+            The name to greet, by default ``"World"``.
+
+        Returns
+        -------
+        str
+            The formatted greeting string.
+
+        Examples
+        --------
+        >>> Greeter("Hey", "?").greet("there")
+        'Hey, there?'
+        """
+        self.count += 1
+        return f"{self.greeting}, {name}{self.punctuation}"
+
+    def reset(self) -> None:
+        """Reset the greeting counter to zero.
+
+        Examples
+        --------
+        >>> g = Greeter()
+        >>> g.greet("test")
+        'Hello, test!'
+        >>> g.count
+        1
+        >>> g.reset()
+        >>> g.count
+        0
+        """
+        self.count = 0
+
+    def __repr__(self) -> str:
+        """Return a developer-friendly representation.
+
+        Returns
+        -------
+        str
+            A string of the form ``Greeter(greeting=..., punctuation=...)``.
+        """
+        return f"Greeter(greeting={self.greeting!r}, punctuation={self.punctuation!r})"

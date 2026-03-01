@@ -14,9 +14,6 @@ _exclude:
   - "htmlcov"
   - "*.egg-info"
 
-_skip_if_exists:
-  - "docs"
-
 _envops:
   block_start_string: "{%"
   block_end_string: "%}"

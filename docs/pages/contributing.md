@@ -119,43 +119,47 @@ The CI pipeline uses a two-tier testing strategy optimized for fast feedback:
 - Draft PRs: 3 jobs (2 test + 1 lint)
 - Ready PRs: 11 jobs (6 test-fast + 4 test-full + 1 lint)
 
-### Manual Testing
+### Manual Testing with `just gen`
 
-Generate a test project manually:
-
-```bash
-uvx copier copy . /tmp/test-project --trust
-```
-
-Verify the generated project works:
+The `just gen` command generates a temporary project from the template, runs a recipe inside it, and automatically cleans up afterwards. This is the fastest way to verify template changes produce a working project.
 
 ```bash
-cd /tmp/test-project
-uv sync --group dev
+# Build docs in a generated project (with examples, the default)
+just gen build
+
+# Run tests in a generated project
+just gen test
+
+# Run linters
+just gen lint
+
+# Format and fix code
+just gen fix
+
+# Generate without examples
+just examples=false gen build
+just examples=false gen test
 ```
 
-Run tests in the generated project:
+The generated project is created in `.generated/` and removed automatically via a shell trap, even if the recipe fails.
 
-=== "just"
+#### Available recipes
 
-    ```bash
-    just test-fast  # Fast tests only
-    just test       # All tests
-    ```
+Any recipe from the generated project's justfile can be passed to `just gen`:
 
-=== "nox"
-
-    ```bash
-    uvx nox -s test_fast
-    uvx nox -s test
-    ```
-
-=== "uv run"
-
-    ```bash
-    uv run pytest -m "not slow and not integration"
-    uv run pytest -v
-    ```
+| Recipe | Description |
+| --- | --- |
+| `test` | Run tests and doctests |
+| `test-fast` | Fast tests only (no slow/integration) |
+| `test-cov` | Tests with coverage report |
+| `test-docstrings` | Run docstring examples |
+| `lint` | Run ruff, rumdl, and ty |
+| `fix` | Auto-format via pre-commit |
+| `build` | Build documentation |
+| `build-fast` | Build docs without notebook export (with examples only) |
+| `serve` | Serve docs locally at localhost:8080 |
+| `link` | Check built docs for dead links |
+| `all` | Run fix + test |
 
 ## Code Quality
 
@@ -186,13 +190,13 @@ Check code (fix + test):
 === "just"
 
     ```bash
-    just check
+    just all
     ```
 
 === "uv run"
 
     ```bash
-    just fix && just test
+    uvx pre-commit run --all-files && uv run pytest tests/ -n auto -v
     ```
 
 ## Documentation
@@ -202,7 +206,7 @@ Build documentation:
 === "just"
 
     ```bash
-    just docs
+    just build
     ```
 
 === "nox"
@@ -250,15 +254,16 @@ Edit `copier.yml` to add or modify template prompts and variables.
 ### Test Your Changes
 
 After making changes:
-1. Run `uv run pytest -v` to test template generation
-2. Generate a test project: `uvx copier copy . /tmp/test-project --trust`
-3. Verify the generated project works
+
+1. Run `just test-fast` to test template generation
+2. Run `just gen build` to verify the generated project builds docs
+3. Run `just gen test` to verify tests pass in the generated project
 
 ## Commit Message Format
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/) to automate changelog generation and releases. All commit messages must follow this format:
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]

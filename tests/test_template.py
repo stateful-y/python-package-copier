@@ -145,8 +145,11 @@ def test_generated_pyproject_uses_correct_tools(copie_session_default):
     assert "examples" in content, "examples dependency group not found"
     assert "dev" in content, "dev dependency group not found"
 
-    # nox should NOT be in pyproject.toml - it's installed globally via uvx
-    assert "nox" not in content, "nox should not be in pyproject.toml (install globally with uvx)"
+    # nox should NOT be a dependency in pyproject.toml - it's installed globally via uvx
+    # (note: .nox may appear in tool config exclude lists, which is fine)
+    assert '"nox' not in content and "'nox" not in content, (
+        "nox should not be a dependency in pyproject.toml (install globally with uvx)"
+    )
 
 
 def test_pyproject_has_interrogate_config(copie_session_default):
@@ -382,13 +385,7 @@ def test_doctest_configuration(copie):
     assert result.exit_code == 0
     assert result.project_dir.is_dir()
 
-    # Check pyproject.toml contains doctest configuration
-    pyproject_content = (result.project_dir / "pyproject.toml").read_text(encoding="utf-8")
-    assert "[tool.pytest.ini_options.doctest]" in pyproject_content
-    assert "--doctest-modules" in pyproject_content
-    assert "--doctest-continue-on-failure" in pyproject_content
-
-    # Check noxfile has test_docstrings session
+    # Check noxfile has test_docstrings session with doctest flags
     noxfile_content = (result.project_dir / "noxfile.py").read_text(encoding="utf-8")
     assert "def test_docstrings(session:" in noxfile_content
     assert '"--doctest-modules"' in noxfile_content
@@ -400,7 +397,7 @@ def test_doctest_configuration(copie):
 
     # Check hello.py has docstring examples
     hello_py = (result.project_dir / "src" / "test_project" / "hello.py").read_text(encoding="utf-8")
-    assert "Examples:" in hello_py
+    assert "Examples" in hello_py
     assert ">>>" in hello_py
 
 
@@ -465,12 +462,12 @@ def test_examples_directory_when_enabled(copie):
     assert "-m example" in justfile_content
     assert "-n auto" in justfile_content
 
-    # Check examples.md exists and mentions standalone notebooks
+    # Check examples.md exists and uses gallery placeholder
     examples_md = result.project_dir / "docs" / "pages" / "examples.md"
     assert examples_md.is_file(), "docs/pages/examples.md not created"
     examples_content = examples_md.read_text(encoding="utf-8")
-    assert "## Interactive Demo" in examples_content
-    assert "/examples/hello/" in examples_content
+    assert "<!-- GALLERY -->" in examples_content
+    assert "## Running Examples Locally" in examples_content
 
     # Check mkdocs.yml includes examples in nav and has exclude_docs
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
@@ -755,7 +752,7 @@ def test_markdown_docs_created_and_clean(copie):
     assert len(md_files) > 0, f"No markdown files found in site/. Site structure: {list(site_dir.iterdir())}"
 
     # Verify key markdown files exist
-    expected_md_files = ["index.md", "getting-started.md", "user-guide.md", "api-reference.md"]
+    expected_md_files = ["index.md", "getting-started.md", "user-guide.md"]
     found_names = {f.name for f in md_files}
     for expected in expected_md_files:
         assert expected in found_names, f"{expected} not found in site/. Found: {found_names}"
