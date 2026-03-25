@@ -28,6 +28,10 @@ test-cov:
 # Run docstring examples
 test-docstrings:
     uv run pytest --doctest-modules --doctest-continue-on-failure --no-cov src/{{ package_name }}
+
+# Run fast tests after pinning dependency versions (e.g. just test-compat some-package==1.0.0)
+test-compat +PINS='':
+    uvx nox -s test_compat -- {% raw %}{{PINS}}{% endraw %}
 {% if include_examples %}
 # Run marimo example notebook interactively
 example file='':

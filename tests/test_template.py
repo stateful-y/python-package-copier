@@ -302,6 +302,10 @@ def test_github_workflows(copie_session_default):
     assert "test_docstrings:" in content, "test_docstrings job not found in tests workflow"
     assert "nox -s test_docstrings" in content, "test_docstrings nox session not run in CI"
 
+    # Check for test-compat job
+    assert "test-compat:" in content, "test-compat job not found in tests workflow"
+    assert "nox -s test_compat" in content, "test_compat nox session not run in CI"
+
     # Check PR title validation workflow
     pr_title_workflow = result.project_dir / ".github" / "workflows" / "pr-title.yml"
     assert pr_title_workflow.is_file(), "PR title validation workflow not found"
