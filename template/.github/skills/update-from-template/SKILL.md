@@ -58,7 +58,7 @@ For each file:
 
 Build a classification map:
 
-```
+```text
 {file_path: {tier: 1|2|3, customized: bool, diff_summary: "..."}}
 ```
 

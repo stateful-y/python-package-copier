@@ -57,7 +57,7 @@ requires-python = ">={{ min_python_version }}"
 
 ### Conditional directory names (in filesystem paths, not file content)
 These are encoded in the template directory structure itself:
-```
+```text
 template/{% if include_examples %}examples{% endif %}/
 template/.github/{% if include_actions %}workflows{% endif %}/
 ```

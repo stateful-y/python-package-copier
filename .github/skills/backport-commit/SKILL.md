@@ -13,7 +13,7 @@ Backport a commit from a generated project into the Copier template source.
 
 Fetch the raw diff by appending `.diff` to the GitHub commit URL:
 
-```
+```text
 # Given: https://github.com/user/repo/commit/abc123
 # Fetch: https://github.com/user/repo/commit/abc123.diff
 ```
