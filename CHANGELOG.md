@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.16.0] - 2026-03-25
+
+This **minor release** includes 3 commits.
+
+
+### Features
+- Add agent skills and polish template defaults  ([#116](https://github.com/stateful-y/python-package-copier/pull/116)) by @gtauzin
+- Add test_compat nox session, justfile command, and CI job  ([#117](https://github.com/stateful-y/python-package-copier/pull/117)) by @gtauzin
+
+### Refactoring
+- Replace manual coverage with pytest-cov in test_coverage session  ([#115](https://github.com/stateful-y/python-package-copier/pull/115)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.15.0] - 2026-03-01
 
 This **minor release** includes 1 commit.
