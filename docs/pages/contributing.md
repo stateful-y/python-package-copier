@@ -110,8 +110,8 @@ def test_generated_project_builds(copie):
 The CI pipeline uses a two-tier testing strategy optimized for fast feedback:
 
 1. **Fast tests** (`test-fast` job): Runs on minimum and maximum Python versions (3.11, 3.14) only:
-    - **Draft PRs**: Ubuntu only (2 jobs) - Quick feedback in ~2-3 minutes
-    - **Ready PRs/Main**: All OS - Ubuntu, Windows, macOS (6 jobs) - Cross-platform validation
+   - **Draft PRs**: Ubuntu only (2 jobs) - Quick feedback in ~2-3 minutes
+   - **Ready PRs/Main**: All OS - Ubuntu, Windows, macOS (6 jobs) - Cross-platform validation
 
 2. **Full test suite** (`test-full` job): Runs all tests (fast + slow + integration) on Ubuntu across all Python versions (3.11-3.14) when the PR is not in draft mode or on the main branch (4 jobs).
 
@@ -325,40 +325,40 @@ Before you can create releases, you need to configure two things:
 #### 1. Create a Personal Access Token for Changelog Automation
 
 1. **Create a Fine-grained Personal Access Token**:
-    - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
-    - Click "Generate new token"
-    - Configure:
-        - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
-        - **Expiration**: 90 days or longer
-        - **Repository access**: Only select repositories → Choose this repository
-        - **Permissions**:
-            - Contents: Read and write
-            - Pull requests: Read and write
+   - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+   - Click "Generate new token"
+   - Configure:
+     - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
+     - **Expiration**: 90 days or longer
+     - **Repository access**: Only select repositories → Choose this repository
+     - **Permissions**:
+       - Contents: Read and write
+       - Pull requests: Read and write
 
 2. **Add token as repository secret**:
-    - Go to repository Settings → Secrets and variables → Actions
-    - Click "New repository secret"
-    - Name: `CHANGELOG_AUTOMATION_TOKEN`
-    - Value: Paste your generated token
+   - Go to repository Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `CHANGELOG_AUTOMATION_TOKEN`
+   - Value: Paste your generated token
 
 #### 2. Configure PyPI Environment with Required Reviewers
 
 To enable the manual approval gate before PyPI publishing:
 
 1. **Set up Trusted Publishing on PyPI** (if not already done):
-    - Go to your PyPI project → Manage → Publishing
-    - Add a new publisher with:
-        - **Owner**: stateful-y
-        - **Repository**: python-package-copier
-        - **Workflow**: `publish-release.yml`
-        - **Environment**: `pypi`
+   - Go to your PyPI project → Manage → Publishing
+   - Add a new publisher with:
+     - **Owner**: stateful-y
+     - **Repository**: python-package-copier
+     - **Workflow**: `publish-release.yml`
+     - **Environment**: `pypi`
 
 2. **Configure environment protection in GitHub**:
-    - Go to repository Settings → Environments
-    - Click on the `pypi` environment (or create it if it doesn't exist)
-    - Enable "Required reviewers"
-    - Add maintainers as required reviewers
-    - Optionally set a wait timer for additional safety
+   - Go to repository Settings → Environments
+   - Click on the `pypi` environment (or create it if it doesn't exist)
+   - Enable "Required reviewers"
+   - Add maintainers as required reviewers
+   - Optionally set a wait timer for additional safety
 
 This ensures that no package is published to PyPI without explicit approval from a maintainer.
 
@@ -373,26 +373,26 @@ This ensures that no package is published to PyPI without explicit approval from
    ```
 
 3. **Automated changelog workflow** (`changelog.yml`):
-    - Generates the changelog using [git-cliff](https://git-cliff.org/)
-    - Creates a **Pull Request** with the updated `CHANGELOG.md`
-    - Builds the package distributions (wheels and sdist) for **immediate validation**
-    - Stores distributions as workflow artifacts (reused later to avoid rebuilding)
+   - Generates the changelog using [git-cliff](https://git-cliff.org/)
+   - Creates a **Pull Request** with the updated `CHANGELOG.md`
+   - Builds the package distributions (wheels and sdist) for **immediate validation**
+   - Stores distributions as workflow artifacts (reused later to avoid rebuilding)
 
 4. **Review and merge the changelog PR**:
-    - Review the generated changelog
-    - Merge the PR to update the main branch
-    - The PR is automatically labeled with `changelog` and `automated`
+   - Review the generated changelog
+   - Merge the PR to update the main branch
+   - The PR is automatically labeled with `changelog` and `automated`
 
 5. **Automated release workflow** (`publish-release.yml`):
-    - Creates a GitHub Release with auto-generated release notes
-    - Attaches distribution files to the release
-    - **Waits for manual approval** before proceeding to PyPI
+   - Creates a GitHub Release with auto-generated release notes
+   - Attaches distribution files to the release
+   - **Waits for manual approval** before proceeding to PyPI
 
 6. **Manual approval for PyPI publishing**:
-    - Designated reviewers receive a notification
-    - Review the GitHub Release to verify everything is correct
-    - Approve the deployment to publish to PyPI
-    - Package is published using Trusted Publishing (OIDC, no tokens needed)
+   - Designated reviewers receive a notification
+   - Review the GitHub Release to verify everything is correct
+   - Approve the deployment to publish to PyPI
+   - Package is published using Trusted Publishing (OIDC, no tokens needed)
 
 ### Version Numbering
 
