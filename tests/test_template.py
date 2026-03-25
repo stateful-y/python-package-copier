@@ -216,6 +216,24 @@ def test_noxfile_configuration(copie_session_default):
     assert "ty" in content, "ty not found in noxfile.py"
 
 
+def test_noxfile_test_coverage_uses_pytest_cov(copie_session_default):
+    """Test that test_coverage session uses pytest-cov instead of manual coverage."""
+    result = copie_session_default
+
+    content = (result.project_dir / "noxfile.py").read_text(encoding="utf-8")
+
+    # Should use pytest directly (pytest-cov handles coverage via addopts)
+    assert "pytest-cov" in content or "pytest" in content
+
+    # Should NOT use manual coverage commands
+    assert 'session.env["COVERAGE_FILE"]' not in content
+    assert 'session.env["COVERAGE_PROCESS_START"]' not in content
+    assert '"coverage", "erase"' not in content
+    assert '"coverage", "run"' not in content
+    assert '"coverage", "html"' not in content
+    assert '"coverage", "xml"' not in content
+
+
 def test_precommit_configuration(copie_session_default):
     """Test that pre-commit config is properly set up."""
     result = copie_session_default
@@ -1336,3 +1354,24 @@ def test_code_of_conduct_content(copie):
     content = coc_path.read_text()
     assert f"contacting the project team at {custom_email}" in content
     assert "gtauzin@stateful-y.io" not in content
+
+
+def test_update_from_template_skill_generated(copie_session_default):
+    """Test that the update-from-template skill is included in generated projects."""
+    result = copie_session_default
+
+    skill_dir = result.project_dir / ".github" / "skills" / "update-from-template"
+    assert skill_dir.is_dir(), "Missing .github/skills/update-from-template/"
+
+    skill_md = skill_dir / "SKILL.md"
+    assert skill_md.is_file(), "Missing SKILL.md"
+
+    content = skill_md.read_text()
+    assert "name: update-from-template" in content
+    assert "copier update" in content
+
+    # Check reference files
+    refs_dir = skill_dir / "references"
+    assert refs_dir.is_dir(), "Missing references/"
+    assert (refs_dir / "file-classification.md").is_file(), "Missing file-classification.md"
+    assert (refs_dir / "conflict-resolution.md").is_file(), "Missing conflict-resolution.md"
