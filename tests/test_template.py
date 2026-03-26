@@ -77,6 +77,16 @@ def test_gitignore_excludes_examples_when_disabled(copie):
     assert "docs/examples/*/" not in content
 
 
+def test_gitignore_includes_worktrees(copie_session_default):
+    """Test that .gitignore includes .worktrees/ entry."""
+    result = copie_session_default
+
+    content = (result.project_dir / ".gitignore").read_text(encoding="utf-8")
+
+    assert "# Worktrees" in content
+    assert ".worktrees/" in content
+
+
 def test_gitignore_uses_project_name_for_version_file(copie):
     """Test that .gitignore uses project_name variable (not project_slug) for the version file path."""
     result = copie.copy(extra_answers={"package_name": "my_package", "project_slug": "my-project"})
