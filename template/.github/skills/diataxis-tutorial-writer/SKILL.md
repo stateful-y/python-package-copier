@@ -109,7 +109,7 @@ Use these templates:
 
 ## Python Package Tutorial Template
 
-```markdown
+````markdown
 # Getting Started
 
 In this tutorial, we will [concrete achievement]. Along the way, we will
@@ -143,7 +143,7 @@ print(<package_name>.__version__)
 
 The output should look something like:
 
-```
+```text
 x.y.z
 ```
 
@@ -160,7 +160,7 @@ print(result)
 
 You should see:
 
-```
+```text
 [expected output]
 ```
 
@@ -185,7 +185,7 @@ You have [accomplished concrete thing]. Along the way, you:
 - [How-to guide for a related task](../how-to/something.md)
 - [Explanation of a concept encountered](../explanation/concept.md)
 - [API reference for the functions used](../reference/api.md)
-```
+```text
 
 ## Anti-Patterns to Avoid
 

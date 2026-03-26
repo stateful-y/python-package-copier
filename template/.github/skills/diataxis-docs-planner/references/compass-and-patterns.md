@@ -57,7 +57,7 @@ Adjacent quadrants share affinities that cause content to bleed across boundarie
 
 ### Single Product, Multiple User Types
 
-```
+```text
 docs/
   getting-started.md                    # tutorial (all users)
   how-to/
@@ -81,7 +81,7 @@ docs/
 
 ### Single Product, Multiple Deployment Targets
 
-```
+```text
 docs/
   getting-started.md                    # tutorial (generic)
   how-to/

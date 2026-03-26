@@ -86,7 +86,7 @@ Anything beyond action dilutes the guide. Do not explain concepts inline — lin
 
 ## Python Package How-to Template
 
-```markdown
+````markdown
 # How to [Accomplish Specific Goal]
 
 This guide shows you how to [goal description]. Use this when you need to
@@ -144,7 +144,7 @@ If you are [condition B] instead:
 
 - [API Reference for X](../reference/api.md) — full list of options
 - [About Y architecture](../explanation/architecture.md) — understanding the design
-```
+```text
 
 ## Typical How-to Guides for Python Packages
 

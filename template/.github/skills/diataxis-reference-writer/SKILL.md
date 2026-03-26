@@ -33,7 +33,7 @@ Reference is what the user needs while they are at work — applying their exist
 
 The documentation structure must reflect the code structure — like a map reflects territory. If a method belongs to a class in a module, the docs should show the same hierarchy.
 
-```
+```text
 reference/
   api.md              # or split per module:
   api/
@@ -81,7 +81,7 @@ Keep examples minimal — just enough to illustrate, not to teach.
 - **"<Class> provides…"**, **"<Function> returns…"** — State facts about the machinery
 - **"Parameters: a, b, c"** — List inputs, outputs, options
 - **"You must use X. You must not apply Y unless Z."** — Warnings where appropriate
-- **"See [How to configure X](../how-to/configure-x.md) for usage guidance."** — Link out
+- **"See [How to configure X] for usage guidance."** — Link out
 
 ## mkdocstrings Integration
 
@@ -153,7 +153,7 @@ Or per-module:
 
 ```
 command-name [OPTIONS] ARGUMENT
-```
+```text
 
 ### Arguments
 
@@ -182,7 +182,7 @@ command-name [OPTIONS] ARGUMENT
 command-name --verbose input.txt
 command-name -o result.json input.txt
 ```
-```
+```text
 
 ## Configuration Reference Template
 

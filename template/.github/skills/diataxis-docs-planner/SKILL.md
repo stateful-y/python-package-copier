@@ -85,10 +85,10 @@ Output a structured documentation plan:
 3. **MkDocs nav structure** — ready to paste into `mkdocs.yml`
 4. **Implementation order** — tutorials and key how-tos first (highest user impact)
 5. **Skill recommendations** — name the specific writer skill for each page:
-   - Tutorial pages → `diataxis-tutorial-writer`
-   - How-to pages → `diataxis-howto-writer`
-   - Reference pages → `diataxis-reference-writer`
-   - Explanation pages → `diataxis-explanation-writer`
+    - Tutorial pages → `diataxis-tutorial-writer`
+    - How-to pages → `diataxis-howto-writer`
+    - Reference pages → `diataxis-reference-writer`
+    - Explanation pages → `diataxis-explanation-writer`
 
 ## MkDocs Nav Patterns
 
@@ -138,11 +138,13 @@ When auditing, also note:
 ## Documentation Audit: <package-name>
 
 ### Current State
+
 | Page | File | Current Quadrant | Issues |
 |------|------|-----------------|--------|
 | ... | ... | ... | ... |
 
 ### Gap Analysis
+
 | Quadrant | Existing | Missing | Priority |
 |----------|----------|---------|----------|
 | Tutorial | ... | ... | ... |
