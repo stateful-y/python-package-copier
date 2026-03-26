@@ -52,13 +52,15 @@ jobs:
         run: nox -s test_fast --python {% raw %}${{ matrix.python-version }}{% endraw %}
 
   # Compatibility test against oldest supported dependency versions
+  # Uncomment pins when compat pin files are added (e.g., "oldest", "legacy")
   test-compat:
+    if: false  # disabled until pins are defined
     name: {% raw %}Compat tests (${{ matrix.pins }}){% endraw %}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        pins: []
+        pins: ["placeholder"]
 
     steps:
       - name: Checkout code

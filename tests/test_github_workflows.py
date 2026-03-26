@@ -125,6 +125,17 @@ class TestTestsWorkflow:
         # Should NOT have examples-related content
         assert "test_examples" not in workflow_content and "run-examples" not in workflow_content
 
+    def test_tests_workflow_compat_job_disabled(self, copie):
+        """Test that test-compat job is disabled until pins are defined."""
+        result = copie.copy(extra_answers={"include_actions": True})
+        assert result.exit_code == 0
+
+        workflow_path = result.project_dir / ".github" / "workflows" / "tests.yml"
+        workflow_content = workflow_path.read_text(encoding="utf-8")
+
+        assert "if: false  # disabled until pins are defined" in workflow_content
+        assert 'pins: ["placeholder"]' in workflow_content
+
 
 class TestPublishWorkflow:
     """Test the publish-release.yml workflow."""
