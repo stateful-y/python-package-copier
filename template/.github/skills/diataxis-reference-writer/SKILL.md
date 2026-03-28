@@ -9,6 +9,10 @@ Generate reference documentation — information-oriented technical descriptions
 
 Reference material is like a **map**: it describes the territory accurately so the user can navigate it confidently while working. It is austere, authoritative, and free of interpretation.
 
+## File Placement
+
+Place reference pages in `docs/pages/reference/`. Example: `docs/pages/reference/api.md`.
+
 ## What Reference Is
 
 - Technical description of the machinery and how to operate it

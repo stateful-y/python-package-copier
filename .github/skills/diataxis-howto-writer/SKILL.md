@@ -5,9 +5,13 @@ description: Generate task-oriented how-to guide documentation for Python packag
 
 # Diátaxis How-to Guide Writer
 
-Generate how-to guides - task-oriented documentation that helps already-competent users accomplish specific goals.
+Generate how-to guides — task-oriented documentation that helps already-competent users accomplish specific goals.
 
 A how-to guide is a **recipe**. It addresses a real-world problem and provides practical directions to solve it. The reader already knows what they want to do.
+
+## File Placement
+
+Place how-to guides in `docs/pages/how-to/`. Example: `docs/pages/how-to/configure.md`.
 
 ## What a How-to Guide Is
 
@@ -30,7 +34,7 @@ A how-to guide is NOT a tutorial. Tutorials serve learning; how-to guides serve 
 ### Step 2: Determine Prerequisites
 
 - What should the user already know or have set up?
-- List these briefly at the top - do not teach them (that is a tutorial's job)
+- List these briefly at the top — do not teach them (that is a tutorial's job)
 
 ### Step 3: Write the Guide
 
@@ -50,7 +54,7 @@ Practical usability over completeness. A how-to guide should start and end in so
 
 ### Provide a set of instructions
 
-The steps are in the form of actions - including thinking and judgement, not just physical acts. Address how the user thinks as well as what the user does.
+The steps are in the form of actions — including thinking and judgement, not just physical acts. Address how the user thinks as well as what the user does.
 
 ### Describe a logical sequence
 
@@ -64,7 +68,7 @@ Ground sequences in the user's activity patterns. A workflow that has the user r
 - How long must they hold a thought before resolving it in action?
 - Does the guide require unnecessary back-and-forth?
 
-At its best, a how-to guide anticipates the user - the helper who has the tool ready before you reach for it.
+At its best, a how-to guide anticipates the user — the helper who has the tool ready before you reach for it.
 
 ### Pay attention to naming
 
@@ -76,13 +80,13 @@ Titles must say exactly what the guide shows:
 
 ### No digression, explanation, or teaching
 
-Anything beyond action dilutes the guide. Do not explain concepts inline - link to explanation pages. Do not teach basics - that is a tutorial's job. Do not provide exhaustive reference - link to reference pages.
+Anything beyond action dilutes the guide. Do not explain concepts inline — link to explanation pages. Do not teach basics — that is a tutorial's job. Do not provide exhaustive reference — link to reference pages.
 
 ## Language Patterns
 
-- **"This guide shows you how to…"** - Describe the problem and what will be solved
-- **"If you want x, do y. To achieve w, do z."** - Conditional imperatives
-- **"Refer to the X reference guide for a full list of options."** - Don't pollute with every option
+- **"This guide shows you how to…"** — Describe the problem and what will be solved
+- **"If you want x, do y. To achieve w, do z."** — Conditional imperatives
+- **"Refer to the X reference guide for a full list of options."** — Don't pollute with every option
 
 ## Python Package How-to Template
 
@@ -94,7 +98,7 @@ This guide shows you how to [goal description]. Use this when you need to
 
 ## Prerequisites
 
-- <package-name> installed ([Getting Started](../getting-started.md))
+- <package-name> installed ([Getting Started](../tutorials/getting-started.md))
 - [Other requirement]
 
 ## Steps
@@ -142,21 +146,21 @@ If you are [condition B] instead:
 
 ## See Also
 
-- [API Reference for X](../reference/api.md) - full list of options
-- [About Y architecture](../explanation/architecture.md) - understanding the design
+- [API Reference for X](../reference/api.md) — full list of options
+- [About Y architecture](../explanation/architecture.md) — understanding the design
 ```text
 
 ## Typical How-to Guides for Python Packages
 
-- **How to install** - pip, uv, conda, Docker, from source variations
-- **How to configure <feature>** - settings, env vars, config files
-- **How to integrate with <library>** - using alongside pytest, FastAPI, Django, etc.
-- **How to deploy to production** - WSGI, Docker, cloud platforms
-- **How to write a plugin / extension** - for extensible packages
-- **How to migrate from vX to vY** - upgrade path with breaking changes
-- **How to test your code** - patterns for testing code that uses the package
-- **How to troubleshoot <category>** - common problems and solutions
-- **How to contribute** - development setup, workflow, conventions
+- **How to install** — pip, uv, conda, Docker, from source variations
+- **How to configure <feature>** — settings, env vars, config files
+- **How to integrate with <library>** — using alongside pytest, FastAPI, Django, etc.
+- **How to deploy to production** — WSGI, Docker, cloud platforms
+- **How to write a plugin / extension** — for extensible packages
+- **How to migrate from vX to vY** — upgrade path with breaking changes
+- **How to test your code** — patterns for testing code that uses the package
+- **How to troubleshoot <category>** — common problems and solutions
+- **How to contribute** — development setup, workflow, conventions
 
 ## Distinction from Tutorials
 
@@ -167,16 +171,16 @@ If you are [condition B] instead:
 | Goal | Learning experience | Task completion |
 | Path | Single, managed | Branching, real-world |
 | Setting | Contrived, safe | Real world, unpredictable |
-| Choices | None - pick for them | Conditional alternatives |
+| Choices | None — pick for them | Conditional alternatives |
 | Responsibility | Teacher's | User's |
-| Explanation | Minimal, inline | None - link out |
+| Explanation | Minimal, inline | None — link out |
 
 A tutorial teaches general skills through a specific exercise. A how-to guide helps accomplish a specific task using existing skills.
 
 ## Anti-Patterns to Avoid
 
-- **Teaching basics** - Do not explain what a function is; the user is competent
-- **Exhaustive options** - List 2-3 variations, link to reference for the rest
-- **Tool-centric framing** - "How to use the X class" is not addressed to a human need
-- **Missing conditionals** - Real-world tasks branch; acknowledge this with if/then guidance
-- **Burying the action** - Lead with what to do, not why
+- **Teaching basics** — Do not explain what a function is; the user is competent
+- **Exhaustive options** — List 2-3 variations, link to reference for the rest
+- **Tool-centric framing** — "How to use the X class" is not addressed to a human need
+- **Missing conditionals** — Real-world tasks branch; acknowledge this with if/then guidance
+- **Burying the action** — Lead with what to do, not why

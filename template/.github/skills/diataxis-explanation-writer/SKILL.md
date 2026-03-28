@@ -9,6 +9,10 @@ Generate explanation documentation — understanding-oriented discussion that he
 
 Explanation is like reading **On Food and Cooking** by Harold McGee: it does not teach you to cook or give you recipes, but it places cooking in context of history, science, and society, deepening your understanding of the craft.
 
+## File Placement
+
+Place explanation pages in `docs/pages/explanation/`. Example: `docs/pages/explanation/concepts.md`.
+
 ## What Explanation Is
 
 - Discursive treatment of a subject that permits reflection

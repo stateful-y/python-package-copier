@@ -5,7 +5,7 @@ description: Audit, plan, and structure Python package documentation following t
 
 # Diátaxis Documentation Planner
 
-Audit existing documentation and produce a structured plan following the Diátaxis framework - four quadrants of documentation that serve distinct user needs.
+Audit existing documentation and produce a structured plan following the Diátaxis framework — four quadrants of documentation that serve distinct user needs.
 
 ## The Four Quadrants
 
@@ -55,7 +55,7 @@ Read all files in `docs/` and classify each page by quadrant using the compass:
 For a well-documented Python package, expect at minimum:
 
 **Tutorials** (at least 1):
-- Getting Started / First Steps - install, import, first meaningful result
+- Getting Started / First Steps — install, import, first meaningful result
 
 **How-to Guides** (varies by feature count):
 - One per common task/problem users face
@@ -73,17 +73,18 @@ For a well-documented Python package, expect at minimum:
 **Explanation** (at least 1-2):
 - Architecture / design overview
 - Key concepts and terminology
-- Advantages of the chosen tooling and patterns (focus on benefits, not justification)
+- Design decisions / "why" docs
+- Comparison with alternatives (when useful)
 
 ### Step 4: Produce the Plan
 
 Output a structured documentation plan:
 
-1. **Gap analysis table** - what exists, what is missing, what needs reclassification
-2. **Recommended pages** - organized by quadrant, with title, purpose, priority (high/medium/low)
-3. **MkDocs nav structure** - ready to paste into `mkdocs.yml`
-4. **Implementation order** - tutorials and key how-tos first (highest user impact)
-5. **Skill recommendations** - name the specific writer skill for each page:
+1. **Gap analysis table** — what exists, what is missing, what needs reclassification
+2. **Recommended pages** — organized by quadrant, with title, purpose, priority (high/medium/low)
+3. **MkDocs nav structure** — ready to paste into `mkdocs.yml`
+4. **Implementation order** — tutorials and key how-tos first (highest user impact)
+5. **Skill recommendations** — name the specific writer skill for each page:
    - Tutorial pages → `diataxis-tutorial-writer`
    - How-to pages → `diataxis-howto-writer`
    - Reference pages → `diataxis-reference-writer`
@@ -91,36 +92,35 @@ Output a structured documentation plan:
 
 ## MkDocs Nav Patterns
 
-Typical Python package nav structure:
+Canonical Python package nav structure using `pages/` folder-per-quadrant:
 
 ```yaml
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md          # tutorial
+  - Tutorials:                                    # tutorial
+    - Getting Started: pages/tutorials/getting-started.md
   - How-to Guides:                                # how-to
-    - how-to/index.md
-    - How to Configure X: how-to/configure-x.md
-    - How to Integrate with Y: how-to/integrate-y.md
+    - How to Configure X: pages/how-to/configure-x.md
+    - How to Integrate with Y: pages/how-to/integrate-y.md
+    - Contributing: pages/how-to/contribute.md
   - Reference:                                    # reference
-    - reference/index.md
-    - API Reference: reference/api.md
-    - CLI Reference: reference/cli.md
-    - Configuration: reference/configuration.md
+    - API Reference: pages/reference/api.md
+    - CLI Reference: pages/reference/cli.md
+    - Configuration: pages/reference/configuration.md
   - Explanation:                                  # explanation
-    - explanation/index.md
-    - Architecture: explanation/architecture.md
-  - Contributing: contributing.md                 # how-to (for contributors)
+    - Architecture: pages/explanation/architecture.md
+    - Design Decisions: pages/explanation/design-decisions.md
 ```
 
 For complex packages with multiple user types or deployment targets, see [references/compass-and-patterns.md](references/compass-and-patterns.md) for multi-layer hierarchy and two-dimensional structure guidance.
 
 ## Common Anti-Patterns to Flag
 
-- **The mega-README**: Everything in one file - split by quadrant
-- **Tutorial-reference hybrid**: "Getting Started" that is actually an API walkthrough - separate
+- **The mega-README**: Everything in one file — split by quadrant
+- **Tutorial-reference hybrid**: "Getting Started" that is actually an API walkthrough — separate
 - **How-to disguised as explanation**: "Understanding X" that is really step-by-step instructions
 - **Missing tutorials entirely**: Only reference docs (common with auto-generated docs)
-- **Explanation scattered everywhere**: Bits of "why" sprinkled across how-to guides - consolidate
+- **Explanation scattered everywhere**: Bits of "why" sprinkled across how-to guides — consolidate
 
 ## Quality Signals
 
@@ -128,7 +128,7 @@ When auditing, also note:
 
 - **Functional quality**: accuracy, completeness, consistency, precision
 - **Deep quality**: flow, fit to user needs, anticipation of the user
-- Use the `mkdocs` skill for site configuration and build concerns - this skill focuses on content structure
+- Use the `mkdocs` skill for site configuration and build concerns — this skill focuses on content structure
 
 ## Output Format
 
@@ -152,16 +152,16 @@ When auditing, also note:
 
 ### Recommended Pages
 #### Tutorials (use `diataxis-tutorial-writer`)
-1. **Getting Started** - Install, first use, verify result [HIGH]
+1. **Getting Started** — Install, first use, verify result [HIGH]
 
 #### How-to Guides (use `diataxis-howto-writer`)
-1. **How to configure X** - ... [HIGH]
+1. **How to configure X** — ... [HIGH]
 
 #### Reference (use `diataxis-reference-writer`)
-1. **API Reference** - Full public API [HIGH]
+1. **API Reference** — Full public API [HIGH]
 
 #### Explanation (use `diataxis-explanation-writer`)
-1. **Architecture Overview** - ... [MEDIUM]
+1. **Architecture Overview** — ... [MEDIUM]
 
 ### Proposed MkDocs Nav
 nav:

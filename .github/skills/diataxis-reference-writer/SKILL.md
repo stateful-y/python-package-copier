@@ -5,9 +5,13 @@ description: Generate and structure information-oriented reference documentation
 
 # Diátaxis Reference Writer
 
-Generate reference documentation - information-oriented technical descriptions of the machinery, meant to be consulted, not read.
+Generate reference documentation — information-oriented technical descriptions of the machinery, meant to be consulted, not read.
 
 Reference material is like a **map**: it describes the territory accurately so the user can navigate it confidently while working. It is austere, authoritative, and free of interpretation.
+
+## File Placement
+
+Place reference pages in `docs/pages/reference/`. Example: `docs/pages/reference/api.md`.
 
 ## What Reference Is
 
@@ -16,7 +20,7 @@ Reference material is like a **map**: it describes the territory accurately so t
 - Led by the **product structure**, not by user needs
 - Purpose: describe, as succinctly as possible, in an orderly way
 
-Reference is what the user needs while they are at work - applying their existing skills.
+Reference is what the user needs while they are at work — applying their existing skills.
 
 ## Generation Workflow
 
@@ -31,7 +35,7 @@ Reference is what the user needs while they are at work - applying their existin
 
 ### Step 2: Mirror the Code Structure
 
-The documentation structure must reflect the code structure - like a map reflects territory. If a method belongs to a class in a module, the docs should show the same hierarchy.
+The documentation structure must reflect the code structure — like a map reflects territory. If a method belongs to a class in a module, the docs should show the same hierarchy.
 
 ```text
 reference/
@@ -59,7 +63,7 @@ If instruction or explanation feels necessary, link to how-to guides or explanat
 
 Reference is useful when it is consistent. Use the same format for every function, every class, every CLI command. Standard patterns let users scan rapidly.
 
-No creative vocabulary or varied styles - reference is not the place.
+No creative vocabulary or varied styles — reference is not the place.
 
 ### Respect the structure of the machinery
 
@@ -74,13 +78,13 @@ Short usage examples illustrate without distracting. An example of a command inv
 client = MyClient(timeout=30)
 ```
 
-Keep examples minimal - just enough to illustrate, not to teach.
+Keep examples minimal — just enough to illustrate, not to teach.
 
 ## Language Patterns
 
-- **"<Class> provides…"**, **"<Function> returns…"** - State facts about the machinery
-- **"Parameters: a, b, c"** - List inputs, outputs, options
-- **"You must use X. You must not apply Y unless Z."** - Warnings where appropriate
+- **"<Class> provides…"**, **"<Function> returns…"** — State facts about the machinery
+- **"Parameters: a, b, c"** — List inputs, outputs, options
+- **"You must use X. You must not apply Y unless Z."** — Warnings where appropriate
 - **"See [How to configure X] for usage guidance."** — Link out
 
 ## mkdocstrings Integration
@@ -220,8 +224,8 @@ The configuration file is read from `~/.config/package/config.toml`.
 
 ## Anti-Patterns to Avoid
 
-- **Creeping explanation** - Examples that expand into "why" discussions; keep examples terse
-- **Missing structure** - Flat lists of functions with no hierarchy; mirror the code
-- **Incomplete coverage** - Every public API surface must be documented, no gaps
-- **Stale content** - Reference must match the current version; automate where possible
-- **Instruction mixed in** - "To use this, first do X" is a how-to; reference just describes
+- **Creeping explanation** — Examples that expand into "why" discussions; keep examples terse
+- **Missing structure** — Flat lists of functions with no hierarchy; mirror the code
+- **Incomplete coverage** — Every public API surface must be documented, no gaps
+- **Stale content** — Reference must match the current version; automate where possible
+- **Instruction mixed in** — "To use this, first do X" is a how-to; reference just describes
