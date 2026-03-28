@@ -9,6 +9,10 @@ Generate how-to guides — task-oriented documentation that helps already-compet
 
 A how-to guide is a **recipe**. It addresses a real-world problem and provides practical directions to solve it. The reader already knows what they want to do.
 
+## File Placement
+
+Place how-to guides in `docs/pages/how-to/`. Example: `docs/pages/how-to/configure.md`.
+
 ## What a How-to Guide Is
 
 - Directions that guide the reader through a problem or towards a result
@@ -94,7 +98,7 @@ This guide shows you how to [goal description]. Use this when you need to
 
 ## Prerequisites
 
-- <package-name> installed ([Getting Started](../getting-started.md))
+- <package-name> installed ([Getting Started](../tutorials/getting-started.md))
 - [Other requirement]
 
 ## Steps

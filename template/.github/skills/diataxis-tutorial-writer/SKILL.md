@@ -9,6 +9,10 @@ Generate tutorials — learning-oriented documentation where the reader acquires
 
 A tutorial is a **lesson**. The reader does things, and learns by doing. The author is the teacher; the reader is the student.
 
+## File Placement
+
+Place tutorial pages in `docs/pages/tutorials/`. Example: `docs/pages/tutorials/getting-started.md`.
+
 ## What a Tutorial Is
 
 - A practical activity where the student learns by doing something meaningful

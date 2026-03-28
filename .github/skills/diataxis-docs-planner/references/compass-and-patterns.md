@@ -25,33 +25,33 @@ Adjacent quadrants share affinities that cause content to bleed across boundarie
 ## Python Package Page Patterns
 
 ### Typical Tutorial Pages
-- **Getting Started** - Install via pip/uv, import, call a function, verify output
-- **Your First <Feature>** - Build something small end-to-end
-- **Tutorial Series Part N** - Multi-part progressive learning path
+- **Getting Started** — Install via pip/uv, import, call a function, verify output
+- **Your First <Feature>** — Build something small end-to-end
+- **Tutorial Series Part N** — Multi-part progressive learning path
 
 ### Typical How-to Pages
 - **How to install** (with variations: pip, uv, conda, Docker, from source)
-- **How to configure <feature>** - Settings, env vars, config files
-- **How to integrate with <library>** - Using the package alongside another tool
-- **How to deploy** - Production setup, CI/CD integration
-- **How to extend / write plugins** - For extensible packages
-- **How to migrate from vX to vY** - Upgrade guides
-- **Troubleshooting** - Common problems and solutions
+- **How to configure <feature>** — Settings, env vars, config files
+- **How to integrate with <library>** — Using the package alongside another tool
+- **How to deploy** — Production setup, CI/CD integration
+- **How to extend / write plugins** — For extensible packages
+- **How to migrate from vX to vY** — Upgrade guides
+- **Troubleshooting** — Common problems and solutions
 
 ### Typical Reference Pages
-- **API Reference** - Auto-generated via mkdocstrings (modules → classes → methods)
-- **CLI Reference** - Commands, flags, options, exit codes
-- **Configuration Reference** - All settings with types, defaults, descriptions
-- **Error Reference** - Exception classes, error codes, meanings
-- **Changelog** - Version history (auto-generated via git-cliff or similar)
+- **API Reference** — Auto-generated via mkdocstrings (modules → classes → methods)
+- **CLI Reference** — Commands, flags, options, exit codes
+- **Configuration Reference** — All settings with types, defaults, descriptions
+- **Error Reference** — Exception classes, error codes, meanings
+- **Changelog** — Version history (auto-generated via git-cliff or similar)
 
 ### Typical Explanation Pages
-- **Architecture Overview** - How the package is structured and why
-- **Design Decisions** - Why certain approaches were chosen
-- **Key Concepts** - Domain terminology and mental models
-- **Comparison with Alternatives** - How this package differs from similar tools
-- **Performance Characteristics** - Complexity, benchmarks, trade-offs
-- **Security Model** - Trust boundaries, threat model (when applicable)
+- **Architecture Overview** — How the package is structured and why
+- **Design Decisions** — Why certain approaches were chosen
+- **Key Concepts** — Domain terminology and mental models
+- **Comparison with Alternatives** — How this package differs from similar tools
+- **Performance Characteristics** — Complexity, benchmarks, trade-offs
+- **Security Model** — Trust boundaries, threat model (when applicable)
 
 ## Complex Hierarchy Patterns
 
@@ -107,13 +107,13 @@ docs/
 ## Quality Checklist
 
 ### Functional Quality (measurable)
-- [ ] Accurate - code examples run, commands produce stated output
-- [ ] Complete - all public API surface documented
-- [ ] Consistent - terminology, formatting, style uniform across pages
-- [ ] Up-to-date - matches current version of the package
+- [ ] Accurate — code examples run, commands produce stated output
+- [ ] Complete — all public API surface documented
+- [ ] Consistent — terminology, formatting, style uniform across pages
+- [ ] Up-to-date — matches current version of the package
 
 ### Deep Quality (experiential)
-- [ ] Flow - reader progresses naturally without jarring transitions
-- [ ] Fit to needs - each page serves a clear user need
-- [ ] Anticipation - docs address questions before they arise
-- [ ] Minimal friction - no unnecessary detours or digressions
+- [ ] Flow — reader progresses naturally without jarring transitions
+- [ ] Fit to needs — each page serves a clear user need
+- [ ] Anticipation — docs address questions before they arise
+- [ ] Minimal friction — no unnecessary detours or digressions

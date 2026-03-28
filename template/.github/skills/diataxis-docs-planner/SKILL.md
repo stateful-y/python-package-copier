@@ -85,33 +85,31 @@ Output a structured documentation plan:
 3. **MkDocs nav structure** — ready to paste into `mkdocs.yml`
 4. **Implementation order** — tutorials and key how-tos first (highest user impact)
 5. **Skill recommendations** — name the specific writer skill for each page:
-    - Tutorial pages → `diataxis-tutorial-writer`
-    - How-to pages → `diataxis-howto-writer`
-    - Reference pages → `diataxis-reference-writer`
-    - Explanation pages → `diataxis-explanation-writer`
+   - Tutorial pages → `diataxis-tutorial-writer`
+   - How-to pages → `diataxis-howto-writer`
+   - Reference pages → `diataxis-reference-writer`
+   - Explanation pages → `diataxis-explanation-writer`
 
 ## MkDocs Nav Patterns
 
-Typical Python package nav structure:
+Canonical Python package nav structure using `pages/` folder-per-quadrant:
 
 ```yaml
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md          # tutorial
+  - Tutorials:                                    # tutorial
+    - Getting Started: pages/tutorials/getting-started.md
   - How-to Guides:                                # how-to
-    - how-to/index.md
-    - How to Configure X: how-to/configure-x.md
-    - How to Integrate with Y: how-to/integrate-y.md
+    - How to Configure X: pages/how-to/configure-x.md
+    - How to Integrate with Y: pages/how-to/integrate-y.md
+    - Contributing: pages/how-to/contribute.md
   - Reference:                                    # reference
-    - reference/index.md
-    - API Reference: reference/api.md
-    - CLI Reference: reference/cli.md
-    - Configuration: reference/configuration.md
+    - API Reference: pages/reference/api.md
+    - CLI Reference: pages/reference/cli.md
+    - Configuration: pages/reference/configuration.md
   - Explanation:                                  # explanation
-    - explanation/index.md
-    - Architecture: explanation/architecture.md
-    - Design Decisions: explanation/design-decisions.md
-  - Contributing: contributing.md                 # how-to (for contributors)
+    - Architecture: pages/explanation/architecture.md
+    - Design Decisions: pages/explanation/design-decisions.md
 ```
 
 For complex packages with multiple user types or deployment targets, see [references/compass-and-patterns.md](references/compass-and-patterns.md) for multi-layer hierarchy and two-dimensional structure guidance.
