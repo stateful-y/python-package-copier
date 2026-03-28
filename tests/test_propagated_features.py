@@ -107,10 +107,10 @@ class TestMkdocsYmlFeatures:
         assert "api-submodule.html" in content
 
     def test_nav_uses_api_reference(self, copie_session_default):
-        """Test that nav points to pages/api-reference.md."""
+        """Test that nav points to pages/reference/api.md."""
         result = copie_session_default
         content = (result.project_dir / "mkdocs.yml").read_text()
-        assert "pages/api-reference.md" in content
+        assert "pages/reference/api.md" in content
 
 
 class TestAPISubmodulePages:
@@ -134,7 +134,7 @@ class TestAPISubmodulePages:
     def test_api_index_has_table_placeholder(self, copie_session_default):
         """Test that API reference page has the API_TABLE placeholder."""
         result = copie_session_default
-        content = (result.project_dir / "docs" / "pages" / "api-reference.md").read_text()
+        content = (result.project_dir / "docs" / "pages" / "reference" / "api.md").read_text()
         assert "<!-- API_TABLE -->" in content
         assert "# API Reference" in content
 
@@ -205,7 +205,7 @@ class TestGallerySystem:
     def test_examples_page_has_gallery_placeholder(self, copie):
         """Test that examples.md uses the GALLERY placeholder."""
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "pages" / "examples.md").read_text()
+        content = (result.project_dir / "docs" / "pages" / "tutorials" / "examples.md").read_text()
         assert "<!-- GALLERY -->" in content
 
     def test_hello_notebook_has_gallery_metadata(self, copie):
@@ -345,7 +345,7 @@ class TestContributingFix:
     def test_contributing_uses_min_python_version(self, copie):
         """Test that contributing.md uses min_python_version, not undefined python_version."""
         result = copie.copy(extra_answers={"min_python_version": "3.12"})
-        content = (result.project_dir / "docs" / "pages" / "contributing.md").read_text()
+        content = (result.project_dir / "docs" / "pages" / "how-to" / "contribute.md").read_text()
         assert "Python 3.12+" in content
 
 

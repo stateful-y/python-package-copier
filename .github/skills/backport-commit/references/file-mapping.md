@@ -25,7 +25,7 @@ Some files use conditionals in the filename itself.
 
 | Generated Path | Template Path |
 |---|---|
-| `docs/pages/examples.md` | `template/docs/pages/{% if include_examples %}examples.md{% endif %}.jinja` |
+| `docs/pages/tutorials/examples.md` | `template/docs/pages/tutorials/{% if include_examples %}examples.md{% endif %}.jinja` |
 | `docs/stylesheets/gallery.css` | `template/docs/stylesheets/{% if include_examples %}gallery.css{% endif %}` |
 | `tests/test_examples.py` | `template/tests/{% if include_examples %}test_examples.py{% endif %}.jinja` |
 

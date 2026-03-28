@@ -19,10 +19,17 @@ my-package/
 │   └── pull_request_template.md
 ├── docs/
 │   ├── index.md
-│   ├── getting-started.md
-│   ├── user-guide.md
-│   ├── api-reference.md
-│   └── contributing.md
+│   ├── tutorials/
+│   │   ├── getting-started.md
+│   │   └── examples.md
+│   ├── how-to/
+│   │   ├── configure.md
+│   │   ├── troubleshooting.md
+│   │   └── contribute.md
+│   ├── reference/
+│   │   └── api.md
+│   └── explanation/
+│       └── concepts.md
 ├── src/
 │   └── package_name/
 │       ├── __init__.py
@@ -99,10 +106,13 @@ The project uses a **src layout** - all package code lives under `src/<package_n
 | File | Purpose |
 |------|---------|
 | `index.md` | Documentation homepage |
-| `getting-started.md` | Installation and first steps (tutorial) |
-| `user-guide.md` | Usage guide scaffold (how-to) |
-| `api-reference.md` | Auto-generated API reference |
-| `contributing.md` | Full contributing guidelines |
+| `tutorials/getting-started.md` | Installation and first steps (tutorial) |
+| `tutorials/examples.md` | Interactive examples gallery (if `include_examples=true`) |
+| `how-to/configure.md` | Configuration guide scaffold |
+| `how-to/troubleshooting.md` | Common problems and solutions |
+| `how-to/contribute.md` | Full contributing guidelines |
+| `reference/api.md` | Auto-generated API reference |
+| `explanation/concepts.md` | Core concepts and architecture |
 
 ## Conditional Files
 
@@ -111,4 +121,4 @@ Some files are only generated based on template variable choices:
 | Condition | Files Generated |
 |-----------|----------------|
 | `include_actions=true` | `.github/workflows/*`, `.github/dependabot.yml` |
-| `include_examples=true` | `examples/hello.py`, `tests/test_examples.py`, `docs/pages/examples.md`, `docs/stylesheets/gallery.css` |
+| `include_examples=true` | `examples/hello.py`, `tests/test_examples.py`, `docs/pages/tutorials/examples.md`, `docs/stylesheets/gallery.css` |

@@ -120,7 +120,7 @@ def test_generated_project_structure(copie_session_default):
     # Check docs
     docs_dir = result.project_dir / "docs"
     assert (docs_dir / "index.md").is_file()
-    assert (docs_dir / "pages" / "contributing.md").is_file()
+    assert (docs_dir / "pages" / "how-to" / "contribute.md").is_file()
 
     # Check GitHub workflows
     workflows_dir = result.project_dir / ".github" / "workflows"
@@ -495,15 +495,15 @@ def test_examples_directory_when_enabled(copie):
     assert "-n auto" in justfile_content
 
     # Check examples.md exists and uses gallery placeholder
-    examples_md = result.project_dir / "docs" / "pages" / "examples.md"
-    assert examples_md.is_file(), "docs/pages/examples.md not created"
+    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+    assert examples_md.is_file(), "docs/pages/tutorials/examples.md not created"
     examples_content = examples_md.read_text(encoding="utf-8")
     assert "<!-- GALLERY -->" in examples_content
     assert "## Running Examples Locally" in examples_content
 
     # Check mkdocs.yml includes examples in nav and has exclude_docs
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "Examples: pages/examples.md" in mkdocs_content
+    assert "Examples: pages/tutorials/examples.md" in mkdocs_content
     # Check for exclude_docs with CLAUDE.md files
     assert "exclude_docs:" in mkdocs_content
     assert "examples/**/CLAUDE.md" in mkdocs_content
@@ -520,7 +520,9 @@ def test_examples_directory_when_enabled(copie):
     assert "marimo edit examples/hello.py" in readme_content
 
     # Check CONTRIBUTING mentions adding examples with new pytest approach
-    contributing_content = (result.project_dir / "docs" / "pages" / "contributing.md").read_text(encoding="utf-8")
+    contributing_content = (result.project_dir / "docs" / "pages" / "how-to" / "contribute.md").read_text(
+        encoding="utf-8"
+    )
     assert "### Adding Examples" in contributing_content
     assert "test_examples" in contributing_content or "test-examples" in contributing_content
 
@@ -563,16 +565,16 @@ def test_examples_directory_when_disabled(copie):
     assert len(example_command_lines) == 0, "example command should not exist"
 
     # Check examples.md doesn't exist or is empty
-    examples_md = result.project_dir / "docs" / "examples.md"
+    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
     if examples_md.exists():
         content = examples_md.read_text(encoding="utf-8").strip()
         assert content == "", (
-            f"docs/examples.md should be empty when examples are disabled, but contains: {content[:100]}"
+            f"docs/pages/tutorials/examples.md should be empty when examples are disabled, but contains: {content[:100]}"
         )
 
     # Check mkdocs.yml doesn't include examples in nav
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "Examples: examples.md" not in mkdocs_content
+    assert "Examples: tutorials/examples.md" not in mkdocs_content
 
     # Check GitHub workflow doesn't include examples job
     tests_workflow = result.project_dir / ".github" / "workflows" / "tests.yml"
@@ -784,7 +786,7 @@ def test_markdown_docs_created_and_clean(copie):
     assert len(md_files) > 0, f"No markdown files found in site/. Site structure: {list(site_dir.iterdir())}"
 
     # Verify key markdown files exist
-    expected_md_files = ["index.md", "getting-started.md", "user-guide.md"]
+    expected_md_files = ["index.md", "getting-started.md", "concepts.md"]
     found_names = {f.name for f in md_files}
     for expected in expected_md_files:
         assert expected in found_names, f"{expected} not found in site/. Found: {found_names}"
@@ -825,7 +827,7 @@ def test_three_tier_documentation_system(copie):
     assert result.exit_code == 0
 
     # Tier 1: Verify embedded marimo setup in examples.md
-    examples_md = result.project_dir / "docs" / "pages" / "examples.md"
+    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
     examples_content = examples_md.read_text(encoding="utf-8")
     # Check for marimo-embed directive with inline code
     has_marimo = "/// marimo-embed" in examples_content and "@app.cell" in examples_content
