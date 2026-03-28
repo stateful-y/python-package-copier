@@ -20,7 +20,7 @@ A modern Python package template using [Copier](https://copier.readthedocs.io/) 
 
 ## Get Started
 
-- **[Quick Start](pages/quickstart.md)** - Create your package in 5 minutes
+- **[Quick Start](pages/tutorials/quickstart.md)** - Create your package in 5 minutes
 
 ## How-to Guides
 

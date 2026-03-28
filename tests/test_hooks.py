@@ -82,8 +82,8 @@ def test_on_post_build_copies_markdown(copie_with_examples, tmp_path):
 
         # Verify markdown files were copied
         assert (site_dir / "index.md").is_file(), "index.md not copied"
-        assert (site_dir / "pages" / "getting-started.md").is_file(), "getting-started.md not copied"
-        assert (site_dir / "pages" / "contributing.md").is_file(), "contributing.md not copied"
+        assert (site_dir / "pages" / "tutorials" / "getting-started.md").is_file(), "getting-started.md not copied"
+        assert (site_dir / "pages" / "how-to" / "contribute.md").is_file(), "contribute.md not copied"
 
     finally:
         sys.path.pop(0)
@@ -210,8 +210,8 @@ def test_on_post_build_converts_html_to_markdown(copie_with_examples, tmp_path):
     # Verify markdown files exist in site directory
     site_dir = copie_with_examples.project_dir / "site"
     assert (site_dir / "index.md").is_file(), "index.md not found in site"
-    assert (site_dir / "pages" / "getting-started.md").is_file(), "getting-started.md not found in site"
-    assert (site_dir / "pages" / "api-reference.md").is_file(), "api-reference.md not found"
+    assert (site_dir / "pages" / "tutorials" / "getting-started.md").is_file(), "getting-started.md not found in site"
+    assert (site_dir / "pages" / "reference" / "api.md").is_file(), "api.md not found"
 
     # Verify markdown content is cleaned (not just raw source)
     index_md = (site_dir / "index.md").read_text(encoding="utf-8")
@@ -379,10 +379,10 @@ def test_markdown_accessible_after_docs_build(copie_with_examples):
     # Verify both HTML and markdown exist for each page
     pages = [
         "index",
-        "pages/getting-started",
-        "pages/user-guide",
-        "pages/api-reference",
-        "pages/contributing",
+        "pages/tutorials/getting-started",
+        "pages/explanation/concepts",
+        "pages/reference/api",
+        "pages/how-to/contribute",
     ]
 
     for page in pages:

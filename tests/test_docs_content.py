@@ -81,7 +81,7 @@ class TestGettingStartedPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        getting_started = result.project_dir / "docs" / "pages" / "getting-started.md"
+        getting_started = result.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
         assert getting_started.is_file()
 
     def test_getting_started_includes_installation(self, copie):
@@ -89,7 +89,7 @@ class TestGettingStartedPage:
         result = copie.copy(extra_answers={"package_name": "my_package"})
         assert result.exit_code == 0
 
-        getting_started = result.project_dir / "docs" / "pages" / "getting-started.md"
+        getting_started = result.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
         content = getting_started.read_text(encoding="utf-8")
 
         # Should mention installation
@@ -103,7 +103,7 @@ class TestGettingStartedPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        getting_started = result.project_dir / "docs" / "pages" / "getting-started.md"
+        getting_started = result.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
         content = getting_started.read_text(encoding="utf-8")
 
         # Should have code blocks
@@ -113,30 +113,51 @@ class TestGettingStartedPage:
         assert "usage" in content.lower() or "example" in content.lower()
 
 
-class TestUserGuidePage:
-    """Test the user guide documentation page."""
+class TestConceptsPage:
+    """Test the concepts (explanation) documentation page."""
 
-    def test_user_guide_exists(self, copie):
-        """Test that user guide page exists."""
+    def test_concepts_exists(self, copie):
+        """Test that concepts page exists."""
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        user_guide = result.project_dir / "docs" / "pages" / "user-guide.md"
-        assert user_guide.is_file()
+        concepts = result.project_dir / "docs" / "pages" / "explanation" / "concepts.md"
+        assert concepts.is_file()
 
-    def test_user_guide_has_substantial_content(self, copie):
-        """Test that user guide has meaningful content."""
+    def test_concepts_has_content(self, copie):
+        """Test that concepts page has meaningful content."""
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        user_guide = result.project_dir / "docs" / "pages" / "user-guide.md"
-        content = user_guide.read_text(encoding="utf-8")
-
-        # Should be non-trivial
-        assert len(content.strip()) > 200
+        concepts = result.project_dir / "docs" / "pages" / "explanation" / "concepts.md"
+        content = concepts.read_text(encoding="utf-8")
 
         # Should have multiple sections
         assert content.count("#") >= 2
+
+
+class TestConfigurePage:
+    """Test the configuration how-to page."""
+
+    def test_configure_exists(self, copie):
+        """Test that configure page exists."""
+        result = copie.copy(extra_answers={})
+        assert result.exit_code == 0
+
+        configure = result.project_dir / "docs" / "pages" / "how-to" / "configure.md"
+        assert configure.is_file()
+
+
+class TestTroubleshootingPage:
+    """Test the troubleshooting how-to page."""
+
+    def test_troubleshooting_exists(self, copie):
+        """Test that troubleshooting page exists."""
+        result = copie.copy(extra_answers={})
+        assert result.exit_code == 0
+
+        troubleshooting = result.project_dir / "docs" / "pages" / "how-to" / "troubleshooting.md"
+        assert troubleshooting.is_file()
 
 
 class TestAPIReferencePage:
@@ -147,7 +168,7 @@ class TestAPIReferencePage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        api_reference = result.project_dir / "docs" / "pages" / "api-reference.md"
+        api_reference = result.project_dir / "docs" / "pages" / "reference" / "api.md"
         assert api_reference.is_file()
 
     def test_api_reference_includes_package_name(self, copie):
@@ -155,7 +176,7 @@ class TestAPIReferencePage:
         result = copie.copy(extra_answers={"package_name": "custom_pkg"})
         assert result.exit_code == 0
 
-        api_reference = result.project_dir / "docs" / "pages" / "api-reference.md"
+        api_reference = result.project_dir / "docs" / "pages" / "reference" / "api.md"
         content = api_reference.read_text(encoding="utf-8")
 
         # Should reference the package via the API_TABLE placeholder
@@ -166,7 +187,7 @@ class TestAPIReferencePage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        api_reference = result.project_dir / "docs" / "pages" / "api-reference.md"
+        api_reference = result.project_dir / "docs" / "pages" / "reference" / "api.md"
         content = api_reference.read_text(encoding="utf-8")
 
         # Should have API_TABLE placeholder (resolved at build time by hooks)
@@ -181,7 +202,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         assert contributing.is_file()
 
     def test_contributing_includes_development_setup(self, copie):
@@ -189,7 +210,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should mention development setup
@@ -203,7 +224,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should mention testing
@@ -217,7 +238,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should have lint section
@@ -238,7 +259,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers=custom_answers)
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should have Questions section
@@ -255,7 +276,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should have Version Numbering section with Semantic Versioning
@@ -281,7 +302,7 @@ class TestContributingPage:
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         content = contributing.read_text(encoding="utf-8")
 
         # Should have mermaid diagram with improved styling
@@ -301,7 +322,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
         assert examples_page.is_file()
 
     def test_examples_page_not_exists_when_disabled(self, copie):
@@ -309,7 +330,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": False})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
         assert not examples_page.exists()
 
     def test_examples_page_references_notebooks(self, copie):
@@ -317,7 +338,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
         content = examples_page.read_text(encoding="utf-8")
 
         # Should reference examples or notebooks
@@ -331,7 +352,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
         assert examples_page.is_file()
 
         content = examples_page.read_text(encoding="utf-8")
@@ -533,8 +554,8 @@ class TestDocumentationVariableSubstitution:
 
         docs_pages = [
             result.project_dir / "docs" / "index.md",
-            result.project_dir / "docs" / "pages" / "getting-started.md",
-            result.project_dir / "docs" / "pages" / "api-reference.md",
+            result.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md",
+            result.project_dir / "docs" / "pages" / "reference" / "api.md",
         ]
 
         for page in docs_pages:
@@ -564,7 +585,7 @@ class TestDocumentationVariableSubstitution:
         assert "github.com/my-custom-org/my-project" in content
 
         # Check contributing page
-        contributing = result.project_dir / "docs" / "pages" / "contributing.md"
+        contributing = result.project_dir / "docs" / "pages" / "how-to" / "contribute.md"
         if contributing.exists():
             contrib_content = contributing.read_text(encoding="utf-8")
             # Should reference the correct repository

@@ -32,7 +32,7 @@ Answer the prompts about your project. You'll be asked for:
 - `include_actions`: Include GitHub Actions CI/CD workflows? (default: true)
 - `include_examples`: Include interactive [marimo](https://marimo.io/) notebooks in `examples/`? (default: true)
 
-See [Template Variables](reference/template-variables.md) in the Reference for detailed descriptions.
+See [Template Variables](../reference/template-variables.md) in the Reference for detailed descriptions.
 
 ## Initialize Your Project
 
@@ -121,7 +121,7 @@ git push origin v0.1.0
 
 This triggers: changelog generation → PR creation → (after merge) GitHub release → **manual approval** → PyPI publish.
 
-See the [Contributing Guide](how-to/contribute.md) for detailed release process documentation.
+See the [Contributing Guide](../how-to/contribute.md) for detailed release process documentation.
 
 ### ReadTheDocs (Documentation)
 
@@ -135,9 +135,9 @@ Documentation builds automatically on every push to main.
 
 ## Next Steps
 
-- **[Set Up CI/CD Services](how-to/setup-cicd.md)** - Configure Codecov, PyPI publishing, and ReadTheDocs
-- **[Customize Your Project](how-to/customize-template.md)** - Adjust ruff rules, coverage thresholds, and more
-- **[Add Dependencies](how-to/add-dependencies.md)** - Add runtime and development dependencies
-- **[Reference: Commands](reference/commands.md)** - Full command reference for just, nox, and uv
-- **[Contributing](how-to/contribute.md)** - Help improve the template
+- **[Set Up CI/CD Services](../how-to/setup-cicd.md)** - Configure Codecov, PyPI publishing, and ReadTheDocs
+- **[Customize Your Project](../how-to/customize-template.md)** - Adjust ruff rules, coverage thresholds, and more
+- **[Add Dependencies](../how-to/add-dependencies.md)** - Add runtime and development dependencies
+- **[Reference: Commands](../reference/commands.md)** - Full command reference for just, nox, and uv
+- **[Contributing](../how-to/contribute.md)** - Help improve the template
 - **[GitHub Template](https://github.com/stateful-y/python-package-copier)** - Source code and issues

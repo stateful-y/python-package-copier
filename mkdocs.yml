@@ -61,7 +61,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Quick Start: pages/quickstart.md
+  - Tutorials:
+    - Quick Start: pages/tutorials/quickstart.md
   - How-to Guides:
     - Set Up CI/CD Services: pages/how-to/setup-cicd.md
     - Customize Your Project: pages/how-to/customize-template.md
