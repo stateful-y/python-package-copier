@@ -62,8 +62,21 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quick Start: pages/quickstart.md
-  - Reference: pages/reference.md
-  - Contributing: pages/contributing.md
+  - How-to Guides:
+    - Set Up CI/CD Services: pages/how-to/setup-cicd.md
+    - Customize Your Project: pages/how-to/customize-template.md
+    - Update from Template: pages/how-to/update-template.md
+    - Add Dependencies: pages/how-to/add-dependencies.md
+    - Contribute to the Template: pages/how-to/contribute.md
+  - Reference:
+    - Template Variables: pages/reference/template-variables.md
+    - Project Structure: pages/reference/project-structure.md
+    - Commands: pages/reference/commands.md
+    - GitHub Workflows: pages/reference/github-workflows.md
+    - Configuration Files: pages/reference/configuration.md
+  - Explanation:
+    - Architecture Overview: pages/explanation/architecture.md
+    - Release Process: pages/explanation/release-process.md
 
 extra_javascript:
   - javascripts/readthedocs.js
