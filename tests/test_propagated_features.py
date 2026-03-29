@@ -215,6 +215,7 @@ class TestGallerySystem:
         assert "__gallery__" in content
         assert '"title"' in content
         assert '"description"' in content
+        assert '"category"' in content
 
     def test_hooks_has_gallery_functions_when_examples(self, copie):
         """Test that hooks.py includes gallery functions when examples enabled."""
@@ -222,6 +223,16 @@ class TestGallerySystem:
         content = (result.project_dir / "docs" / "hooks.py").read_text()
         assert "_get_gallery_items" in content
         assert "_build_gallery_html" in content
+        assert "_build_gallery_cards" in content
+
+    def test_hooks_gallery_groups_by_category(self, copie):
+        """Test that hooks.py gallery groups items by tutorial/how-to category."""
+        result = copie.copy(extra_answers={"include_examples": True})
+        content = (result.project_dir / "docs" / "hooks.py").read_text()
+        assert '"tutorial"' in content
+        assert '"how-to"' in content
+        assert "Tutorials" in content
+        assert "How-to Guides" in content
 
     def test_hooks_no_gallery_when_no_examples(self, copie):
         """Test that hooks.py omits gallery functions when examples disabled."""

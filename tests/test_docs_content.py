@@ -363,6 +363,17 @@ class TestExamplesPage:
         assert "## Running Examples Locally" in content
         assert "just example" in content
 
+    def test_examples_page_describes_diataxis_grouping(self, copie):
+        """Test that examples page intro describes tutorial/how-to grouping."""
+        result = copie.copy(extra_answers={"include_examples": True})
+        assert result.exit_code == 0
+
+        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        content = examples_page.read_text(encoding="utf-8")
+
+        assert "Tutorials" in content
+        assert "How-to Guides" in content
+
 
 class TestMkdocsConfiguration:
     """Test mkdocs.yml configuration."""
