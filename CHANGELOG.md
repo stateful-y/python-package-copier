@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.18.0] - 2026-03-29
+
+This **minor release** includes 1 commit.
+
+
+### Features
+- Group example gallery by Diataxis category  ([#125](https://github.com/stateful-y/python-package-copier/pull/125)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.17.0] - 2026-03-28
 
 This **minor release** includes 1 commit.
