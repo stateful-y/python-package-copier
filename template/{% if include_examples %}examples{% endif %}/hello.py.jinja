@@ -13,6 +13,14 @@ __gallery__ = {
     "title": "Hello {{ project_name }}",
     "description": "Interactive scatter plot demonstrating {{ project_name }} with marimo notebooks.",
     "category": "tutorial",
+    # Renders this notebook as a card on the named docs page, which must carry
+    # the <!-- COMPANION_NOTEBOOKS --> placeholder.
+    "companion": "pages/tutorials/getting-started.md",
+    # You can also add:
+    #   "api_references": ["MyClass", "my_function"]
+    # to say which symbols this notebook demonstrates.  Without it, the symbols
+    # are inferred from the notebook's imports -- which also picks up
+    # scaffolding, so declaring is more precise once a gallery grows.
 }
 app = marimo.App(width="medium")
 

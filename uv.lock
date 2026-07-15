@@ -987,6 +987,7 @@ lint = [
 tests = [
     { name = "copier" },
     { name = "covdefaults" },
+    { name = "mkdocs" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
@@ -1025,6 +1026,7 @@ lint = [
 tests = [
     { name = "copier", specifier = ">=9.11" },
     { name = "covdefaults", specifier = ">=2.3" },
+    { name = "mkdocs", specifier = ">=1.6" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=7.0" },
     { name = "pytest-mock", specifier = ">=3.14" },

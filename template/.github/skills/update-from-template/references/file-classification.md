@@ -46,6 +46,7 @@ docs/assets/logo_light.png
 docs/assets/made_by_stateful-y.png
 docs/assets/README.md
 docs/hooks.py
+docs/pages/reference/changelog.md   # one-line include of the root CHANGELOG.md
 docs/javascripts/mathjax.js
 docs/javascripts/readthedocs.js
 docs/material/overrides/api-index.html
@@ -97,6 +98,10 @@ tests/**                           # All test files
 examples/**                        # conditional: include_examples
 docs/pages/explanation/concepts.md
 docs/pages/tutorials/getting-started.md
+docs/pages/tutorials/index.md          # Diataxis quadrant landing pages: the
+docs/pages/how-to/index.md             # template ships a skeleton, but a
+docs/pages/reference/index.md          # project's own landing page is better
+docs/pages/explanation/index.md        # and must never be overwritten
 docs/pages/tutorials/examples.md    # conditional: include_examples
 docs/examples/**                   # conditional: include_examples
 ```
@@ -135,6 +140,7 @@ This ensures the skill only spends effort merging files that actually have local
 - **Accept from template**: Theme configuration, plugin list, markdown extensions, extra CSS/JS references
 - **Preserve local**: Custom `nav` entries (pages added beyond template defaults), extra plugins, custom theme overrides
 - **Strategy**: Parse by top-level YAML keys. Template-owned keys get updated. Local additions (new nav items, extra watch paths) are preserved. The `nav` key requires special attention — keep custom entries that don't exist in the template nav.
+- **`markdown_extensions` → `pymdownx.snippets` merges sub-key-wise**: accept the template's `base_path` and `check_paths`, but preserve any local sub-key such as `auto_append`. Taking the template's dict wholesale silently drops a local `auto_append`, and the pages relying on it then render without the appended content — with no error.
 
 ### noxfile.py
 

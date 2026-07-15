@@ -213,6 +213,11 @@ exclude = ["CHANGELOG.md", "site", "htmlcov", ".nox", ".venv", "openspec"]
 ".github/PULL_REQUEST_TEMPLATE.md" = ["MD041"]  # PR template starts with checklist
 ".github/skills/**" = ["MD007"]  # Nested lists in skill files use variable indent
 "README.md" = ["MD041"]  # README starts with logo, not heading
+# The page is a bare `--8<--` include; the included CHANGELOG.md supplies the
+# H1. Adding one here would render two H1s and, because Material's ToC takes
+# first.children when the first heading is level 1, an empty ToC on the one
+# page that most needs one.
+"docs/pages/reference/changelog.md" = ["MD041"]
 "docs/index.md" = ["MD041"]  # Landing page starts with logo, not heading
 "CONTRIBUTING.md" = ["MD057"]  # Relative link to docs/ is valid at project level
 {% if include_actions %}
