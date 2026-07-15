@@ -209,6 +209,7 @@ disable = [
 exclude = ["CHANGELOG.md", "site", "htmlcov", ".nox", ".venv", "openspec"]
 
 [tool.rumdl.per-file-ignores]
+".claude/skills/**" = ["MD007"]  # Nested lists in skill files use variable indent
 ".github/PULL_REQUEST_TEMPLATE.md" = ["MD041"]  # PR template starts with checklist
 ".github/skills/**" = ["MD007"]  # Nested lists in skill files use variable indent
 "README.md" = ["MD041"]  # README starts with logo, not heading
