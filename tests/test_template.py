@@ -1485,6 +1485,18 @@ def _write_reexport_package(project_dir, package_name):
         encoding="utf-8",
     )
 
+    # A package with NO __all__: here the package-root guard in
+    # _resolve_import_from is what must reject `from pathlib import Path`. The
+    # __all__-bearing package above cannot exercise it -- the filter rejects
+    # Path first, so the guard is never consulted.
+    noall = pkg / "noall"
+    noall.mkdir(parents=True, exist_ok=True)
+    (noall / "_impl.py").write_text('"""Impl."""\n\n\nclass Gadget:\n    """A gadget."""\n', encoding="utf-8")
+    (noall / "__init__.py").write_text(
+        '"""No dunder all."""\n\nfrom pathlib import Path\nfrom ._impl import Gadget\n',
+        encoding="utf-8",
+    )
+
     # A package exposing an optional extra, guarding its re-exports in a try block.
     optional = pkg / "optional"
     optional.mkdir(parents=True, exist_ok=True)
@@ -2418,3 +2430,41 @@ def test_changelog_page_has_a_populated_toc(copie_session_default):
     tokens = md.toc_tokens
     assert tokens, "changelog page produced no table of contents"
     assert len([t for t in tokens if t["level"] == 1]) == 1, "more than one level-1 heading collapses Material's ToC"
+
+
+def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
+    """The searchable API index lists re-exported symbols too.
+
+    The index, the package pages and the name lookup must all be fed by the
+    same member scan. Feeding the index from a scan that cannot see re-exports
+    leaves it blind to exactly the symbols this resolution exists to surface:
+    their pages exist and the lookup resolves them, while the index shows
+    nothing.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "api_index")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = hooks._build_api_table_html(project_dir)
+
+    assert "Circle" in html, "re-exported class absent from the searchable API index"
+    assert "area" in html, "re-exported function absent from the searchable API index"
+
+
+def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
+    """Without __all__, the package-root guard is what excludes stdlib imports.
+
+    The __all__-bearing fixture cannot show this: the filter rejects Path before
+    the guard is consulted. This exercises the guard itself.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "noall")
+
+    members = hooks._get_public_members(pkg / "noall" / "__init__.py", pkg)
+    names = {e["name"] for e in members["classes"] + members["functions"]}
+
+    assert "Gadget" in names, "first-party re-export not resolved without __all__"
+    assert "Path" not in names, "a stdlib import was resolved as package API"

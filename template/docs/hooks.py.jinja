@@ -427,7 +427,7 @@ def _build_api_table_html(project_root):
         if not mod_file.exists():
             continue
 
-        members = _get_module_members(mod_file)
+        members = _get_public_members(mod_file, pkg_dir)
         module_label = f"{{ package_name }}.{mod['module_name']}"
         module_href = f"../api/{mod['module_name']}/"
 
