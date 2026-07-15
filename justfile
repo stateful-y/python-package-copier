@@ -7,7 +7,7 @@ default:
 # Install dependencies and pre-commit
 install:
     uv sync --group dev
-    uvx pre-commit install
+    uv run pre-commit install
 
 # Run tests with parallel execution
 test:
@@ -21,14 +21,14 @@ test-fast:
 test-slow:
     uv run pytest tests/ -m "slow or integration" -n auto -v
 
-# Run linters
+# Run linters (read-only; same lock-pinned tools as 'just fix')
 lint:
-    uv run ruff check tests/
-    uvx rumdl check .
+    uv run --locked ruff check tests/
+    uv run --locked rumdl check .
 
 # Format and fix code (via pre-commit)
 fix:
-    uvx pre-commit run --all-files --show-diff-on-failure
+    uv run pre-commit run --all-files --show-diff-on-failure
 
 # Check built docs for dead links (build first with 'just build')
 link:

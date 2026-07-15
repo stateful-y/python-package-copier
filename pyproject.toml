@@ -28,7 +28,9 @@ tests = [
     "covdefaults>=2.3",
 ]
 lint = [
+    "interrogate>=1.7.0",
     "ruff>=0.8.0",
+    "rumdl>=0.1.33",
 ]
 docs = [
     "mkdocs>=1.6.0",
@@ -110,6 +112,7 @@ select = [
 ignore = [
     "E203",   # space before : (needed for how black formats slicing)
     "E501",   # line too long (handled by formatter)
+    "PLC0415", # import not at top-level (lazy imports are intentional, e.g. noxfile sessions)
     "PLR0913", # too many args in func def
     "PLR0915", # too many statements
     "PLR0912", # too many branches

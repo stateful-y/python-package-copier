@@ -287,10 +287,29 @@ def test_precommit_ty_uses_uv_run(copie_session_default):
 
     content = precommit_path.read_text(encoding="utf-8")
 
-    # Should have ty configured with uv run
+    # Should have ty configured with uv run, pinned to uv.lock via --locked
     assert "id: ty" in content
-    assert "entry: uv run ty check src" in content
+    assert "entry: uv run --locked ty check src" in content
     assert "pass_filenames: false" in content
+
+
+def test_precommit_linters_are_pinned_by_uv_lock(copie_session_default):
+    """Test that version-sensitive linters resolve from uv.lock, not a pre-commit rev.
+
+    uv.lock is the single source of truth for these tools, so each must run through
+    `uv run --locked`. A pinned `rev:` here would let pre-commit drift from CI.
+    """
+    result = copie_session_default
+
+    content = (result.project_dir / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+    for tool in ("interrogate", "ruff", "ruff format", "rumdl", "ty"):
+        assert f"entry: uv run --locked {tool}" in content, f"{tool} does not resolve from uv.lock"
+
+    # The upstream mirrors these hooks used to come from would reintroduce a second
+    # version source alongside uv.lock.
+    for mirror in ("ruff-pre-commit", "rumdl-pre-commit", "econchick/interrogate"):
+        assert mirror not in content, f"{mirror} reintroduces a version source outside uv.lock"
 
 
 def test_github_workflows(copie_session_default):

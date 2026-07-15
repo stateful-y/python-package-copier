@@ -145,7 +145,7 @@ After making changes:
 === "uv run"
 
     ```bash
-    uvx pre-commit run --all-files --show-diff-on-failure
+    uv run pre-commit run --all-files --show-diff-on-failure
     ```
 
 ## Documentation

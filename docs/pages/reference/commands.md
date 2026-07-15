@@ -53,7 +53,7 @@ The template provides three ways to run common tasks, organized by use case:
 === "uv run"
 
     ```bash
-    uvx pre-commit run --all-files --show-diff-on-failure
+    uv run pre-commit run --all-files --show-diff-on-failure
     ```
 
 ## Build Documentation
