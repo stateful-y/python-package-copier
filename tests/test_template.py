@@ -1389,7 +1389,7 @@ def test_code_of_conduct_content(copie):
     coc_path = result.project_dir / "CODE_OF_CONDUCT.md"
     assert coc_path.is_file()
 
-    content = coc_path.read_text()
+    content = coc_path.read_text(encoding="utf-8")
     assert f"contacting the project team at {custom_email}" in content
     assert "gtauzin@stateful-y.io" not in content
 
@@ -1404,7 +1404,7 @@ def test_update_from_template_skill_generated(copie_session_default):
     skill_md = skill_dir / "SKILL.md"
     assert skill_md.is_file(), "Missing SKILL.md"
 
-    content = skill_md.read_text()
+    content = skill_md.read_text(encoding="utf-8")
     assert "name: update-from-template" in content
     assert "copier update" in content
 
@@ -1439,7 +1439,7 @@ def test_claude_skills_not_gitignored(copie_session_default):
     """
     result = copie_session_default
 
-    gitignore = (result.project_dir / ".gitignore").read_text()
+    gitignore = (result.project_dir / ".gitignore").read_text(encoding="utf-8")
     assert ".claude/*" in gitignore, "Must use '.claude/*' so the negation is reachable"
     assert "!.claude/skills/" in gitignore, "Missing negation to track shipped skills"
     assert not re.search(r"^\.claude/$", gitignore, re.MULTILINE), (
@@ -1597,7 +1597,7 @@ def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
 
 def test_api_name_lookup_available_without_examples(copie_session_minimal):
     """The lookup is not gated behind include_examples."""
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     assert "def _get_api_name_lookup" in hooks_source, "lookup missing when examples are disabled"
     assert "_API_NAME_LOOKUP_CACHE" in hooks_source, "lookup cache missing when examples are disabled"
     assert "def _get_notebook_api_usage" not in hooks_source, "gallery code leaked into a no-examples project"
@@ -1605,7 +1605,7 @@ def test_api_name_lookup_available_without_examples(copie_session_minimal):
 
 def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
     """The gallery consumes the shared lookup instead of building its own map."""
-    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     assert "def _get_api_name_lookup" in hooks_source
     assert "name_to_qualified = _get_api_name_lookup(project_root)" in hooks_source, (
         "_get_notebook_api_usage must consume the shared lookup, not derive a second map"
@@ -1713,7 +1713,7 @@ def test_see_also_linkify_runs_before_restructure(copie_session_minimal):
     while still working for method-level ones, so a test that only covers
     method-level entries would not catch the regression.
     """
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     body = hooks_source[hooks_source.index("def on_page_content") :]
     linkify_at = body.index("_linkify_see_also(")
     restructure_at = body.index("_process_api_page_content(")
@@ -1972,13 +1972,13 @@ def test_companion_cache_is_registered_by_name(copie_session_default):
     a cache named otherwise (the natural `_COMPANION_INDEX`) is invisible to it
     and the stale-read bug returns silently.
     """
-    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     assert "_COMPANION_INDEX_CACHE" in hooks_source, "companion cache does not follow the *_CACHE convention"
 
 
 def test_gallery_features_absent_without_examples(copie_session_minimal):
     """The whole feature is gated behind include_examples."""
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     for symbol in ("_COMPANION_INDEX_CACHE", "_API_EXAMPLES_CAP", "_build_companion_cards_html"):
         assert symbol not in hooks_source, f"{symbol} leaked into a project generated without examples"
 
@@ -1991,7 +1991,7 @@ def _mkdocs_config(project_dir):
 
     _Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda loader, suffix, node: suffix)
     _Loader.add_constructor("!ENV", lambda loader, node: None)
-    return yaml.load((project_dir / "mkdocs.yml").read_text(), Loader=_Loader)
+    return yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)
 
 
 def test_snippets_resolve_docs_and_repo_root(copie_session_default):
@@ -2026,7 +2026,7 @@ def test_changelog_include_resolves(copie_session_default):
     cwd = os.getcwd()
     try:
         os.chdir(project_dir)
-        rendered = md.convert(page.read_text())
+        rendered = md.convert(page.read_text(encoding="utf-8"))
     finally:
         os.chdir(cwd)
 
@@ -2082,7 +2082,7 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
     )
     if not classification.is_file():
         pytest.skip("update-from-template skill not shipped to generated projects")
-    text = classification.read_text()
+    text = classification.read_text(encoding="utf-8")
     # Slice to the section end, not EOF: running to EOF would let a path
     # listed in a LATER section satisfy this assertion.
     start = text.index("## Tier 3")
@@ -2141,7 +2141,7 @@ def test_hooks_define_on_config_not_on_startup(copie_session_default):
 
     That is the bug this change exists to fix; defining it would reintroduce it.
     """
-    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     assert "def on_config(" in source, "no per-build reset"
     assert "def on_startup(" not in source, "on_startup fires once per invocation, not per build"
 
@@ -2247,7 +2247,7 @@ def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
     hooks._SUBMODULE_CACHE = None
 
     hooks._generate_api_pages(project_dir)
-    page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text()
+    page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text(encoding="utf-8")
 
     assert "### Classes" in page, "members table missing its Classes heading"
     assert "Circle" in page, "re-exported class absent from the rendered members table"
@@ -2315,7 +2315,7 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
     assert url, "gallery page not found by its GALLERY placeholder"
     page = project_dir / "docs" / (url.strip("/") + ".md")
     assert page.is_file(), f"overflow link {url} points at a page that does not exist"
-    assert "<!-- GALLERY -->" in page.read_text(), "located page is not the gallery"
+    assert "<!-- GALLERY -->" in page.read_text(encoding="utf-8"), "located page is not the gallery"
 
 
 def test_see_also_leaves_description_text_alone(copie_session_minimal):
@@ -2428,7 +2428,7 @@ def test_changelog_page_has_a_populated_toc(copie_session_default):
     cwd = os.getcwd()
     try:
         os.chdir(project_dir)
-        md.convert(page.read_text())
+        md.convert(page.read_text(encoding="utf-8"))
     finally:
         os.chdir(cwd)
 
@@ -2505,7 +2505,7 @@ def _unclassified_files(project_dir, package_name):
     """Generated files that the update classification does not cover."""
     classification = (
         project_dir / ".github" / "skills" / "update-from-template" / "references" / "file-classification.md"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     missing = []
     for path in sorted(project_dir.rglob("*")):
         if not path.is_file():
@@ -2563,8 +2563,8 @@ def test_update_guidance_restores_local_owned_files(copie_session_default):
     skill_dir = copie_session_default.project_dir / ".github" / "skills" / "update-from-template"
     if not skill_dir.is_dir():
         pytest.skip("update-from-template skill not shipped to generated projects")
-    skill = (skill_dir / "SKILL.md").read_text()
-    conflicts = (skill_dir / "references" / "conflict-resolution.md").read_text()
+    skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    conflicts = (skill_dir / "references" / "conflict-resolution.md").read_text(encoding="utf-8")
 
     assert "git checkout HEAD -- <file>" in skill, "the local-owned remedy does not restore the project's version"
     assert "Delete `.rej` without applying" not in skill, (
