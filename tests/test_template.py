@@ -1904,7 +1904,10 @@ def test_api_example_cards_are_capped(copie_session_default):
     assert notebook_count > hooks._API_EXAMPLES_CAP, "test does not actually exceed the cap"
     assert html.count("**Capped") == hooks._API_EXAMPLES_CAP, "card list was not capped"
     assert "See all" in html and "in the gallery" in html, "no overflow link past the cap"
-    # Stable order: same input, same cards, so builds are reproducible.
+    # Stable order: same input, same cards, so builds are reproducible. The
+    # caches must be cleared between calls -- re-reading a warm cache returns
+    # the same object and the assertion cannot fail.
+    _reset_gallery_caches(hooks)
     assert hooks._build_api_examples_html(project_dir, "test_project.capped.Capstone") == html
 
 
@@ -2333,3 +2336,85 @@ def test_docs_watch_includes_package_source(copie_session_default):
     """
     config = _mkdocs_config(copie_session_default.project_dir)
     assert "src" in config["watch"], f"src not watched; serve will not rebuild on source edits: {config['watch']}"
+
+
+def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minimal):
+    """A symbol name elsewhere on the page is left alone.
+
+    Symbol names appear throughout rendered docs -- in Notes, parameter tables,
+    source listings. Scoping to the See Also block is what stops the linkifier
+    rewriting all of them.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_scope_name")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        "<h3>Notes</h3><p>Beta : mentioned in prose, not a See Also entry.</p>"
+        '<details class="see-also" open><summary>See Also</summary><p>Gamma : A real entry.</p></details>'
+        '</div><div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "the See Also entry was not linked"
+    assert not re.search(r"<a[^>]*>Beta</a>", out), "a name outside the See Also section was linkified"
+
+
+def test_companion_card_renders_with_resolved_links(copie_session_default):
+    """The primary companion path: a card with working links, end to end.
+
+    The cards are emitted as markdown so the [View]/[Open in marimo] rewrites
+    below them resolve the URLs. Emitting resolved HTML instead would bypass
+    those rewrites and ship literal placeholders -- which is why this asserts
+    the rendered hrefs, not just that a card appeared.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_notebook(
+        project_dir,
+        "companion_nb",
+        '"title": "Companion NB", "description": "Demo.", "category": "how-to",'
+        ' "companion": "pages/how-to/configure.md"',
+    )
+    hooks = _load_hooks(project_dir, "companion_render")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/configure.md", "pages/how-to/configure/index.html")
+    config = {"repo_url": "https://github.com/s/p"}
+    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, config, None)
+
+    assert "COMPANION_NOTEBOOKS" not in out, "placeholder was not consumed"
+    assert "Companion NB" in out, "companion card did not render"
+    # pages/how-to/configure.md is three deep, so the rewrite prefixes ../../../
+    assert "](../../../examples/companion_nb/" in out, f"View link not resolved to a relative path: {out[:200]}"
+    assert "marimo.app" in out, "Open-in-marimo link not resolved to a playground URL"
+    assert "](/examples/" not in out, "an unresolved absolute example path survived"
+
+
+def test_changelog_page_has_a_populated_toc(copie_session_default):
+    """The changelog is the page that most needs a ToC.
+
+    Material's ToC partial takes first.children when the first heading is level
+    1, so a page with two h1s renders an empty ToC -- silently, on the one page
+    with a heading per release.
+    """
+    import markdown
+
+    project_dir = copie_session_default.project_dir
+    page = project_dir / "docs" / "pages" / "reference" / "changelog.md"
+    md = markdown.Markdown(
+        extensions=["pymdownx.snippets", "toc"],
+        extension_configs={"pymdownx.snippets": {"base_path": ["docs", "."], "check_paths": True}},
+    )
+    cwd = os.getcwd()
+    try:
+        os.chdir(project_dir)
+        md.convert(page.read_text())
+    finally:
+        os.chdir(cwd)
+
+    tokens = md.toc_tokens
+    assert tokens, "changelog page produced no table of contents"
+    assert len([t for t in tokens if t["level"] == 1]) == 1, "more than one level-1 heading collapses Material's ToC"
