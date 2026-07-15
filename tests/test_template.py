@@ -2083,7 +2083,11 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
     if not classification.is_file():
         pytest.skip("update-from-template skill not shipped to generated projects")
     text = classification.read_text()
-    tier3 = text[text.index("## Tier 3") :]
+    # Slice to the section end, not EOF: running to EOF would let a path
+    # listed in a LATER section satisfy this assertion.
+    start = text.index("## Tier 3")
+    nxt = text.find("\n## ", start + 1)
+    tier3 = text[start : nxt if nxt > 0 else len(text)]
 
     for quadrant in ("tutorials", "how-to", "reference", "explanation"):
         assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
@@ -2398,6 +2402,7 @@ def test_companion_card_renders_with_resolved_links(copie_session_default):
     out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, config, None)
 
     assert "COMPANION_NOTEBOOKS" not in out, "placeholder was not consumed"
+    assert "## Try it interactively" in out, "heading not emitted with the cards"
     assert "Companion NB" in out, "companion card did not render"
     # pages/how-to/configure.md is three deep, so the rewrite prefixes ../../../
     assert "](../../../examples/companion_nb/" in out, f"View link not resolved to a relative path: {out[:200]}"
@@ -2468,3 +2473,19 @@ def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
 
     assert "Gadget" in names, "first-party re-export not resolved without __all__"
     assert "Path" not in names, "a stdlib import was resolved as package API"
+
+
+def test_companion_placeholder_renders_no_dangling_heading(copie_session_default):
+    """A page with no matching notebooks renders nothing -- not a bare heading.
+
+    The heading is emitted with the cards rather than written into the page, so
+    removing a notebook's companion cannot leave an empty section behind.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "companion_empty")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/troubleshooting.md", "pages/how-to/troubleshooting/index.html")
+    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, {"repo_url": "https://github.com/s/p"}, None)
+
+    assert out.strip() == "", f"an unmatched placeholder left content behind: {out!r}"

@@ -698,7 +698,11 @@ def _build_companion_cards_html(project_root, page_src_uri):
     items = _get_companion_index(project_root).get(_normalize_companion_path(page_src_uri), [])
     if not items:
         return ""
-    return _build_gallery_cards(sorted(items, key=lambda item: item["title"]))
+    # The heading is emitted here rather than written into the page, so a page
+    # whose companions were removed renders nothing at all instead of a heading
+    # with an empty section under it.
+    cards = _build_gallery_cards(sorted(items, key=lambda item: item["title"]))
+    return f"## Try it interactively\n\n{cards}"
 
 
 def _get_notebook_api_usage(project_root):
@@ -915,7 +919,7 @@ _SEE_ALSO_BLOCK_RE = re.compile(r'<details\s+class="see-also"[^>]*>.*?</details>
 _SEE_ALSO_ENTRY_RE = re.compile(r"^(\s*)(<code>[^<]+</code>|[A-Za-z_][\w.]*)(\s*:)")
 
 
-def _resolve_see_also_url(name, page, config):
+def _resolve_see_also_url(name):
     """Resolve a See Also entry naming a project symbol to a URL, or None.
 
     A dotted name whose leading segment is not this package is external and is
@@ -957,9 +961,9 @@ def _external_autoref(name, title):
     return f'<autoref optional identifier="{name}">{title}</autoref>'
 
 
-def _link_entry(name, title, colon, entry, page, config):
+def _link_entry(name, title, colon, entry):
     """Render one See Also entry: project link, deferred external ref, or as-is."""
-    url = _resolve_see_also_url(name, page, config)
+    url = _resolve_see_also_url(name)
     if url:
         return f'<a href="{url}">{title}</a>{colon}'
     if "." in name and name.split(".", 1)[0] != "{{ package_name }}":
@@ -967,7 +971,7 @@ def _link_entry(name, title, colon, entry, page, config):
     return entry
 
 
-def _linkify_see_also(html, page, config):
+def _linkify_see_also(html):
     """Turn the names in a rendered See Also section into links.
 
     Must run while the ``<details class="see-also">`` container still exists --
@@ -986,7 +990,7 @@ def _linkify_see_also(html, page, config):
             code_match = re.fullmatch(r"<code>([^<]+)</code>", token)
             name = code_match.group(1) if code_match else token
             title = f"<code>{name}</code>" if code_match else name
-            return lead + _link_entry(name, title, colon, token + colon, page, config) + rest
+            return lead + _link_entry(name, title, colon, token + colon) + rest
 
         def _process_container(container_match):
             tag, inner = container_match.group(1), container_match.group(2)
@@ -1323,7 +1327,7 @@ def on_page_content(html, page, config, files):
         # dissolves that block for class-level docstrings.  Linkifying after it
         # silently does nothing for class-level See Also sections -- the
         # majority of them -- while appearing to work for method-level ones.
-        html = _linkify_see_also(html, page, config)
+        html = _linkify_see_also(html)
         html = _process_api_page_content(html, page, config)
 
     if src == "pages/reference/api.md":
