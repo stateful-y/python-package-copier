@@ -207,7 +207,9 @@ def _get_reexported_members(init_file, pkg_dir):
                 match = next((e for e in entries if e["name"] == alias.name), None)
                 if match is None:
                     continue
-                (classes if bucket == "classes" else functions).append({"name": exposed, "doc": match["doc"]})
+                (classes if bucket == "classes" else functions).append(
+                    {"name": exposed, "doc": match["doc"], "origin": str(decl_file), "reexported": True}
+                )
                 seen.add(exposed)
                 break
 
@@ -215,10 +217,19 @@ def _get_reexported_members(init_file, pkg_dir):
 
 
 def _get_public_members(mod_file, pkg_dir):
-    """Public classes and functions of a module, including re-exported ones."""
+    """Public classes and functions of a module, including re-exported ones.
+
+    Each entry carries *origin* (the file that declares the symbol) and
+    *reexported*, so the name lookup can tell one symbol reachable by two paths
+    from two different symbols that happen to share a short name.
+    """
     if not mod_file.exists():
         return {"classes": [], "functions": []}
     members = _get_module_members(mod_file)
+    for key in ("classes", "functions"):
+        for entry in members[key]:
+            entry.setdefault("origin", str(mod_file))
+            entry.setdefault("reexported", False)
     if mod_file.name == "__init__.py":
         reexported = _get_reexported_members(mod_file, pkg_dir)
         declared = {e["name"] for e in members["classes"] + members["functions"]}
@@ -234,9 +245,13 @@ def _get_api_name_lookup(project_root):
     two cannot disagree about what a symbol is called.  Built by static
     analysis only — the package is never imported.
 
-    A short name claimed by two different modules is omitted rather than
-    resolved arbitrarily: consumers turn this straight into a URL, and a wrong
-    link is worse than no link.
+    When one symbol is reachable by two paths -- declared in a module and
+    re-exported by a package -- the published path wins: that is the name users
+    write, and the one whose page they expect.
+
+    When a short name identifies two genuinely different symbols, it is omitted
+    rather than resolved arbitrarily: consumers turn this straight into a URL,
+    and a wrong link is worse than no link.
     """
     global _API_NAME_LOOKUP_CACHE  # noqa: PLW0603
     if _API_NAME_LOOKUP_CACHE is not None:
@@ -251,9 +266,21 @@ def _get_api_name_lookup(project_root):
         members = _get_public_members(mod_file, pkg_dir)
         for entry in members["classes"] + members["functions"]:
             qualified = f"{{ package_name }}.{mod['module_name']}.{entry['name']}"
-            candidates.setdefault(entry["name"], set()).add(qualified)
+            candidates.setdefault(entry["name"], []).append(
+                {"qualified": qualified, "origin": entry.get("origin"), "reexported": entry.get("reexported", False)}
+            )
 
-    _API_NAME_LOOKUP_CACHE = {name: next(iter(quals)) for name, quals in candidates.items() if len(quals) == 1}
+    lookup = {}
+    for name, cands in candidates.items():
+        if len({c["origin"] for c in cands}) > 1:
+            continue  # genuinely different symbols share this short name
+        published = sorted(c["qualified"] for c in cands if c["reexported"])
+        if published:
+            lookup[name] = published[0]
+        elif len(cands) == 1:
+            lookup[name] = cands[0]["qualified"]
+
+    _API_NAME_LOOKUP_CACHE = lookup
     return _API_NAME_LOOKUP_CACHE
 
 
@@ -481,6 +508,7 @@ def _build_api_table_html(project_root):
 
 _GALLERY_CACHE = None
 _COMPANION_INDEX_CACHE = None
+_GALLERY_PAGE_CACHE = None
 
 # Max example cards on a single API page.  Most symbols are well under this
 # (a typical notebook demonstrates a handful of things); the cap exists for the
@@ -614,6 +642,32 @@ def _build_gallery_cards(items):
 _NOTEBOOK_API_USAGE_CACHE = None
 
 
+def _get_gallery_page_url(project_root):
+    """URL of the page hosting the gallery, or None if there is not one.
+
+    The gallery page is whichever page carries the ``<!-- GALLERY -->``
+    placeholder -- found by looking, because that page is local-owned and a
+    project is free to move it.  A hardcoded path is wrong the moment someone
+    reorganises their docs, and produces a 404 with no build error.
+    """
+    global _GALLERY_PAGE_CACHE  # noqa: PLW0603
+    if _GALLERY_PAGE_CACHE is not None:
+        return _GALLERY_PAGE_CACHE or None
+
+    docs_dir = project_root / "docs"
+    _GALLERY_PAGE_CACHE = ""
+    if docs_dir.exists():
+        for md in sorted(docs_dir.rglob("*.md")):
+            try:
+                if "<!-- GALLERY -->" in md.read_text(encoding="utf-8"):
+                    rel = md.relative_to(docs_dir).with_suffix("")
+                    _GALLERY_PAGE_CACHE = "/" + "/".join(rel.parts) + "/"
+                    break
+            except (OSError, UnicodeDecodeError):
+                continue
+    return _GALLERY_PAGE_CACHE or None
+
+
 def _normalize_companion_path(path):
     """Normalize a companion path so authored variants compare equal.
 
@@ -738,8 +792,9 @@ def _build_api_examples_html(project_root, qualified_name):
     shown = unique_items[:_API_EXAMPLES_CAP]
 
     html = "## Examples\n\nThe following example notebooks use this component:\n\n" + _build_gallery_cards(shown)
-    if total > _API_EXAMPLES_CAP:
-        html += f"\n[See all {total} examples in the gallery](/pages/examples/)\n"
+    gallery_url = _get_gallery_page_url(project_root)
+    if total > _API_EXAMPLES_CAP and gallery_url:
+        html += f"\n[See all {total} examples in the gallery]({gallery_url})\n"
     return html
 {%- endif %}
 
@@ -918,22 +973,31 @@ def _linkify_see_also(html, page, config):
     """
 
     def _process_block(block_match):
-        def _process_paragraph(p_match):
-            def _linkify_entry(entry_match):
-                entry = entry_match.group(0)
-                code_match = re.match(r"<code>([^<]+)</code>(\s*:)", entry)
-                if code_match:
-                    name, colon = code_match.group(1), code_match.group(2)
-                    return _link_entry(name, f"<code>{name}</code>", colon, entry, page, config)
-                plain_match = re.match(r"([A-Za-z_][\w.]*?)(\s*:)", entry)
-                if plain_match:
-                    name, colon = plain_match.group(1), plain_match.group(2)
-                    return _link_entry(name, name, colon, entry, page, config)
-                return entry
+        def _linkify_entry(entry_match):
+            entry = entry_match.group(0)
+            code_match = re.match(r"<code>([^<]+)</code>(\s*:)", entry)
+            if code_match:
+                name, colon = code_match.group(1), code_match.group(2)
+                return _link_entry(name, f"<code>{name}</code>", colon, entry, page, config)
+            plain_match = re.match(r"([A-Za-z_][\w.]*?)(\s*:)", entry)
+            if plain_match:
+                name, colon = plain_match.group(1), plain_match.group(2)
+                return _link_entry(name, name, colon, entry, page, config)
+            return entry
 
-            return "<p>" + _SEE_ALSO_ENTRY_RE.sub(_linkify_entry, p_match.group(1)) + "</p>"
+        def _process_container(container_match):
+            tag, inner = container_match.group(1), container_match.group(2)
+            # Skip content that is already a link or an autoref: an author who
+            # wrote an explicit `[Name][target]` cross-reference has said what
+            # they mean, and autorefs resolves it later.
+            if "<a " in inner or "<autoref" in inner:
+                return container_match.group(0)
+            return f"<{tag}>{_SEE_ALSO_ENTRY_RE.sub(_linkify_entry, inner)}</{tag}>"
 
-        return re.sub(r"<p>(.*?)</p>", _process_paragraph, block_match.group(0), flags=re.DOTALL)
+        # numpydoc renders See Also entries as a paragraph; an author may also
+        # write them as a markdown list, which renders as <li> instead. Both are
+        # ordinary numpydoc, so both get linked.
+        return re.sub(r"<(p|li)>(.*?)</\1>", _process_container, block_match.group(0), flags=re.DOTALL)
 
     return _SEE_ALSO_BLOCK_RE.sub(_process_block, html)
 
@@ -1237,10 +1301,11 @@ def on_config(config):
     _API_NAME_LOOKUP_CACHE = None
     _GIT_REF_CACHE = None
 {%- if include_examples %}
-    global _GALLERY_CACHE, _COMPANION_INDEX_CACHE, _NOTEBOOK_API_USAGE_CACHE  # noqa: PLW0603
+    global _GALLERY_CACHE, _COMPANION_INDEX_CACHE, _NOTEBOOK_API_USAGE_CACHE, _GALLERY_PAGE_CACHE  # noqa: PLW0603
     _GALLERY_CACHE = None
     _COMPANION_INDEX_CACHE = None
     _NOTEBOOK_API_USAGE_CACHE = None
+    _GALLERY_PAGE_CACHE = None
 {%- endif %}
     return config
 
@@ -1329,6 +1394,10 @@ def on_page_markdown(markdown, page, config, files):
 
     # Rewrite [View] to relative paths pointing to local HTML exports
     markdown = re.sub(r"\]\(/examples/", f"]({prefix}examples/", markdown)
+
+    # Absolute doc-page links (e.g. the gallery overflow link) resolve to the
+    # current page's depth, the same way [View] does.
+    markdown = re.sub(r"\]\(/pages/", f"]({prefix}pages/", markdown)
 {% else %}
     # Strip EXAMPLES_FOR placeholders when examples are disabled
     markdown = re.sub(r"<!-- EXAMPLES_FOR:[\w.]+ -->\n?", "", markdown)

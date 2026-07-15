@@ -2180,3 +2180,139 @@ def test_shipped_skill_mirrors_are_byte_identical(copie_session_default):
     assert set(gh_files) == set(cl_files), "shipped skill trees have different files"
     drifted = [str(rel) for rel, p in gh_files.items() if p.read_bytes() != cl_files[rel].read_bytes()]
     assert not drifted, f"shipped skill copies have drifted: {drifted}"
+
+
+def test_see_also_links_list_form_entries(copie_session_minimal):
+    """Entries written as a markdown list link too.
+
+    numpydoc renders See Also as a paragraph, but authors also write the
+    entries as a list, which renders as <li> rather than <p>. Handling only
+    paragraphs silently drops links for every list-style docstring.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_list")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        '<details class="see-also" open><summary>See Also</summary>'
+        "<ul><li>Beta : A list entry.</li></ul></details></div>"
+        '<div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "list-form entry was not linked"
+
+
+def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
+    """An author's explicit [Name][target] reference is not rewritten.
+
+    autorefs turns explicit references into <autoref>/<a> before this hook runs
+    and resolves them later. Rewriting them would double-link, and the author
+    has already said exactly what they mean.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_explicit")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    inner = '<li><autoref identifier="minimal_project.models.Beta"><code>Beta</code></autoref> : Explicit.</li>'
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        f'<details class="see-also" open><summary>See Also</summary><ul>{inner}</ul></details></div>'
+        '<div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert inner in out, "an explicit cross-reference was rewritten"
+    assert out.count("minimal_project.models.Beta") == 1, "explicit reference was double-linked"
+
+
+def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
+    """The change's observable fix: the members TABLE is non-empty.
+
+    Asserting that _get_public_members returns entries is not this. A lookup can
+    resolve every symbol while the rendered page stays empty -- the per-member
+    detail pages are written from a separate code path, so the interlock test
+    passes too. This asserts the rendered markdown a reader actually sees, and
+    fails if _build_members_tables stops emitting rows.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "table_render")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    hooks._generate_api_pages(project_dir)
+    page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text()
+
+    assert "### Classes" in page, "members table missing its Classes heading"
+    assert "Circle" in page, "re-exported class absent from the rendered members table"
+    assert "A round shape." in page, "row is missing the description lifted from the declaring module"
+    assert "generated/minimal_project.shapes.Circle.md" in page, "row does not link to the member page"
+
+
+def test_api_name_lookup_prefers_the_published_path(copie_session_minimal):
+    """One symbol reachable by two paths resolves to the one users write."""
+    project_dir = copie_session_minimal.project_dir
+    (project_dir / "src" / "minimal_project" / "naive.py").write_text(
+        '"""Naive."""\n\n\nclass SeasonalNaive:\n    """Repeat last season."""\n', encoding="utf-8"
+    )
+    pub = project_dir / "src" / "minimal_project" / "point"
+    pub.mkdir(parents=True, exist_ok=True)
+    (pub / "__init__.py").write_text(
+        '"""Point."""\n\nfrom minimal_project.naive import SeasonalNaive\n\n__all__ = ["SeasonalNaive"]\n',
+        encoding="utf-8",
+    )
+    hooks = _load_hooks(project_dir, "prefer_public")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    assert lookup.get("SeasonalNaive") == "minimal_project.point.SeasonalNaive", (
+        f"published path not preferred; got {lookup.get('SeasonalNaive')!r}"
+    )
+
+
+def test_api_name_lookup_refuses_a_genuine_collision(copie_session_minimal):
+    """Two different symbols sharing a short name resolve to nothing.
+
+    A wrong link is worse than no link, so an ambiguous name degrades to plain
+    text rather than pointing at whichever module happened to be scanned last.
+    """
+    project_dir = copie_session_minimal.project_dir
+    for mod in ("dup_a", "dup_b"):
+        (project_dir / "src" / "minimal_project" / f"{mod}.py").write_text(
+            f'"""{mod}."""\n\n\nclass Duplicated:\n    """From {mod}."""\n', encoding="utf-8"
+        )
+    hooks = _load_hooks(project_dir, "collision")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    assert "Duplicated" not in lookup, (
+        f"an ambiguous short name resolved to {lookup.get('Duplicated')!r} instead of being refused"
+    )
+
+
+def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_default):
+    """The overflow link resolves to wherever the gallery page actually is.
+
+    The gallery page is local-owned, so a project may move it; a hardcoded path
+    404s silently. It is located by the <!-- GALLERY --> placeholder instead.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "gallery_url")
+    hooks._GALLERY_PAGE_CACHE = None
+
+    url = hooks._get_gallery_page_url(project_dir)
+
+    assert url, "gallery page not found by its GALLERY placeholder"
+    page = project_dir / "docs" / (url.strip("/") + ".md")
+    assert page.is_file(), f"overflow link {url} points at a page that does not exist"
+    assert "<!-- GALLERY -->" in page.read_text(), "located page is not the gallery"

@@ -141,6 +141,8 @@ This ensures the skill only spends effort merging files that actually have local
 - **Preserve local**: Custom `nav` entries (pages added beyond template defaults), extra plugins, custom theme overrides
 - **Strategy**: Parse by top-level YAML keys. Template-owned keys get updated. Local additions (new nav items, extra watch paths) are preserved. The `nav` key requires special attention — keep custom entries that don't exist in the template nav.
 - **`markdown_extensions` → `pymdownx.snippets` merges sub-key-wise**: accept the template's `base_path` and `check_paths`, but preserve any local sub-key such as `auto_append`. Taking the template's dict wholesale silently drops a local `auto_append`, and the pages relying on it then render without the appended content — with no error.
+- **`plugins` → `mkdocstrings` → `handlers.python.inventories` is a UNION, not a replacement**: the template ships only the Python inventory, and a project adds its own dependencies' inventories to the same list. Accepting the template's list wholesale drops them, and every cross-reference into those projects silently stops resolving — signatures and `See Also` entries render as plain text with no warning. Keep every local entry and add the template's if missing.
+- **`plugins` → `mkdocstrings` → `handlers.python.options` merges key-wise**: accept template additions, preserve local option overrides.
 
 ### noxfile.py
 
