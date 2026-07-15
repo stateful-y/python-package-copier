@@ -177,5 +177,8 @@ extra:
 watch:
   - mkdocs.yml
   - docs
+  # The API pages are generated from the package source, so a source edit must
+  # trigger a rebuild -- otherwise adding a class shows nothing until restart.
+  - src
 {% if include_examples %}  - examples
 {% endif -%}

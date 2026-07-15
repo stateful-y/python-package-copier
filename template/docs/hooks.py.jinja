@@ -908,7 +908,11 @@ _DETAIL_SECTION_SLUGS = {
 
 
 _SEE_ALSO_BLOCK_RE = re.compile(r'<details\s+class="see-also"[^>]*>.*?</details>', re.DOTALL)
-_SEE_ALSO_ENTRY_RE = re.compile(r"(?:<code>[^<]+</code>|[A-Za-z_][\w.]*)\s*:")
+# An entry's name sits at the START of its line -- mkdocstrings renders one entry
+# per line inside the paragraph. Anchoring here is what keeps a colon-terminated
+# word in an entry's DESCRIPTION ("Target : Note: see below") from being treated
+# as another entry and linked.
+_SEE_ALSO_ENTRY_RE = re.compile(r"^(\s*)(<code>[^<]+</code>|[A-Za-z_][\w.]*)(\s*:)")
 
 
 def _resolve_see_also_url(name, page, config):
@@ -964,7 +968,7 @@ def _link_entry(name, title, colon, entry, page, config):
 
 
 def _linkify_see_also(html, page, config):
-    """Turn names in a rendered See Also section into links.
+    """Turn the names in a rendered See Also section into links.
 
     Must run while the ``<details class="see-also">`` container still exists --
     see the ordering comment in ``on_page_content``.  Unresolvable names are
@@ -973,29 +977,27 @@ def _linkify_see_also(html, page, config):
     """
 
     def _process_block(block_match):
-        def _linkify_entry(entry_match):
-            entry = entry_match.group(0)
-            code_match = re.match(r"<code>([^<]+)</code>(\s*:)", entry)
-            if code_match:
-                name, colon = code_match.group(1), code_match.group(2)
-                return _link_entry(name, f"<code>{name}</code>", colon, entry, page, config)
-            plain_match = re.match(r"([A-Za-z_][\w.]*?)(\s*:)", entry)
-            if plain_match:
-                name, colon = plain_match.group(1), plain_match.group(2)
-                return _link_entry(name, name, colon, entry, page, config)
-            return entry
+        def _linkify_line(line):
+            entry_match = _SEE_ALSO_ENTRY_RE.match(line)
+            if not entry_match:
+                return line
+            lead, token, colon = entry_match.groups()
+            rest = line[entry_match.end() :]
+            code_match = re.fullmatch(r"<code>([^<]+)</code>", token)
+            name = code_match.group(1) if code_match else token
+            title = f"<code>{name}</code>" if code_match else name
+            return lead + _link_entry(name, title, colon, token + colon, page, config) + rest
 
         def _process_container(container_match):
             tag, inner = container_match.group(1), container_match.group(2)
-            # Skip content that is already a link or an autoref: an author who
-            # wrote an explicit `[Name][target]` cross-reference has said what
-            # they mean, and autorefs resolves it later.
+            # Leave an author's explicit [Name][target] reference alone: they have
+            # said what they mean, and autorefs resolves it later.
             if "<a " in inner or "<autoref" in inner:
                 return container_match.group(0)
-            return f"<{tag}>{_SEE_ALSO_ENTRY_RE.sub(_linkify_entry, inner)}</{tag}>"
+            return f"<{tag}>" + "\n".join(_linkify_line(line) for line in inner.split("\n")) + f"</{tag}>"
 
-        # numpydoc renders See Also entries as a paragraph; an author may also
-        # write them as a markdown list, which renders as <li> instead. Both are
+        # numpydoc renders See Also entries as a paragraph, one per line; an author
+        # may also write them as a markdown list, which renders as <li>. Both are
         # ordinary numpydoc, so both get linked.
         return re.sub(r"<(p|li)>(.*?)</\1>", _process_container, block_match.group(0), flags=re.DOTALL)
 

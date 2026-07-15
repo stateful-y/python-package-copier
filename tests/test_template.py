@@ -1673,10 +1673,12 @@ def test_see_also_links_class_level_entries(copie_session_minimal):
     hooks._API_NAME_LOOKUP_CACHE = None
     hooks._SUBMODULE_CACHE = None
 
+    # One entry per line, as mkdocstrings actually renders them. Running them
+    # together on one line hides whether the linkifier respects entry boundaries.
     html = _see_also_page(
         "minimal_project",
         "Alpha",
-        "Beta : Plain numpydoc. <code>Gamma</code> : Backticked. NotARealThing : Unknown.",
+        "Beta : Plain numpydoc.\n<code>Gamma</code> : Backticked.\nNotARealThing : Unknown.",
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
@@ -1748,7 +1750,7 @@ def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
     hooks._API_NAME_LOOKUP_CACHE = None
     hooks._SUBMODULE_CACHE = None
 
-    html = _see_also_page("minimal_project", "Alpha", "sklearn.linear_model.Ridge : External. Beta : Project.")
+    html = _see_also_page("minimal_project", "Alpha", "sklearn.linear_model.Ridge : External.\nBeta : Project.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
     assert '<autoref optional identifier="sklearn.linear_model.Ridge">sklearn.linear_model.Ridge</autoref>' in out, (
@@ -2033,7 +2035,11 @@ def test_changelog_include_resolves(copie_session_default):
     finally:
         os.chdir(cwd)
 
-    assert "Changelog" in rendered, "changelog content did not render"
+    # Assert on text only the root CHANGELOG.md supplies. "Changelog" alone is a
+    # word a page with no include at all would provide for free, so it cannot
+    # fail for the defect this guards.
+    assert "Keep a Changelog" in rendered, "root CHANGELOG.md content did not render -- the include resolved to nothing"
+    assert "Semantic Versioning" in rendered, "changelog body missing"
     assert rendered.count("<h1") == 1, "changelog page renders a duplicate <h1> (own heading plus the include's)"
 
 
@@ -2316,3 +2322,39 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
     page = project_dir / "docs" / (url.strip("/") + ".md")
     assert page.is_file(), f"overflow link {url} points at a page that does not exist"
     assert "<!-- GALLERY -->" in page.read_text(), "located page is not the gallery"
+
+
+def test_see_also_leaves_description_text_alone(copie_session_minimal):
+    """A colon-terminated word in an entry's DESCRIPTION is not linked.
+
+    Entry names sit at the start of their line. Without anchoring there, any
+    "Word:" in prose is treated as another entry -- so "Target : Note: see
+    below" linkifies "Note", rewriting text the spec says is left unchanged.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    # A class whose name also appears, colon-terminated, inside a description.
+    (project_dir / "src" / "minimal_project" / "prose.py").write_text(
+        '"""Prose."""\n\n\nclass Note:\n    """Named Note."""\n', encoding="utf-8"
+    )
+    hooks = _load_hooks(project_dir, "seealso_desc")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "Beta : Note: a colon-terminated word in the description.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "the entry name was not linked"
+    assert not re.search(r"<a[^>]*>Note</a>", out), "a word in the description was linkified as an entry"
+    assert "Note: a colon-terminated word in the description." in out, "description text was altered"
+
+
+def test_docs_watch_includes_package_source(copie_session_default):
+    """`mkdocs serve` must rebuild when the package source changes.
+
+    The API pages are generated from src/, so without it in `watch` an author
+    adding a class sees nothing until they restart the server -- which is the
+    scenario the per-build cache reset exists to satisfy.
+    """
+    config = _mkdocs_config(copie_session_default.project_dir)
+    assert "src" in config["watch"], f"src not watched; serve will not rebuild on source edits: {config['watch']}"
