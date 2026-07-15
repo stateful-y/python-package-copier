@@ -29,10 +29,10 @@ The release pipeline uses **Trusted Publishing** (OIDC) - no API tokens are stor
 2. Publish your first release manually, or create the project on PyPI
 3. Go to your project → **Manage → Publishing**
 4. Add a new publisher:
-   - **Owner**: Your GitHub username/organization
-   - **Repository**: Your repository name
-   - **Workflow**: `publish-release.yml`
-   - **Environment**: `pypi`
+    - **Owner**: Your GitHub username/organization
+    - **Repository**: Your repository name
+    - **Workflow**: `publish-release.yml`
+    - **Environment**: `pypi`
 
 ### 2. Create a Personal Access Token for Changelog Automation
 
@@ -40,10 +40,10 @@ The changelog workflow needs a token to create PRs:
 
 1. Go to **GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens**
 2. Click **Generate new token** and configure:
-   - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
-   - **Expiration**: 90 days or longer
-   - **Repository access**: Only select repositories → choose your repository
-   - **Permissions**: Contents (Read/Write), Pull requests (Read/Write)
+    - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
+    - **Expiration**: 90 days or longer
+    - **Repository access**: Only select repositories → choose your repository
+    - **Permissions**: Contents (Read/Write), Pull requests (Read/Write)
 3. In your repository: **Settings → Secrets and variables → Actions → New repository secret**
 4. Add `CHANGELOG_AUTOMATION_TOKEN` with the token value
 

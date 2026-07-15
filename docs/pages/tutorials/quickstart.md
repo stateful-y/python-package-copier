@@ -86,31 +86,31 @@ git push -u origin main
 **Required setup** (for automated releases):
 
 1. **PyPI Trusted Publishing** (OIDC, no tokens needed):
-   - Create account at [pypi.org](https://pypi.org/account/register/)
-   - Publish your first release manually, or create the project on PyPI
-   - Go to your project → Manage → Publishing
-   - Add a new publisher with:
-     - **Owner**: Your GitHub username/org
-     - **Repository**: Your repository name
-     - **Workflow**: `publish-release.yml`
-     - **Environment**: `pypi`
+    - Create account at [pypi.org](https://pypi.org/account/register/)
+    - Publish your first release manually, or create the project on PyPI
+    - Go to your project → Manage → Publishing
+    - Add a new publisher with:
+        - **Owner**: Your GitHub username/org
+        - **Repository**: Your repository name
+        - **Workflow**: `publish-release.yml`
+        - **Environment**: `pypi`
 
 2. **GitHub Personal Access Token** (for changelog PR creation):
-   - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
-   - Click "Generate new token"
-   - Configure:
-     - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
-     - **Expiration**: 90 days or longer
-     - **Repository access**: Only select repositories → Choose your repository
-     - **Permissions**: Contents (Read/Write), Pull requests (Read/Write)
-   - In repository Settings → Secrets and variables → Actions → New secret
-   - Add `CHANGELOG_AUTOMATION_TOKEN` with your token
+    - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+    - Click "Generate new token"
+    - Configure:
+        - **Token name**: `CHANGELOG_AUTOMATION_TOKEN`
+        - **Expiration**: 90 days or longer
+        - **Repository access**: Only select repositories → Choose your repository
+        - **Permissions**: Contents (Read/Write), Pull requests (Read/Write)
+    - In repository Settings → Secrets and variables → Actions → New secret
+    - Add `CHANGELOG_AUTOMATION_TOKEN` with your token
 
 3. **Configure PyPI environment protection** (for manual approval):
-   - Go to repository Settings → Environments
-   - Click on `pypi` environment (or create it)
-   - Enable "Required reviewers" and add yourself as a reviewer
-   - This ensures PyPI releases require manual approval after GitHub Release creation
+    - Go to repository Settings → Environments
+    - Click on `pypi` environment (or create it)
+    - Enable "Required reviewers" and add yourself as a reviewer
+    - This ensures PyPI releases require manual approval after GitHub Release creation
 
 Release your package by pushing a version tag:
 

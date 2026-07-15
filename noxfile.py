@@ -89,10 +89,12 @@ def test_slow(session: nox.Session) -> None:
 @nox.session(venv_backend="uv")
 def fix(session: nox.Session) -> None:
     """Format the code base to adhere to our styles, and complain about what we cannot do automatically."""
-    # Install dependencies
+    # Install dependencies. --locked pins the exact uv.lock versions so a stale lock
+    # fails loudly here and local matches CI.
     session.run_install(
         "uv",
         "sync",
+        "--locked",
         "--no-default-groups",
         "--group",
         "fix",
@@ -106,10 +108,11 @@ def fix(session: nox.Session) -> None:
 @nox.session(venv_backend="uv")
 def lint(session: nox.Session) -> None:
     """Run linters."""
-    # Install dependencies
+    # Install dependencies. --locked pins the exact uv.lock versions so this matches CI.
     session.run_install(
         "uv",
         "sync",
+        "--locked",
         "--no-default-groups",
         "--group",
         "lint",
@@ -119,8 +122,8 @@ def lint(session: nox.Session) -> None:
     # Run ruff check
     session.run("ruff", "check", "tests/", external=True)
 
-    # Run rumdl markdown linter
-    session.run("uvx", "rumdl", "check", ".", external=True)
+    # Run rumdl markdown linter (resolved from the lint group, not uvx-latest)
+    session.run("rumdl", "check", ".", external=True)
 
 
 @nox.session(venv_backend="uv")

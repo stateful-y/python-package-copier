@@ -169,6 +169,3 @@ Desktop.ini
 
 # Generated project workspaces
 .generated/
-
-# uv
-uv.lock
