@@ -106,11 +106,16 @@ Read [references/conflict-resolution.md](references/conflict-resolution.md) for 
 
 For each `.rej` file, determine the base file's tier from Step 2:
 
+**A `.rej` does NOT mean the file is untouched.** `git apply --reject` applies every hunk
+that applies cleanly and rejects only the rest, so a conflicted file is already *partially*
+updated. Deleting the `.rej` keeps those applied hunks — which is wrong for any tier that
+was supposed to reject them.
+
 | Tier | Action |
 |------|--------|
-| **Tier 1** (template-managed) | Read `.rej`, apply changes to local file (template wins). Delete `.rej`. |
-| **Tier 2** (merge-required) | Read both local file and `.rej`. Merge: accept template improvements, preserve local additions. Delete `.rej`. |
-| **Tier 3** (local-owned) | Delete `.rej` without applying. |
+| **Tier 1** (template-managed) | Read `.rej`, apply its hunks to the local file (template wins). Delete `.rej`. |
+| **Tier 2** (merge-required) | `git diff HEAD -- <file>` first, to see which hunks already landed. Then merge: accept template improvements, restore any local content those hunks removed. Delete `.rej`. |
+| **Tier 3** (local-owned) | `git checkout HEAD -- <file>` to undo the hunks that already applied, then `rm <file>.rej`. Deleting the `.rej` alone leaves the template's changes in a file the project owns. |
 
 #### 5b: Handle files modified without conflict
 

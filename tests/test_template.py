@@ -1,5 +1,6 @@
 """Tests for the copier template."""
 
+import os
 import re
 
 import pytest
@@ -1444,3 +1445,1047 @@ def test_claude_skills_not_gitignored(copie_session_default):
     assert not re.search(r"^\.claude/$", gitignore, re.MULTILINE), (
         "'.claude/' excludes the directory and makes '!.claude/skills/' unreachable"
     )
+
+
+def _load_hooks(project_dir, unique_suffix):
+    """Import a generated docs/hooks.py under a unique module name.
+
+    The module name must be unique per project: importing two differently
+    generated hooks modules under one name makes ``sys.modules`` return the
+    first, so the second variant is never actually exercised and the test
+    passes while asserting nothing.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"generated_hooks_{unique_suffix}", project_dir / "docs" / "hooks.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_reexport_package(project_dir, package_name):
+    """Lay down a package whose public API is exposed entirely by re-export."""
+    pkg = project_dir / "src" / package_name
+    sub = pkg / "shapes"
+    sub.mkdir(parents=True, exist_ok=True)
+    (sub / "_impl.py").write_text(
+        '"""Private implementation module."""\n\n\n'
+        'class Circle:\n    """A round shape."""\n\n\n'
+        'class Square:\n    """A boxy shape."""\n\n\n'
+        'def area(shape):\n    """Compute an area."""\n    return 0\n',
+        encoding="utf-8",
+    )
+    (sub / "__init__.py").write_text(
+        '"""Shapes."""\n\n'
+        "from pathlib import Path\n"
+        f"from {package_name}.shapes._impl import Circle, area\n"
+        "from ._impl import Square as Box\n\n"
+        "MAX_SIDES = 4\n\n"
+        '__all__ = ["Box", "Circle", "MAX_SIDES", "area"]\n',
+        encoding="utf-8",
+    )
+
+    # A package with NO __all__: here the package-root guard in
+    # _resolve_import_from is what must reject `from pathlib import Path`. The
+    # __all__-bearing package above cannot exercise it -- the filter rejects
+    # Path first, so the guard is never consulted.
+    noall = pkg / "noall"
+    noall.mkdir(parents=True, exist_ok=True)
+    (noall / "_impl.py").write_text('"""Impl."""\n\n\nclass Gadget:\n    """A gadget."""\n', encoding="utf-8")
+    (noall / "__init__.py").write_text(
+        '"""No dunder all."""\n\nfrom pathlib import Path\nfrom ._impl import Gadget\n',
+        encoding="utf-8",
+    )
+
+    # A package exposing an optional extra, guarding its re-exports in a try block.
+    optional = pkg / "optional"
+    optional.mkdir(parents=True, exist_ok=True)
+    (optional / "_impl.py").write_text(
+        '"""Optional implementation."""\n\n\nclass Widget:\n    """An optional widget."""\n',
+        encoding="utf-8",
+    )
+    (optional / "__init__.py").write_text(
+        '"""Optional feature."""\n\n'
+        "try:\n"
+        f"    from {package_name}.optional._impl import Widget\n"
+        "except ImportError as err:  # pragma: no cover\n"
+        '    raise ImportError("install extras") from err\n\n'
+        '__all__ = ["Widget"]\n',
+        encoding="utf-8",
+    )
+    return pkg
+
+
+def test_reexported_symbols_resolve(copie_session_minimal):
+    """Re-exported symbols resolve, and the API page members table populates."""
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "reexport")
+
+    members = hooks._get_public_members(pkg / "shapes" / "__init__.py", pkg)
+    names = {e["name"] for e in members["classes"] + members["functions"]}
+
+    # Re-exported classes and functions are found, despite the __init__ declaring none.
+    assert "Circle" in names, "re-exported class not resolved"
+    assert "area" in names, "re-exported function not resolved"
+    # Aliased re-export resolves under the exposed name, not the declared one.
+    assert "Box" in names, "aliased re-export not resolved under its exposed name"
+    assert "Square" not in names, "aliased re-export leaked its declared name"
+    # __all__ filters, it does not authorise: a constant has no page, so it must not resolve.
+    assert "MAX_SIDES" not in names, "__all__-listed constant resolved but has no page"
+    # An import that leaves the package is not part of this package's API.
+    assert "Path" not in names, "incidental third-party import resolved"
+
+    # Classes and functions are bucketed correctly, with descriptions from the declaring module.
+    assert {e["name"] for e in members["classes"]} == {"Circle", "Box"}
+    assert {e["name"] for e in members["functions"]} == {"area"}
+    assert next(e for e in members["classes"] if e["name"] == "Circle")["doc"] == "A round shape."
+
+
+def test_reexports_guarded_by_try_resolve(copie_session_minimal):
+    """Re-exports guarded by a try block (the optional-extra idiom) still resolve.
+
+    ``ast.iter_child_nodes`` sees only the ``Try`` node, so a top-level-only
+    scan silently renders an empty API page for these packages.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "tryblock")
+
+    members = hooks._get_public_members(pkg / "optional" / "__init__.py", pkg)
+    names = {e["name"] for e in members["classes"] + members["functions"]}
+
+    assert "Widget" in names, "re-export inside a try block was not resolved"
+    assert next(e for e in members["classes"] if e["name"] == "Widget")["doc"] == "An optional widget."
+
+
+def test_api_name_lookup_without_importing_package(copie_session_minimal):
+    """The lookup is built by static analysis, never by importing the package."""
+    import sys
+
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "noimport")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    assert lookup.get("Circle") == "minimal_project.shapes.Circle", (
+        f"re-exported symbol not in lookup: {sorted(lookup)}"
+    )
+    assert "minimal_project" not in sys.modules, "hooks imported the generated package"
+
+
+def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
+    """Interlock: every resolvable name has a generated page to link to."""
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "interlock")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    hooks._generate_api_pages(project_dir)
+    generated = {p.stem for p in (project_dir / "docs" / "pages" / "api" / "generated").glob("*.md")}
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    # Guard against a vacuous pass: the re-exported symbols must actually be under test.
+    assert "Circle" in lookup, f"re-export package not picked up; lookup={sorted(lookup)}"
+    missing = sorted(q for q in lookup.values() if q not in generated)
+    assert not missing, f"lookup resolves names with no generated page: {missing}"
+
+
+def test_api_name_lookup_available_without_examples(copie_session_minimal):
+    """The lookup is not gated behind include_examples."""
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    assert "def _get_api_name_lookup" in hooks_source, "lookup missing when examples are disabled"
+    assert "_API_NAME_LOOKUP_CACHE" in hooks_source, "lookup cache missing when examples are disabled"
+    assert "def _get_notebook_api_usage" not in hooks_source, "gallery code leaked into a no-examples project"
+
+
+def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
+    """The gallery consumes the shared lookup instead of building its own map."""
+    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    assert "def _get_api_name_lookup" in hooks_source
+    assert "name_to_qualified = _get_api_name_lookup(project_root)" in hooks_source, (
+        "_get_notebook_api_usage must consume the shared lookup, not derive a second map"
+    )
+
+
+class _FakeFile:
+    def __init__(self, src_path, dest_path):
+        self.src_path = src_path
+        self.dest_path = dest_path
+
+
+class _FakePage:
+    """The subset of mkdocs' Page that on_page_content actually touches."""
+
+    def __init__(self, src_path, dest_path):
+        self.file = _FakeFile(src_path, dest_path)
+        self.meta = {}
+        self.toc = []
+
+
+def _see_also_page(package_name, class_name, entries, *, method_entries=""):
+    """Build a page shaped like real mkdocstrings output.
+
+    The ``<h2 id="{pkg}.{Class}">`` and the ``doc-children`` boundary are not
+    decoration: without the h2, ``_process_api_page_content`` returns early, and
+    a fixture missing it makes every downstream assertion meaningless.
+    """
+    method_block = ""
+    if method_entries:
+        method_block = (
+            f'<h3 id="{package_name}.{class_name}.fit">fit</h3>'
+            f'<details class="see-also" open><summary>See Also</summary><p>{method_entries}</p></details>'
+        )
+    return (
+        f'<h2 id="{package_name}.{class_name}">{class_name}</h2>'
+        f'<div class="doc doc-contents">'
+        f'<details class="see-also" open><summary>See Also</summary><p>{entries}</p></details>'
+        f"</div>"
+        f'<div class="doc doc-children">{method_block}</div>'
+    )
+
+
+def _generated_page(package_name, class_name):
+    src = f"pages/api/generated/{package_name}.models.{class_name}.md"
+    return _FakePage(src, src.replace(".md", "/index.html"))
+
+
+def _write_models_module(project_dir, package_name):
+    """A module with sibling classes for See Also entries to point at."""
+    (project_dir / "src" / package_name / "models.py").write_text(
+        '"""Models."""\n\n\nclass Alpha:\n    """Alpha."""\n\n\nclass Beta:\n    """Beta."""\n\n\nclass Gamma:\n    """Gamma."""\n',
+        encoding="utf-8",
+    )
+
+
+def test_see_also_links_class_level_entries(copie_session_minimal):
+    """Class-level See Also entries link — the case a post-restructure hook misses.
+
+    Driven through on_page_content, not the linkifier alone: the container this
+    feature depends on is destroyed partway through that function, so testing
+    the linkifier in isolation proves nothing about the real pipeline.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_class")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    # One entry per line, as mkdocstrings actually renders them. Running them
+    # together on one line hides whether the linkifier respects entry boundaries.
+    html = _see_also_page(
+        "minimal_project",
+        "Alpha",
+        "Beta : Plain numpydoc.\n<code>Gamma</code> : Backticked.\nNotARealThing : Unknown.",
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "plain entry not linked"
+    assert '<a href="../minimal_project.models.Gamma/"><code>Gamma</code></a>' in out, "code-span entry not linked"
+    assert "Plain numpydoc." in out, "description text was altered"
+    assert not re.search(r"<a[^>]*>NotARealThing", out), "unresolvable entry was linked"
+    # The container is gone by the end -- proof the linkifier ran before the restructure.
+    assert '<details class="see-also"' not in out
+
+
+def test_see_also_links_method_level_entries(copie_session_minimal):
+    """Method-level See Also entries link too (they sit outside class_region)."""
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_method")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "Beta : Class level.", method_entries="Gamma : Method level.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "method-level entry not linked"
+
+
+def test_see_also_linkify_runs_before_restructure(copie_session_minimal):
+    """Order-locking: reordering on_page_content silently reverts this feature.
+
+    Linkifying after the restructure produces nothing for class-level sections
+    while still working for method-level ones, so a test that only covers
+    method-level entries would not catch the regression.
+    """
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    body = hooks_source[hooks_source.index("def on_page_content") :]
+    linkify_at = body.index("_linkify_see_also(")
+    restructure_at = body.index("_process_api_page_content(")
+    assert linkify_at < restructure_at, (
+        "_linkify_see_also must be called BEFORE _process_api_page_content; "
+        "the latter dissolves the <details class='see-also'> block the former matches"
+    )
+
+
+def test_see_also_scoped_to_generated_api_pages(copie_session_minimal):
+    """A See Also block on a non-generated page is not rewritten."""
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_scope")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = '<details class="see-also" open><summary>See Also</summary><p>Beta : Nope.</p></details>'
+    page = _FakePage("pages/api/models.md", "pages/api/models/index.html")
+    out = hooks.on_page_content(html, page, {}, None)
+
+    assert out == html, "linkification leaked outside pages/api/generated/"
+
+
+def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
+    """An external dotted name is handed to autorefs, not resolved eagerly.
+
+    Inventories are registered into the autorefs URL map but applied in its
+    on_env hook, which runs after on_page_content -- asking for the URL here
+    raises KeyError even when the inventory is configured. The `optional`
+    attribute keeps an unresolvable name quiet rather than failing --strict.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_external")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "sklearn.linear_model.Ridge : External.\nBeta : Project.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<autoref optional identifier="sklearn.linear_model.Ridge">sklearn.linear_model.Ridge</autoref>' in out, (
+        "external name was not deferred to autorefs"
+    )
+    # The project symbol is still resolved here, against the page set we own.
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out
+
+
+def test_see_also_bare_unresolvable_name_is_left_alone(copie_session_minimal):
+    """A bare name that misses the project lookup is not offered to autorefs.
+
+    It could resolve to an unrelated symbol sharing the name in some configured
+    inventory, and a wrong link is worse than no link.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_bare")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "NotAThing : Unknown bare name.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert "<autoref" not in out, "a bare name was offered to autorefs"
+    assert "NotAThing : Unknown bare name." in out, "bare unresolvable entry was altered"
+
+
+def test_see_also_qualified_name_matches_bare_form(copie_session_minimal):
+    """A fully qualified project entry links to the same page as the bare form."""
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_qualified")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "minimal_project.models.Beta : Qualified.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">minimal_project.models.Beta</a>' in out, (
+        "qualified project name did not resolve to the same page as the bare form"
+    )
+
+
+def _write_notebook(project_dir, stem, gallery_body, imports=""):
+    nb = project_dir / "examples" / f"{stem}.py"
+    nb.parent.mkdir(parents=True, exist_ok=True)
+    nb.write_text(f"import marimo\n\n{imports}\n__gallery__ = {{{gallery_body}}}\n", encoding="utf-8")
+    return nb
+
+
+def _reset_gallery_caches(hooks):
+    hooks._GALLERY_CACHE = None
+    hooks._NOTEBOOK_API_USAGE_CACHE = None
+    hooks._COMPANION_INDEX_CACHE = None
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+
+def test_declared_api_references_override_imports(copie_session_default):
+    """A declared api_references list wins over what the notebook imports."""
+    project_dir = copie_session_default.project_dir
+    _write_models_module(project_dir, "test_project")
+    _write_notebook(
+        project_dir,
+        "declared_nb",
+        '"title": "Declared", "description": "d", "category": "tutorial", "api_references": ["Beta"]',
+        imports="from test_project.models import Alpha, Gamma\n",
+    )
+    hooks = _load_hooks(project_dir, "egl_declared")
+    _reset_gallery_caches(hooks)
+
+    usage = hooks._get_notebook_api_usage(project_dir)
+    stems = {q: {i["stem"] for i in items} for q, items in usage.items()}
+
+    assert "declared_nb" in stems.get("test_project.models.Beta", set()), "declared reference not used"
+    assert "declared_nb" not in stems.get("test_project.models.Alpha", set()), "import won over declaration"
+    assert "declared_nb" not in stems.get("test_project.models.Gamma", set()), "import won over declaration"
+
+
+def test_absent_api_references_falls_back_to_imports(copie_session_default):
+    """A notebook declaring nothing still gets cross-referenced.
+
+    This is the day-one path: a fresh project has no metadata, and the feature
+    must be visible before anyone opts in.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_models_module(project_dir, "test_project")
+    _write_notebook(
+        project_dir,
+        "fallback_nb",
+        '"title": "Fallback", "description": "d", "category": "tutorial"',
+        imports="from test_project.models import Alpha\n",
+    )
+    hooks = _load_hooks(project_dir, "egl_fallback")
+    _reset_gallery_caches(hooks)
+
+    usage = hooks._get_notebook_api_usage(project_dir)
+    stems = {i["stem"] for i in usage.get("test_project.models.Alpha", [])}
+
+    assert "fallback_nb" in stems, "notebook without api_references was not inferred from imports"
+
+
+def test_empty_api_references_means_no_pages(copie_session_default):
+    """An empty list is a statement ('nowhere'), not an omission ('infer')."""
+    project_dir = copie_session_default.project_dir
+    _write_models_module(project_dir, "test_project")
+    _write_notebook(
+        project_dir,
+        "optout_nb",
+        '"title": "Optout", "description": "d", "category": "tutorial", "api_references": []',
+        imports="from test_project.models import Alpha\n",
+    )
+    hooks = _load_hooks(project_dir, "egl_empty")
+    _reset_gallery_caches(hooks)
+
+    usage = hooks._get_notebook_api_usage(project_dir)
+    appearances = {q for q, items in usage.items() if any(i["stem"] == "optout_nb" for i in items)}
+
+    assert not appearances, f"api_references: [] still produced cards on {appearances}"
+
+
+def test_unresolvable_api_reference_is_ignored(copie_session_default):
+    """A declared name that resolves to nothing is dropped, not fatal."""
+    project_dir = copie_session_default.project_dir
+    _write_models_module(project_dir, "test_project")
+    _write_notebook(
+        project_dir,
+        "bogus_nb",
+        '"title": "Bogus", "description": "d", "category": "tutorial", "api_references": ["NotAThing", "Beta"]',
+    )
+    hooks = _load_hooks(project_dir, "egl_bogus")
+    _reset_gallery_caches(hooks)
+
+    usage = hooks._get_notebook_api_usage(project_dir)
+
+    assert not [q for q in usage if "NotAThing" in q], "unresolvable name produced an entry"
+    assert any(i["stem"] == "bogus_nb" for i in usage.get("test_project.models.Beta", [])), "valid name was dropped too"
+
+
+def test_api_example_cards_are_capped(copie_session_default):
+    """The card list is bounded, with the remainder reachable via the gallery."""
+    project_dir = copie_session_default.project_dir
+    # A symbol only this test references: the session project is shared, so
+    # reusing one would let another test's notebooks into the card list.
+    (project_dir / "src" / "test_project" / "capped.py").write_text(
+        '"""Capped."""\n\n\nclass Capstone:\n    """Capstone."""\n', encoding="utf-8"
+    )
+    notebook_count = 9
+    for i in range(notebook_count):
+        _write_notebook(
+            project_dir,
+            f"capped_{i:02d}",
+            f'"title": "Capped {i:02d}", "description": "d", "category": "tutorial", "api_references": ["Capstone"]',
+        )
+    hooks = _load_hooks(project_dir, "egl_cap")
+    _reset_gallery_caches(hooks)
+
+    html = hooks._build_api_examples_html(project_dir, "test_project.capped.Capstone")
+
+    assert notebook_count > hooks._API_EXAMPLES_CAP, "test does not actually exceed the cap"
+    assert html.count("**Capped") == hooks._API_EXAMPLES_CAP, "card list was not capped"
+    assert "See all" in html and "in the gallery" in html, "no overflow link past the cap"
+    # Stable order: same input, same cards, so builds are reproducible. The
+    # caches must be cleared between calls -- re-reading a warm cache returns
+    # the same object and the assertion cannot fail.
+    _reset_gallery_caches(hooks)
+    assert hooks._build_api_examples_html(project_dir, "test_project.capped.Capstone") == html
+
+
+def test_api_example_cards_under_cap_have_no_gallery_link(copie_session_default):
+    """Below the cap, nothing is hidden, so no overflow link is shown."""
+    project_dir = copie_session_default.project_dir
+    _write_models_module(project_dir, "test_project")
+    _write_notebook(
+        project_dir,
+        "solo_nb",
+        '"title": "Solo", "description": "d", "category": "tutorial", "api_references": ["Gamma"]',
+    )
+    hooks = _load_hooks(project_dir, "egl_undercap")
+    _reset_gallery_caches(hooks)
+
+    html = hooks._build_api_examples_html(project_dir, "test_project.models.Gamma")
+
+    assert "**Solo**" in html
+    assert "See all" not in html, "overflow link shown when nothing was hidden"
+
+
+def test_companion_path_variants_match_same_page(copie_session_default):
+    """companion is hand-written, so authored spellings must all match."""
+    hooks = _load_hooks(copie_session_default.project_dir, "egl_norm")
+    variants = [
+        "/pages/how-to/x/",
+        "pages/how-to/x",
+        "pages/how-to/x.md",
+        "/pages/how-to/x",
+    ]
+    normalized = {hooks._normalize_companion_path(v) for v in variants}
+    assert len(normalized) == 1, f"companion path variants did not normalize together: {normalized}"
+
+
+def test_companion_placeholder_renders_nothing_when_unmatched(copie_session_default):
+    """A page with the placeholder and no companion notebooks renders empty."""
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "egl_nocompanion")
+    _reset_gallery_caches(hooks)
+
+    html = hooks._build_companion_cards_html(project_dir, "pages/how-to/nobody-references-me.md")
+
+    assert html == "", "unmatched placeholder produced output"
+
+
+def test_companion_cache_is_registered_by_name(copie_session_default):
+    """The companion cache must carry the _CACHE suffix.
+
+    The per-build reset's registration test discovers caches by that suffix, so
+    a cache named otherwise (the natural `_COMPANION_INDEX`) is invisible to it
+    and the stale-read bug returns silently.
+    """
+    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    assert "_COMPANION_INDEX_CACHE" in hooks_source, "companion cache does not follow the *_CACHE convention"
+
+
+def test_gallery_features_absent_without_examples(copie_session_minimal):
+    """The whole feature is gated behind include_examples."""
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text()
+    for symbol in ("_COMPANION_INDEX_CACHE", "_API_EXAMPLES_CAP", "_build_companion_cards_html"):
+        assert symbol not in hooks_source, f"{symbol} leaked into a project generated without examples"
+
+
+def _mkdocs_config(project_dir):
+    import yaml
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    _Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda loader, suffix, node: suffix)
+    _Loader.add_constructor("!ENV", lambda loader, node: None)
+    return yaml.load((project_dir / "mkdocs.yml").read_text(), Loader=_Loader)
+
+
+def test_snippets_resolve_docs_and_repo_root(copie_session_default):
+    """base_path must reach the repo root as well as docs/.
+
+    Narrowing this to [docs] breaks any project that includes a file from the
+    repo root or src/ -- which real projects do.
+    """
+    config = _mkdocs_config(copie_session_default.project_dir)
+    snippets = next(x["pymdownx.snippets"] for x in config["markdown_extensions"] if "pymdownx.snippets" in str(x))
+
+    assert snippets["base_path"] == ["docs", "."], "base_path must search docs first, then the repo root"
+    assert snippets["check_paths"] is True, "a missing include must fail the build, not vanish"
+
+
+def test_changelog_include_resolves(copie_session_default):
+    """The changelog page must actually render the changelog.
+
+    A green build is not evidence here: without check_paths the include is
+    dropped silently and the page renders as a heading with nothing under it.
+    """
+    import markdown
+
+    project_dir = copie_session_default.project_dir
+    page = project_dir / "docs" / "pages" / "reference" / "changelog.md"
+    assert page.is_file(), "changelog page not generated"
+
+    md = markdown.Markdown(
+        extensions=["pymdownx.snippets"],
+        extension_configs={"pymdownx.snippets": {"base_path": ["docs", "."], "check_paths": True}},
+    )
+    cwd = os.getcwd()
+    try:
+        os.chdir(project_dir)
+        rendered = md.convert(page.read_text())
+    finally:
+        os.chdir(cwd)
+
+    # Assert on text only the root CHANGELOG.md supplies. "Changelog" alone is a
+    # word a page with no include at all would provide for free, so it cannot
+    # fail for the defect this guards.
+    assert "Keep a Changelog" in rendered, "root CHANGELOG.md content did not render -- the include resolved to nothing"
+    assert "Semantic Versioning" in rendered, "changelog body missing"
+    assert rendered.count("<h1") == 1, "changelog page renders a duplicate <h1> (own heading plus the include's)"
+
+
+def test_python_inventory_configured(copie_session_default):
+    """Signatures reference stdlib types, so that inventory earns its place."""
+    config = _mkdocs_config(copie_session_default.project_dir)
+    handler = next(p["mkdocstrings"] for p in config["plugins"] if isinstance(p, dict) and "mkdocstrings" in p)
+    inventories = handler["handlers"]["python"]["inventories"]
+
+    assert any("docs.python.org" in str(i) for i in inventories), "Python inventory not configured"
+
+
+def test_quadrant_index_pages_exist_and_lead_nav(copie_session_default):
+    """navigation.indexes is on, so each quadrant needs a landing page first."""
+    project_dir = copie_session_default.project_dir
+    config = _mkdocs_config(project_dir)
+
+    for quadrant in ("tutorials", "how-to", "reference", "explanation"):
+        assert (project_dir / "docs" / "pages" / quadrant / "index.md").is_file(), f"{quadrant}/index.md missing"
+
+    sections = {k: v for entry in config["nav"] if isinstance(entry, dict) for k, v in entry.items()}
+    for label, quadrant in (
+        ("Tutorials", "tutorials"),
+        ("How-to Guides", "how-to"),
+        ("Reference", "reference"),
+        ("Explanation", "explanation"),
+    ):
+        assert sections[label][0] == f"pages/{quadrant}/index.md", f"{label} nav must start with its index page"
+
+
+def test_quadrant_indexes_are_local_owned(copie_session_default):
+    """The template's skeleton must never overwrite a project's own landing page.
+
+    Four of the seven repos generated from this template already maintain
+    hand-written index pages; an update that replaces them is a regression
+    shipped as an upgrade.
+    """
+    classification = (
+        copie_session_default.project_dir
+        / ".github"
+        / "skills"
+        / "update-from-template"
+        / "references"
+        / "file-classification.md"
+    )
+    if not classification.is_file():
+        pytest.skip("update-from-template skill not shipped to generated projects")
+    text = classification.read_text()
+    # Slice to the section end, not EOF: running to EOF would let a path
+    # listed in a LATER section satisfy this assertion.
+    start = text.index("## Tier 3")
+    nxt = text.find("\n## ", start + 1)
+    tier3 = text[start : nxt if nxt > 0 else len(text)]
+
+    for quadrant in ("tutorials", "how-to", "reference", "explanation"):
+        assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
+
+
+def _cache_names(hooks_module):
+    return [n for n in vars(hooks_module) if n.endswith("_CACHE") and not n.startswith("__")]
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "expects_gallery"),
+    [("copie_session_default", True), ("copie_session_minimal", False)],
+)
+def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
+    """Sentinel round-trip: populate every cache, reset, assert all cleared.
+
+    Deliberately not a presence check on the source. Asserting that the cache
+    names appear in on_config's body passes even against an empty function, so
+    it would verify nothing. Each variant is loaded under a unique module name:
+    importing both under one name makes sys.modules return the first, and the
+    second variant is never actually exercised.
+    """
+    project_dir = request.getfixturevalue(fixture_name).project_dir
+    hooks = _load_hooks(project_dir, f"reset_{fixture_name}")
+
+    names = _cache_names(hooks)
+    assert names, "no *_CACHE globals discovered"
+    assert ("_GALLERY_CACHE" in names) is expects_gallery, (
+        f"gallery cache presence should follow include_examples; found {sorted(names)}"
+    )
+
+    sentinel = object()
+    for name in names:
+        setattr(hooks, name, sentinel)
+
+    hooks.on_config({})
+
+    still_set = [n for n in names if getattr(hooks, n) is sentinel]
+    assert not still_set, f"on_config did not clear: {still_set}"
+
+
+def test_on_config_returns_config(copie_session_default):
+    """The mkdocs contract allows returning None, but the config is clearer."""
+    hooks = _load_hooks(copie_session_default.project_dir, "reset_returns")
+    config = {"marker": True}
+    assert hooks.on_config(config) is config
+
+
+def test_hooks_define_on_config_not_on_startup(copie_session_default):
+    """on_startup runs once per invocation, so a reset there never fires again.
+
+    That is the bug this change exists to fix; defining it would reintroduce it.
+    """
+    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text()
+    assert "def on_config(" in source, "no per-build reset"
+    assert "def on_startup(" not in source, "on_startup fires once per invocation, not per build"
+
+
+def test_no_phantom_cache_without_examples(copie_session_minimal):
+    """The reset must not name caches a project does not define.
+
+    `global X; X = None` creates the binding rather than raising, so an
+    ungated reset silently grows module attributes nothing reads -- and the
+    discovery test would then dutifully confirm they are cleared.
+    """
+    hooks = _load_hooks(copie_session_minimal.project_dir, "reset_phantom")
+    hooks.on_config({})
+
+    for gallery_cache in ("_GALLERY_CACHE", "_COMPANION_INDEX_CACHE", "_NOTEBOOK_API_USAGE_CACHE"):
+        assert not hasattr(hooks, gallery_cache), f"{gallery_cache} phantom-created in a no-examples project"
+
+
+def test_shipped_skill_mirrors_are_byte_identical(copie_session_default):
+    """The two shipped skill trees must not drift.
+
+    .github/skills and .claude/skills are hand-maintained duplicates: Copilot
+    reads one, Claude Code reads the other. Comparing directory names only
+    (the previous check) passes while their contents diverge, so an edit to one
+    copy ships a stale other -- and inside a generated project it is the
+    .claude copy that Claude Code actually loads.
+    """
+    project_dir = copie_session_default.project_dir
+    gh, cl = project_dir / ".github" / "skills", project_dir / ".claude" / "skills"
+    if not (gh.is_dir() and cl.is_dir()):
+        pytest.skip("skills not shipped to generated projects")
+
+    gh_files = {p.relative_to(gh): p for p in gh.rglob("*") if p.is_file()}
+    cl_files = {p.relative_to(cl): p for p in cl.rglob("*") if p.is_file()}
+
+    assert set(gh_files) == set(cl_files), "shipped skill trees have different files"
+    drifted = [str(rel) for rel, p in gh_files.items() if p.read_bytes() != cl_files[rel].read_bytes()]
+    assert not drifted, f"shipped skill copies have drifted: {drifted}"
+
+
+def test_see_also_links_list_form_entries(copie_session_minimal):
+    """Entries written as a markdown list link too.
+
+    numpydoc renders See Also as a paragraph, but authors also write the
+    entries as a list, which renders as <li> rather than <p>. Handling only
+    paragraphs silently drops links for every list-style docstring.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_list")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        '<details class="see-also" open><summary>See Also</summary>'
+        "<ul><li>Beta : A list entry.</li></ul></details></div>"
+        '<div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "list-form entry was not linked"
+
+
+def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
+    """An author's explicit [Name][target] reference is not rewritten.
+
+    autorefs turns explicit references into <autoref>/<a> before this hook runs
+    and resolves them later. Rewriting them would double-link, and the author
+    has already said exactly what they mean.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_explicit")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    inner = '<li><autoref identifier="minimal_project.models.Beta"><code>Beta</code></autoref> : Explicit.</li>'
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        f'<details class="see-also" open><summary>See Also</summary><ul>{inner}</ul></details></div>'
+        '<div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert inner in out, "an explicit cross-reference was rewritten"
+    assert out.count("minimal_project.models.Beta") == 1, "explicit reference was double-linked"
+
+
+def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
+    """The change's observable fix: the members TABLE is non-empty.
+
+    Asserting that _get_public_members returns entries is not this. A lookup can
+    resolve every symbol while the rendered page stays empty -- the per-member
+    detail pages are written from a separate code path, so the interlock test
+    passes too. This asserts the rendered markdown a reader actually sees, and
+    fails if _build_members_tables stops emitting rows.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "table_render")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    hooks._generate_api_pages(project_dir)
+    page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text()
+
+    assert "### Classes" in page, "members table missing its Classes heading"
+    assert "Circle" in page, "re-exported class absent from the rendered members table"
+    assert "A round shape." in page, "row is missing the description lifted from the declaring module"
+    assert "generated/minimal_project.shapes.Circle.md" in page, "row does not link to the member page"
+
+
+def test_api_name_lookup_prefers_the_published_path(copie_session_minimal):
+    """One symbol reachable by two paths resolves to the one users write."""
+    project_dir = copie_session_minimal.project_dir
+    (project_dir / "src" / "minimal_project" / "naive.py").write_text(
+        '"""Naive."""\n\n\nclass SeasonalNaive:\n    """Repeat last season."""\n', encoding="utf-8"
+    )
+    pub = project_dir / "src" / "minimal_project" / "point"
+    pub.mkdir(parents=True, exist_ok=True)
+    (pub / "__init__.py").write_text(
+        '"""Point."""\n\nfrom minimal_project.naive import SeasonalNaive\n\n__all__ = ["SeasonalNaive"]\n',
+        encoding="utf-8",
+    )
+    hooks = _load_hooks(project_dir, "prefer_public")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    assert lookup.get("SeasonalNaive") == "minimal_project.point.SeasonalNaive", (
+        f"published path not preferred; got {lookup.get('SeasonalNaive')!r}"
+    )
+
+
+def test_api_name_lookup_refuses_a_genuine_collision(copie_session_minimal):
+    """Two different symbols sharing a short name resolve to nothing.
+
+    A wrong link is worse than no link, so an ambiguous name degrades to plain
+    text rather than pointing at whichever module happened to be scanned last.
+    """
+    project_dir = copie_session_minimal.project_dir
+    for mod in ("dup_a", "dup_b"):
+        (project_dir / "src" / "minimal_project" / f"{mod}.py").write_text(
+            f'"""{mod}."""\n\n\nclass Duplicated:\n    """From {mod}."""\n', encoding="utf-8"
+        )
+    hooks = _load_hooks(project_dir, "collision")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    lookup = hooks._get_api_name_lookup(project_dir)
+
+    assert "Duplicated" not in lookup, (
+        f"an ambiguous short name resolved to {lookup.get('Duplicated')!r} instead of being refused"
+    )
+
+
+def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_default):
+    """The overflow link resolves to wherever the gallery page actually is.
+
+    The gallery page is local-owned, so a project may move it; a hardcoded path
+    404s silently. It is located by the <!-- GALLERY --> placeholder instead.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "gallery_url")
+    hooks._GALLERY_PAGE_CACHE = None
+
+    url = hooks._get_gallery_page_url(project_dir)
+
+    assert url, "gallery page not found by its GALLERY placeholder"
+    page = project_dir / "docs" / (url.strip("/") + ".md")
+    assert page.is_file(), f"overflow link {url} points at a page that does not exist"
+    assert "<!-- GALLERY -->" in page.read_text(), "located page is not the gallery"
+
+
+def test_see_also_leaves_description_text_alone(copie_session_minimal):
+    """A colon-terminated word in an entry's DESCRIPTION is not linked.
+
+    Entry names sit at the start of their line. Without anchoring there, any
+    "Word:" in prose is treated as another entry -- so "Target : Note: see
+    below" linkifies "Note", rewriting text the spec says is left unchanged.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    # A class whose name also appears, colon-terminated, inside a description.
+    (project_dir / "src" / "minimal_project" / "prose.py").write_text(
+        '"""Prose."""\n\n\nclass Note:\n    """Named Note."""\n', encoding="utf-8"
+    )
+    hooks = _load_hooks(project_dir, "seealso_desc")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "Beta : Note: a colon-terminated word in the description.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "the entry name was not linked"
+    assert not re.search(r"<a[^>]*>Note</a>", out), "a word in the description was linkified as an entry"
+    assert "Note: a colon-terminated word in the description." in out, "description text was altered"
+
+
+def test_docs_watch_includes_package_source(copie_session_default):
+    """`mkdocs serve` must rebuild when the package source changes.
+
+    The API pages are generated from src/, so without it in `watch` an author
+    adding a class sees nothing until they restart the server -- which is the
+    scenario the per-build cache reset exists to satisfy.
+    """
+    config = _mkdocs_config(copie_session_default.project_dir)
+    assert "src" in config["watch"], f"src not watched; serve will not rebuild on source edits: {config['watch']}"
+
+
+def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minimal):
+    """A symbol name elsewhere on the page is left alone.
+
+    Symbol names appear throughout rendered docs -- in Notes, parameter tables,
+    source listings. Scoping to the See Also block is what stops the linkifier
+    rewriting all of them.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_scope_name")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = (
+        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
+        "<h3>Notes</h3><p>Beta : mentioned in prose, not a See Also entry.</p>"
+        '<details class="see-also" open><summary>See Also</summary><p>Gamma : A real entry.</p></details>'
+        '</div><div class="doc doc-children"></div>'
+    )
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "the See Also entry was not linked"
+    assert not re.search(r"<a[^>]*>Beta</a>", out), "a name outside the See Also section was linkified"
+
+
+def test_companion_card_renders_with_resolved_links(copie_session_default):
+    """The primary companion path: a card with working links, end to end.
+
+    The cards are emitted as markdown so the [View]/[Open in marimo] rewrites
+    below them resolve the URLs. Emitting resolved HTML instead would bypass
+    those rewrites and ship literal placeholders -- which is why this asserts
+    the rendered hrefs, not just that a card appeared.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_notebook(
+        project_dir,
+        "companion_nb",
+        '"title": "Companion NB", "description": "Demo.", "category": "how-to",'
+        ' "companion": "pages/how-to/configure.md"',
+    )
+    hooks = _load_hooks(project_dir, "companion_render")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/configure.md", "pages/how-to/configure/index.html")
+    config = {"repo_url": "https://github.com/s/p"}
+    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, config, None)
+
+    assert "COMPANION_NOTEBOOKS" not in out, "placeholder was not consumed"
+    assert "## Try it interactively" in out, "heading not emitted with the cards"
+    assert "Companion NB" in out, "companion card did not render"
+    # pages/how-to/configure.md is three deep, so the rewrite prefixes ../../../
+    assert "](../../../examples/companion_nb/" in out, f"View link not resolved to a relative path: {out[:200]}"
+    assert "marimo.app" in out, "Open-in-marimo link not resolved to a playground URL"
+    assert "](/examples/" not in out, "an unresolved absolute example path survived"
+
+
+def test_changelog_page_has_a_populated_toc(copie_session_default):
+    """The changelog is the page that most needs a ToC.
+
+    Material's ToC partial takes first.children when the first heading is level
+    1, so a page with two h1s renders an empty ToC -- silently, on the one page
+    with a heading per release.
+    """
+    import markdown
+
+    project_dir = copie_session_default.project_dir
+    page = project_dir / "docs" / "pages" / "reference" / "changelog.md"
+    md = markdown.Markdown(
+        extensions=["pymdownx.snippets", "toc"],
+        extension_configs={"pymdownx.snippets": {"base_path": ["docs", "."], "check_paths": True}},
+    )
+    cwd = os.getcwd()
+    try:
+        os.chdir(project_dir)
+        md.convert(page.read_text())
+    finally:
+        os.chdir(cwd)
+
+    tokens = md.toc_tokens
+    assert tokens, "changelog page produced no table of contents"
+    assert len([t for t in tokens if t["level"] == 1]) == 1, "more than one level-1 heading collapses Material's ToC"
+
+
+def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
+    """The searchable API index lists re-exported symbols too.
+
+    The index, the package pages and the name lookup must all be fed by the
+    same member scan. Feeding the index from a scan that cannot see re-exports
+    leaves it blind to exactly the symbols this resolution exists to surface:
+    their pages exist and the lookup resolves them, while the index shows
+    nothing.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "api_index")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = hooks._build_api_table_html(project_dir)
+
+    assert "Circle" in html, "re-exported class absent from the searchable API index"
+    assert "area" in html, "re-exported function absent from the searchable API index"
+
+
+def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
+    """Without __all__, the package-root guard is what excludes stdlib imports.
+
+    The __all__-bearing fixture cannot show this: the filter rejects Path before
+    the guard is consulted. This exercises the guard itself.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "noall")
+
+    members = hooks._get_public_members(pkg / "noall" / "__init__.py", pkg)
+    names = {e["name"] for e in members["classes"] + members["functions"]}
+
+    assert "Gadget" in names, "first-party re-export not resolved without __all__"
+    assert "Path" not in names, "a stdlib import was resolved as package API"
+
+
+def test_companion_placeholder_renders_no_dangling_heading(copie_session_default):
+    """A page with no matching notebooks renders nothing -- not a bare heading.
+
+    The heading is emitted with the cards rather than written into the page, so
+    removing a notebook's companion cannot leave an empty section behind.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "companion_empty")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/troubleshooting.md", "pages/how-to/troubleshooting/index.html")
+    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, {"repo_url": "https://github.com/s/p"}, None)
+
+    assert out.strip() == "", f"an unmatched placeholder left content behind: {out!r}"

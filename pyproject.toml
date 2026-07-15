@@ -21,6 +21,9 @@ dev = [
 ]
 tests = [
     "copier>=9.11",
+    # hooks tests drive on_page_content, and _process_api_page_content imports
+    # mkdocs.structure.toc, so mkdocs must be importable from the test env.
+    "mkdocs>=1.6",
     "pytest>=8.3",
     "pytest-cov>=7.0",
     "pytest-mock>=3.14",
