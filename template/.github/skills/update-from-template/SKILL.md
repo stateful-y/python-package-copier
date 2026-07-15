@@ -35,6 +35,20 @@ Determine the target version:
 - Default: latest (omit `--vcs-ref`)
 - If user specifies a version: use `--vcs-ref=<tag>` (e.g., `--vcs-ref=v1.2.0`)
 
+**"Latest" means the template's newest released tag, not its newest commit.**
+Two consequences worth knowing before you start, because copier states the facts
+without explaining them:
+
+- Work that is merged but unreleased is **not reachable**. The update reports
+  `Keeping template version <x>` and changes nothing. If you are waiting on a
+  fix that has landed on the template's main branch, it needs a release first.
+- A project whose `_commit` is **ahead of the newest tag** cannot update at all.
+  It fails as `You are downgrading from <newer> to <tag>. Downgrades are not
+  supported.` — not as a no-op. This happens when a project was generated or
+  updated with an explicit `--vcs-ref <commit>` pointing at an unreleased
+  commit. It stays stuck until the template cuts a release newer than that
+  commit. Prefer pinning to tags for exactly this reason.
+
 ### Step 2: Detect Customizations
 
 Generate a clean baseline to identify which files have local customizations:
