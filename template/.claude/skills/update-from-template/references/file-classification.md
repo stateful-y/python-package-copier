@@ -98,6 +98,13 @@ tests/**                           # All test files
 examples/**                        # conditional: include_examples
 docs/pages/explanation/concepts.md
 docs/pages/tutorials/getting-started.md
+docs/pages/how-to/configure.md         # The template seeds these two pages and
+docs/pages/how-to/troubleshooting.md   # the project then owns them. That means
+                                       # the template's own additions to them do
+                                       # not reach projects automatically -- the
+                                       # right trade: a template that can append
+                                       # to a page it does not own can delete
+                                       # from it too.
 docs/pages/tutorials/index.md          # Diataxis quadrant landing pages: the
 docs/pages/how-to/index.md             # template ships a skeleton, but a
 docs/pages/reference/index.md          # project's own landing page is better

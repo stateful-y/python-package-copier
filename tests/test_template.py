@@ -2489,3 +2489,86 @@ def test_companion_placeholder_renders_no_dangling_heading(copie_session_default
     out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, {"repo_url": "https://github.com/s/p"}, None)
 
     assert out.strip() == "", f"an unmatched placeholder left content behind: {out!r}"
+
+
+_CLASSIFICATION_PATTERNS = (
+    "src/",
+    "tests/",
+    "examples/",
+    "docs/examples/",
+    ".github/skills/",
+    ".claude/skills/",
+)
+
+
+def _unclassified_files(project_dir, package_name):
+    """Generated files that the update classification does not cover."""
+    classification = (
+        project_dir / ".github" / "skills" / "update-from-template" / "references" / "file-classification.md"
+    ).read_text()
+    missing = []
+    for path in sorted(project_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(project_dir).as_posix()
+        if rel.startswith(".git/"):
+            continue
+        # Pattern entries (src/<package_name>/**, tests/**, ...) cover whole
+        # trees; requiring a line per file there would be unmaintainable in the
+        # opposite direction.
+        if rel.startswith(_CLASSIFICATION_PATTERNS) or rel.startswith(f"src/{package_name}/"):
+            continue
+        if rel not in classification:
+            missing.append(rel)
+    return missing
+
+
+@pytest.mark.parametrize("include_examples", [True, False])
+def test_every_generated_file_is_classified(copie, include_examples):
+    """Every file the template ships has an update tier.
+
+    The classification tells whoever resolves an update conflict whether the
+    template's version or the project's wins. A file with no tier gives them no
+    rule at the moment they most need one -- and the list is maintained by hand,
+    so nothing notices a new file arriving without an entry. That is how two
+    shipped pages went unclassified, one of which a real update wanted to strip
+    212 lines from.
+
+    Generates a fresh project rather than reusing a session fixture: this asks
+    what the TEMPLATE ships, and a shared fixture accumulates build artifacts
+    (.nox, __pycache__, generated API pages) from whichever tests ran first.
+
+    Both include_examples values run: a file behind that gate ships in only one
+    variant.
+    """
+    result = copie.copy(extra_answers={"include_examples": include_examples})
+    project_dir = result.project_dir
+    missing = _unclassified_files(project_dir, "test_project")
+
+    assert not missing, (
+        f"these generated files have no update tier, so a conflict on them has no resolution rule: {missing}"
+    )
+
+
+def test_update_guidance_restores_local_owned_files(copie_session_default):
+    """The local-owned remedy must restore, not merely discard the rejection.
+
+    A rejected-hunks update applies every hunk that applies and rejects only the
+    rest, so a conflicted file is already partially updated. Guidance that treats
+    the rejection's presence as evidence the file is untouched leads to keeping
+    the template's changes in a file the project owns -- silently, with the
+    update reporting success. Measured once: a local-owned page went 184 lines to
+    78.
+    """
+    skill_dir = copie_session_default.project_dir / ".github" / "skills" / "update-from-template"
+    if not skill_dir.is_dir():
+        pytest.skip("update-from-template skill not shipped to generated projects")
+    skill = (skill_dir / "SKILL.md").read_text()
+    conflicts = (skill_dir / "references" / "conflict-resolution.md").read_text()
+
+    assert "git checkout HEAD -- <file>" in skill, "the local-owned remedy does not restore the project's version"
+    assert "Delete `.rej` without applying" not in skill, (
+        "the local-owned remedy discards the rejection without undoing the hunks that already applied"
+    )
+    for wrong in ("Keeps local file intact", "local file is clean", "local file** unchanged"):
+        assert wrong not in conflicts, f"the guidance still claims a conflicted file is untouched: {wrong!r}"
