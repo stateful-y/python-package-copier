@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.19.0] - 2026-07-15
+
+This **minor release** includes 5 commits.
+
+
+### Features
+- Make uv.lock the single source of truth for lint tooling  ([#128](https://github.com/stateful-y/python-package-copier/pull/128)) by @gtauzin
+- Ship Claude Code skills to generated projects  ([#132](https://github.com/stateful-y/python-package-copier/pull/132)) by @gtauzin
+- Resolve and link API cross-references in generated docs  ([#133](https://github.com/stateful-y/python-package-copier/pull/133)) by @gtauzin
+
+### Bug Fixes
+- Classify every shipped file and require a release to update  ([#134](https://github.com/stateful-y/python-package-copier/pull/134)) by @gtauzin
+
+### Miscellaneous Tasks
+- Gitignore openspec/ in generated projects  ([#131](https://github.com/stateful-y/python-package-copier/pull/131)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.18.0] - 2026-03-29
 
 This **minor release** includes 1 commit.
