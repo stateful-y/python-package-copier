@@ -169,3 +169,75 @@ Desktop.ini
 
 # Generated project workspaces
 .generated/
+
+# ---------------------------------------------------------------------------
+# AI assistant tooling (local-only, mirrors stateful-y/yohou)
+#
+# Patterns are anchored with a leading "/" so they apply to this repo's root
+# only. Unanchored patterns match at any depth and would silently swallow
+# product files under template/ (e.g. a future template/.claude/).
+#
+# Deliberately NOT listed: .github/skills/** and .github/copilot-instructions.md
+# are tracked here, and gitignore does not affect tracked files. Listing them
+# would be inert. Untrack them first if they should become local-only.
+# ---------------------------------------------------------------------------
+
+# Copilot-side openspec artifacts. openspec installs Claude-native equivalents
+# under .claude/commands/opsx/, so these are redundant duplicates. Ignoring them
+# also keeps rumdl (which honours .gitignore) off files openspec generates.
+/.github/prompts/
+/.github/skills/openspec-*/
+
+# AI Assistant Instructions
+/CLAUDE.md
+/CLAUDE_INSTRUCTIONS.md
+/.claude.md
+/claude-instructions.md
+/claude-config.md
+/claude-prompt.md
+/reviews/
+
+# GitHub Copilot
+/COPILOT.md
+/COPILOT_INSTRUCTIONS.md
+/.copilot.md
+/copilot-instructions.md
+/copilot-config.md
+/copilot-prompt.md
+
+# ChatGPT / OpenAI
+/CHATGPT.md
+/GPT.md
+/OPENAI.md
+/chatgpt-instructions.md
+/gpt-instructions.md
+/openai-instructions.md
+
+# Generic AI/LLM instructions
+/AI.md
+/AI_INSTRUCTIONS.md
+/LLM.md
+/LLM_INSTRUCTIONS.md
+/.ai-instructions.md
+/.llm-instructions.md
+/ai-prompt.md
+/llm-prompt.md
+/assistant-instructions.md
+
+# Custom instructions directories
+/.ai/
+/.llm/
+/.copilot/
+/.claude/
+/ai-instructions/
+/llm-instructions/
+
+# Project-specific AI context (kept private)
+/.cursorrules
+/.cursor/
+/.aider*
+/.continue/
+/openspec
+
+# Git worktrees
+/.worktrees/

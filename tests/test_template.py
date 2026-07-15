@@ -1,5 +1,7 @@
 """Tests for the copier template."""
 
+import re
+
 import pytest
 
 
@@ -1410,3 +1412,35 @@ def test_update_from_template_skill_generated(copie_session_default):
     assert refs_dir.is_dir(), "Missing references/"
     assert (refs_dir / "file-classification.md").is_file(), "Missing file-classification.md"
     assert (refs_dir / "conflict-resolution.md").is_file(), "Missing conflict-resolution.md"
+
+
+def test_claude_skills_generated(copie_session_default):
+    """Test that Claude Code skills are included in generated projects."""
+    result = copie_session_default
+
+    skills_dir = result.project_dir / ".claude" / "skills"
+    assert skills_dir.is_dir(), "Missing .claude/skills/"
+
+    # Mirrors .github/skills so both assistants offer the same skills.
+    github_skills = {p.name for p in (result.project_dir / ".github" / "skills").iterdir()}
+    claude_skills = {p.name for p in skills_dir.iterdir()}
+    assert claude_skills == github_skills, f"Skill sets diverged: {claude_skills ^ github_skills}"
+
+    for name in claude_skills:
+        assert (skills_dir / name / "SKILL.md").is_file(), f"Missing {name}/SKILL.md"
+
+
+def test_claude_skills_not_gitignored(copie_session_default):
+    """Test that generated projects track .claude/skills/ but ignore personal config.
+
+    ".claude/" would exclude the directory outright and git never descends into an
+    excluded directory, so the "!.claude/skills/" negation would silently not apply.
+    """
+    result = copie_session_default
+
+    gitignore = (result.project_dir / ".gitignore").read_text()
+    assert ".claude/*" in gitignore, "Must use '.claude/*' so the negation is reachable"
+    assert "!.claude/skills/" in gitignore, "Missing negation to track shipped skills"
+    assert not re.search(r"^\.claude/$", gitignore, re.MULTILINE), (
+        "'.claude/' excludes the directory and makes '!.claude/skills/' unreachable"
+    )
