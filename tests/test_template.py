@@ -1447,11 +1447,6 @@ def test_claude_skills_not_gitignored(copie_session_default):
     )
 
 
-# ---------------------------------------------------------------------------
-# API name lookup and re-export resolution
-# ---------------------------------------------------------------------------
-
-
 def _load_hooks(project_dir, unique_suffix):
     """Import a generated docs/hooks.py under a unique module name.
 
@@ -1603,11 +1598,6 @@ def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
     assert "name_to_qualified = _get_api_name_lookup(project_root)" in hooks_source, (
         "_get_notebook_api_usage must consume the shared lookup, not derive a second map"
     )
-
-
-# ---------------------------------------------------------------------------
-# See Also linkification
-# ---------------------------------------------------------------------------
 
 
 class _FakeFile:
@@ -1795,11 +1785,6 @@ def test_see_also_qualified_name_matches_bare_form(copie_session_minimal):
     )
 
 
-# ---------------------------------------------------------------------------
-# Example gallery linking: api_references override and companion cards
-# ---------------------------------------------------------------------------
-
-
 def _write_notebook(project_dir, stem, gallery_body, imports=""):
     nb = project_dir / "examples" / f"{stem}.py"
     nb.parent.mkdir(parents=True, exist_ok=True)
@@ -1983,11 +1968,6 @@ def test_gallery_features_absent_without_examples(copie_session_minimal):
         assert symbol not in hooks_source, f"{symbol} leaked into a project generated without examples"
 
 
-# ---------------------------------------------------------------------------
-# Docs site wiring: snippets, inventories, quadrant indexes, changelog
-# ---------------------------------------------------------------------------
-
-
 def _mkdocs_config(project_dir):
     import yaml
 
@@ -2092,11 +2072,6 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
 
     for quadrant in ("tutorials", "how-to", "reference", "explanation"):
         assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
-
-
-# ---------------------------------------------------------------------------
-# Per-build cache reset
-# ---------------------------------------------------------------------------
 
 
 def _cache_names(hooks_module):
