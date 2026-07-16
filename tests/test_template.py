@@ -3229,6 +3229,34 @@ def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category
     )
 
 
+def test_misspelled_marker_warns_instead_of_shipping_blank_space(copie_session_default):
+    """A marker with the right name and the wrong syntax is reported.
+
+    The per-marker warnings only fire for a *well-formed* marker that resolves to
+    nothing. A misspelled one was worse and completely silent: yohou shipped
+    `<!-- GALLERY:quickstart -->`, which matches neither the bare nor the
+    sectioned pattern, so nothing claimed it, nothing substituted it, and it
+    reached the page as a raw comment rendering as blank space. The code that
+    would have reported it never saw it.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "unhandled_markers")
+    _reset_gallery_caches(hooks)
+    page = _FakePage("pages/examples/x.md", "pages/examples/x/index.html")
+
+    for marker in ("<!-- GALLERY:quickstart -->", "<!-- SUBPAGES_FOR:x -->", "<!-- EXAMPLES_FOR -->"):
+        with caplog_at_warning() as records:
+            out = hooks.on_page_markdown(f"# X\n\n{marker}\n", page, {"repo_url": "https://x/y"}, [])
+        assert records, f"{marker} shipped silently; it renders as blank space and nothing says so"
+        assert marker in out, f"{marker} was consumed without being understood"
+
+    # An ordinary comment is not in the marker namespace and must stay quiet, or
+    # the warning becomes noise and gets ignored -- which is how this started.
+    with caplog_at_warning() as records:
+        hooks.on_page_markdown("# X\n\n<!-- prettier-ignore -->\n", page, {"repo_url": "https://x/y"}, [])
+    assert not records, "an ordinary HTML comment was flagged as a broken marker"
+
+
 def test_gallery_section_marker_renders_only_that_section(copie_session_default):
     """`<!-- GALLERY:section:name -->` renders that section's cards and no others.
 
@@ -3448,6 +3476,33 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
 
 
+def test_docs_warnings_are_fatal_somewhere_automated(copie_session_default):
+    """Something that runs on every PR must build the docs with warnings fatal.
+
+    Every marker warning this template emits was decorative until this existed.
+    Nothing ran `mkdocs build --strict`: not CI, not nox's default sessions, and
+    RTD sets no `fail_on_warning`. So a page that silently lost its whole card
+    grid produced a warning in a log nobody reads, and shipped. A warning nothing
+    fails on is not a signal.
+    """
+    project_dir = copie_session_default.project_dir
+
+    noxfile = (project_dir / "noxfile.py").read_text(encoding="utf-8")
+    assert "def check_docs" in noxfile, "no nox session builds the docs with warnings fatal"
+    session = noxfile[noxfile.index("def check_docs") :]
+    session = session[: session.find("@nox.session", 1) if session.find("@nox.session", 1) > 0 else len(session)]
+    assert '"--strict"' in session, "check_docs builds the docs without --strict, so warnings stay advisory"
+    assert "MKDOCS_SKIP_NOTEBOOKS" in session, (
+        "check_docs executes every notebook; that is too slow to run per-PR and it will be dropped from CI"
+    )
+
+    workflow = project_dir / ".github" / "workflows" / "tests.yml"
+    assert workflow.is_file(), "no tests workflow"
+    assert "nox -s check_docs" in workflow.read_text(encoding="utf-8"), (
+        "the strict docs build is never run by CI, so its warnings gate nothing"
+    )
+
+
 def test_seeded_reference_index_lists_the_headingless_changelog(copie_session_default):
     """The template's own seeded pages must survive their own SUBPAGES marker.
 
@@ -3489,6 +3544,32 @@ def test_seeded_reference_index_lists_the_headingless_changelog(copie_session_de
 
     assert "(changelog.md)" in out, "the seeded reference index drops its own changelog"
     assert not records, f"the seeded docs warn on their own marker, which fails --strict: {records}"
+
+
+def test_headingless_changelog_still_gets_a_summary(copie_session_default):
+    """The changelog row carries a summary like every other row.
+
+    Its title comes from the nav (it has no H1 of its own until snippets expand)
+    and its summary has nowhere to come from -- a bare include has no prose to
+    derive one from. So it rendered as a bare `- [Changelog](changelog.md)`
+    beside siblings that had one. Projects fixed that locally by giving the page
+    its own H1, which drifts: changelog.md is Tier 1. Shipping the frontmatter in
+    the template is the version that survives an update.
+    """
+    project_dir = copie_session_default.project_dir
+    changelog = project_dir / "docs" / "pages" / "reference" / "changelog.md"
+    text = changelog.read_text(encoding="utf-8")
+
+    assert "description:" in text, "the seeded changelog has no description; its index row renders bare"
+    assert '--8<-- "CHANGELOG.md"' in text, "the changelog no longer includes the real CHANGELOG"
+    assert not re.search(r"^# ", text, re.MULTILINE), (
+        "the seeded changelog grew its own H1; it would duplicate the one inside CHANGELOG.md"
+    )
+
+    hooks = _load_hooks(project_dir, "changelog_summary")
+    title, description = hooks._page_title_and_description(str(changelog))
+    assert title is None, "a bare include has no H1 of its own; the nav supplies the title"
+    assert description, "the changelog frontmatter yields no summary"
 
 
 def test_generated_index_pages_introduce_their_subpages(copie_session_default):
