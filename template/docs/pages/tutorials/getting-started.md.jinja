@@ -1,7 +1,9 @@
 # Getting Started
 
 In this tutorial, we will install {{ project_name }} and run a first example.
-
+{% if include_examples %}
+<!-- COMPANION_NOTEBOOKS -->
+{% endif %}
 ## Installation
 
 Choose your preferred package manager:
@@ -48,31 +50,9 @@ result = hello("World")
 print(result)  # Output: Hello, World!
 ```
 
-{% if include_examples %}
-## Try Interactive Examples
-
-For hands-on learning with interactive notebooks, see the [Examples](examples.md) page.
-
-Run locally:
-
-=== "just"
-
-    ```bash
-    just example
-    ```
-
-=== "uv run"
-
-    ```bash
-    uv run marimo edit examples/hello.py
-    ```
-{% endif %}
 ## Next Steps
 
 - **Learn the concepts**: Read [Concepts](../explanation/concepts.md) to understand the design
-{% if include_examples %}- **Explore examples**: Check out the [Examples](examples.md) for interactive notebooks
+{% if include_examples %}- **Explore examples**: Check out the [Examples](../examples/index.md) for interactive notebooks
 {% endif %}- **Dive into the API**: Browse the [API Reference](../reference/api.md) for detailed documentation
 - **Get help**: Visit [GitHub Discussions](https://github.com/{{ github_username }}/{{ project_slug }}/discussions) or [open an issue](https://github.com/{{ github_username }}/{{ project_slug }}/issues)
-
-{% if include_examples %}<!-- COMPANION_NOTEBOOKS -->
-{% endif %}

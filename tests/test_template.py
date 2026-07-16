@@ -523,15 +523,15 @@ def test_examples_directory_when_enabled(copie):
     assert "-n auto" in justfile_content
 
     # Check examples.md exists and uses gallery placeholder
-    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
-    assert examples_md.is_file(), "docs/pages/tutorials/examples.md not created"
+    examples_md = result.project_dir / "docs" / "pages" / "examples" / "index.md"
+    assert examples_md.is_file(), "docs/pages/examples/index.md not created"
     examples_content = examples_md.read_text(encoding="utf-8")
     assert "<!-- GALLERY -->" in examples_content
     assert "## Running Examples Locally" in examples_content
 
     # Check mkdocs.yml includes examples in nav and has exclude_docs
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "Examples: pages/tutorials/examples.md" in mkdocs_content
+    assert "pages/examples/index.md" in mkdocs_content
     # Check for exclude_docs with CLAUDE.md files
     assert "exclude_docs:" in mkdocs_content
     assert "examples/**/CLAUDE.md" in mkdocs_content
@@ -593,16 +593,16 @@ def test_examples_directory_when_disabled(copie):
     assert len(example_command_lines) == 0, "example command should not exist"
 
     # Check examples.md doesn't exist or is empty
-    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+    examples_md = result.project_dir / "docs" / "pages" / "examples" / "index.md"
     if examples_md.exists():
         content = examples_md.read_text(encoding="utf-8").strip()
         assert content == "", (
-            f"docs/pages/tutorials/examples.md should be empty when examples are disabled, but contains: {content[:100]}"
+            f"docs/pages/examples/index.md should not exist when examples are disabled, but contains: {content[:100]}"
         )
 
     # Check mkdocs.yml doesn't include examples in nav
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "Examples: tutorials/examples.md" not in mkdocs_content
+    assert "pages/examples/index.md" not in mkdocs_content
 
     # Check GitHub workflow doesn't include examples job
     tests_workflow = result.project_dir / ".github" / "workflows" / "tests.yml"
@@ -855,7 +855,7 @@ def test_three_tier_documentation_system(copie):
     assert result.exit_code == 0
 
     # Tier 1: Verify embedded marimo setup in examples.md
-    examples_md = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+    examples_md = result.project_dir / "docs" / "pages" / "examples" / "index.md"
     examples_content = examples_md.read_text(encoding="utf-8")
     # Check for marimo-embed directive with inline code
     has_marimo = "/// marimo-embed" in examples_content and "@app.cell" in examples_content
@@ -3227,6 +3227,62 @@ def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category
         f'"""Notebook."""\n\nimport marimo\n\n__generated_with = "0.9.0"\n__gallery__ = {{\n    {body},\n}}\napp = marimo.App()\n',
         encoding="utf-8",
     )
+
+
+def test_examples_are_a_top_level_section(copie_session_default):
+    """Examples is its own nav section, not a page filed under Tutorials.
+
+    A gallery is not a tutorial: it holds how-tos too, it is browsed rather than
+    read in order, and it grows until it needs subpages of its own. Filing it
+    under Tutorials caps it at one page and hides it from anyone who is past the
+    tutorials -- which is most of the people who want a runnable example.
+    """
+    project_dir = copie_session_default.project_dir
+
+    assert (project_dir / "docs" / "pages" / "examples" / "index.md").is_file(), (
+        "the examples gallery is not at pages/examples/index.md"
+    )
+    assert not (project_dir / "docs" / "pages" / "tutorials" / "examples.md").exists(), (
+        "the gallery is still filed under tutorials"
+    )
+
+    import yaml
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    nav = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)["nav"]
+
+    top_level = [key for entry in nav if isinstance(entry, dict) for key in entry]
+    assert "Examples" in top_level, f"Examples is not a top-level nav section; top level is {top_level}"
+
+    # Nothing may still point at the old path: a nav entry for a file that does
+    # not exist is a build error, but a *link* to one is a silent 404.
+    stale = [
+        p for p in (project_dir / "docs").rglob("*.md") if "tutorials/examples.md" in p.read_text(encoding="utf-8")
+    ]
+    assert not stale, f"these pages still link the old gallery path: {[str(p) for p in stale]}"
+
+
+def test_companion_cards_are_offered_before_the_page_body(copie_session_default):
+    """The seeded tutorial offers its notebook near the top, not after the footer.
+
+    A reader decides whether to run the notebook instead of reading, so the offer
+    has to arrive before the thing it is an alternative to. The marker used to sit
+    at the very end, below "Next Steps" and "Get help" -- past the point anyone
+    who wanted it was still reading.
+    """
+    page = copie_session_default.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
+    text = page.read_text(encoding="utf-8")
+    assert "<!-- COMPANION_NOTEBOOKS -->" in text, "the seeded tutorial offers no companion notebook"
+
+    marker_at = text.index("<!-- COMPANION_NOTEBOOKS -->")
+    body_at = text.index("## Installation")
+    assert marker_at < body_at, "the companion offer comes after the page body instead of before it"
+
+    tail = text[text.index("## Next Steps") :] if "## Next Steps" in text else ""
+    assert "<!-- COMPANION_NOTEBOOKS -->" not in tail, "the companion offer is still stranded in the footer"
 
 
 def test_misspelled_marker_warns_instead_of_shipping_blank_space(copie_session_default):

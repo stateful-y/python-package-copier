@@ -205,7 +205,7 @@ class TestGallerySystem:
     def test_examples_page_has_gallery_placeholder(self, copie):
         """Test that examples.md uses the GALLERY placeholder."""
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "pages" / "tutorials" / "examples.md").read_text()
+        content = (result.project_dir / "docs" / "pages" / "examples" / "index.md").read_text()
         assert "<!-- GALLERY -->" in content
 
     def test_hello_notebook_has_gallery_metadata(self, copie):
