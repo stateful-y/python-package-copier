@@ -1,5 +1,6 @@
 """Tests for the copier template."""
 
+import logging
 import os
 import posixpath
 import re
@@ -1616,9 +1617,12 @@ def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
 
 
 class _FakeFile:
-    def __init__(self, src_path, dest_path):
+    def __init__(self, src_path, dest_path, abs_src_path=None):
         self.src_path = src_path
         self.dest_path = dest_path
+        # mkdocs' File exposes the on-disk source; the subpage index reads each
+        # sibling's own H1 and summary out of it.
+        self.abs_src_path = abs_src_path
 
 
 class _FakePage:
@@ -1991,6 +1995,7 @@ def _reset_gallery_caches(hooks):
     hooks._COMPANION_INDEX_CACHE = None
     hooks._API_NAME_LOOKUP_CACHE = None
     hooks._SUBMODULE_CACHE = None
+    hooks._GALLERY_PAGE_CACHE = None
 
 
 def test_declared_api_references_override_imports(copie_session_default):
@@ -3126,3 +3131,226 @@ def test_update_guidance_restores_local_owned_files(copie_session_default):
     )
     for wrong in ("Keeps local file intact", "local file is clean", "local file** unchanged"):
         assert wrong not in conflicts, f"the guidance still claims a conflicted file is untouched: {wrong!r}"
+
+
+def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category="how-to", companion=None):
+    """Write a marimo notebook whose __gallery__ carries section/companion keys.
+
+    Distinct from _write_notebook above, which takes a raw gallery body: these
+    tests care about specific keys, so they name them rather than spelling out
+    the literal each time.
+    """
+    examples_dir.mkdir(parents=True, exist_ok=True)
+    fields = [f'"title": {title!r}', f'"description": "Demo of {title}."', f'"category": {category!r}']
+    if section:
+        fields.append(f'"section": {section!r}')
+    if companion:
+        fields.append(f'"companion": {companion!r}')
+    body = ",\n    ".join(fields)
+    (examples_dir / f"{stem}.py").write_text(
+        f'"""Notebook."""\n\nimport marimo\n\n__generated_with = "0.9.0"\n__gallery__ = {{\n    {body},\n}}\napp = marimo.App()\n',
+        encoding="utf-8",
+    )
+
+
+def test_gallery_section_marker_renders_only_that_section(copie_session_default):
+    """`<!-- GALLERY:section:name -->` renders that section's cards and no others.
+
+    A gallery outgrows one page and splits into per-topic subpages, each asking
+    for its own slice. Only the bare `<!-- GALLERY -->` used to be understood,
+    so the sectioned form matched nothing, survived as a literal HTML comment,
+    and every subpage rendered zero cards while the build stayed green. yohou
+    shipped six such pages.
+    """
+    project_dir = copie_session_default.project_dir
+    examples = project_dir / "examples"
+    _write_sectioned_notebook(examples, "sec_alpha_one", title="Alpha One", section="alpha")
+    _write_sectioned_notebook(examples, "sec_alpha_two", title="Alpha Two", section="alpha")
+    _write_sectioned_notebook(examples, "sec_beta_one", title="Beta One", section="beta")
+
+    hooks = _load_hooks(project_dir, "gallery_section")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/examples/alpha.md", "pages/examples/alpha/index.html")
+    out = hooks.on_page_markdown("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", page, {"repo_url": "https://x/y"}, None)
+
+    assert "<!-- GALLERY:section:alpha -->" not in out, "the sectioned marker was left in the page as a dead comment"
+    assert "Alpha One" in out and "Alpha Two" in out, "the section's own notebooks are missing from its page"
+    assert "Beta One" not in out, "a notebook from another section leaked into this section's page"
+
+
+def test_unknown_gallery_section_warns_instead_of_rendering_nothing(copie_session_default, caplog):
+    """A section naming no notebook warns, so --strict catches the typo.
+
+    This is the failure mode that hid the bug above: a marker that resolves to
+    nothing looks exactly like a page that never had one. Renaming a section and
+    missing a page silently empties it, so the miss has to be loud.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_sectioned_notebook(project_dir / "examples", "sec_real", title="Real", section="real")
+
+    hooks = _load_hooks(project_dir, "gallery_section_unknown")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/examples/typo.md", "pages/examples/typo/index.html")
+    with caplog.at_level(logging.WARNING, logger="mkdocs.hooks"):
+        hooks.on_page_markdown("# T\n\n<!-- GALLERY:section:typoed -->\n", page, {"repo_url": "https://x/y"}, None)
+
+    assert "typoed" in caplog.text, "a gallery section matching no notebook rendered silently; --strict cannot catch it"
+
+
+def test_companion_cards_render_without_a_marker_on_the_page(copie_session_default):
+    """A notebook's `companion` is enough on its own to place it on that page.
+
+    The association used to need declaring twice: the notebook naming the page,
+    and the page carrying `<!-- COMPANION_NOTEBOOKS -->`. Miss the second and
+    the notebook points at a page that never shows it, with nothing reporting
+    it. Three sibling repos had 23 notebooks in exactly that state.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_sectioned_notebook(
+        project_dir / "examples",
+        "companion_no_marker",
+        title="Unmarked Companion",
+        companion="pages/how-to/configure.md",
+    )
+
+    hooks = _load_hooks(project_dir, "companion_no_marker")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/configure.md", "pages/how-to/configure/index.html")
+    out = hooks.on_page_markdown("# Configure\n\nProse.\n", page, {"repo_url": "https://x/y"}, None)
+
+    assert "Unmarked Companion" in out, "a notebook naming this page as its companion is nowhere on it"
+
+
+def test_companion_cards_stay_inside_an_indented_marker(copie_session_default):
+    """A marker nested in an admonition keeps its whole replacement nested.
+
+    yohou wraps the marker in `!!! tip "Try it interactively"`. A plain
+    str.replace indents only the first line, so the heading stayed in the box
+    and the cards fell out at column 0 and closed it -- rendering a tip callout
+    whose entire body was a heading repeating its own title. The markdown looked
+    correct; only the built HTML showed it.
+    """
+    project_dir = copie_session_default.project_dir
+    _write_sectioned_notebook(
+        project_dir / "examples",
+        "companion_indented",
+        title="Indented Companion",
+        companion="pages/how-to/troubleshooting.md",
+    )
+
+    hooks = _load_hooks(project_dir, "companion_indented")
+    _reset_gallery_caches(hooks)
+
+    page = _FakePage("pages/how-to/troubleshooting.md", "pages/how-to/troubleshooting/index.html")
+    source = '# Troubleshooting\n\n!!! tip "Try it interactively"\n    <!-- COMPANION_NOTEBOOKS -->\n'
+    out = hooks.on_page_markdown(source, page, {"repo_url": "https://x/y"}, None)
+
+    assert "Indented Companion" in out, "the companion card vanished"
+    body = out.split('!!! tip "Try it interactively"\n', 1)[1]
+    for line in body.split("\n"):
+        if line.strip():
+            assert line.startswith("    "), (
+                f"line {line!r} escaped the admonition -- it renders as a sibling, not inside the callout"
+            )
+
+
+def test_index_page_lists_its_subpages(copie_session_default):
+    """`<!-- SUBPAGES -->` lists the pages an index introduces, in nav order.
+
+    An index is the page guaranteed to fall behind: adding a page elsewhere is
+    what makes it stale, and nothing fails when it does. Every generated index
+    used to describe its Diataxis quadrant and then name none of its own pages.
+    """
+    project_dir = copie_session_default.project_dir
+    docs = project_dir / "docs"
+    hooks = _load_hooks(project_dir, "subpages")
+
+    page = _FakePage("pages/how-to/index.md", "pages/how-to/index.html")
+    files = [
+        _FakeFile(
+            f"pages/how-to/{name}.md", f"pages/how-to/{name}/index.html", str(docs / "pages" / "how-to" / f"{name}.md")
+        )
+        for name in ("configure", "troubleshooting", "contribute")
+    ]
+    # A page from a different quadrant. mkdocs hands the hook every file in the
+    # site, so an index that does not filter by directory lists the whole docs
+    # tree under its own heading.
+    files.append(
+        _FakeFile(
+            "pages/tutorials/getting-started.md",
+            "pages/tutorials/getting-started/index.html",
+            str(docs / "pages" / "tutorials" / "getting-started.md"),
+        )
+    )
+    # Troubleshooting is deliberately the nav's only entry AND the last of the
+    # three by title ("Contributing to..." < "How to Configure..." <
+    # "Troubleshooting"). Asserting it leads therefore fails if nav order is
+    # ignored -- picking a page that sorts first alphabetically would pass
+    # either way and assert nothing.
+    config = {
+        "nav": [
+            {"How-to Guides": ["pages/how-to/index.md", {"Troubleshooting": "pages/how-to/troubleshooting.md"}]},
+        ]
+    }
+    out = hooks.on_page_markdown("# How-to\n\n<!-- SUBPAGES -->\n", page, config, files)
+
+    assert "<!-- SUBPAGES -->" not in out, "the marker was left in the page as a dead comment"
+    for name, title in (("configure", "Configure"), ("troubleshooting", "Troubleshoot"), ("contribute", "Contribut")):
+        assert f"({name}.md)" in out, f"the index does not link its own subpage {name}.md"
+        assert title in out, f"the index links {name}.md without naming it ({title!r} missing)"
+
+    assert out.index("(troubleshooting.md)") < out.index("(contribute.md)"), (
+        "subpages ignore the configured nav order; the index contradicts the sidebar beside it"
+    )
+    assert "getting-started" not in out, "the how-to index lists a tutorials page; it is not filtering by directory"
+
+
+def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_default):
+    """Each listed subpage carries a summary read out of that page.
+
+    A hand-written index re-states every title and blurb, so it drifts from the
+    pages the moment one is edited. Reading both from the page itself means
+    there is no second copy to drift.
+    """
+    project_dir = copie_session_default.project_dir
+    docs_dir = project_dir / "docs" / "pages" / "subtest"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    (docs_dir / "frontmatter.md").write_text(
+        "---\ndescription: Summary from frontmatter.\n---\n\n# Frontmatter Page\n\nSome other prose.\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "prose.md").write_text(
+        "# Prose Page\n\n!!! note\n    An admonition, not the summary.\n\nThe first real paragraph.\n",
+        encoding="utf-8",
+    )
+
+    hooks = _load_hooks(project_dir, "subpages_desc")
+    page = _FakePage("pages/subtest/index.md", "pages/subtest/index.html")
+    files = [
+        _FakeFile(f"pages/subtest/{n}.md", f"pages/subtest/{n}/index.html", str(docs_dir / f"{n}.md"))
+        for n in ("frontmatter", "prose")
+    ]
+    out = hooks.on_page_markdown("# Sub\n\n<!-- SUBPAGES -->\n", page, {}, files)
+
+    assert "Summary from frontmatter." in out, "a frontmatter description was not used as the summary"
+    assert "The first real paragraph." in out, "the first prose paragraph was not used as the summary"
+    assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
+
+
+def test_generated_index_pages_introduce_their_subpages(copie_session_default):
+    """Every seeded Diataxis index asks for its subpage list.
+
+    Pinning the seed, not just the mechanism: yohou-nixtla's how-to index was
+    the template's own index verbatim, so a template that ships the marker on
+    none of its indexes leaves every generated project's index bare.
+    """
+    pages = copie_session_default.project_dir / "docs" / "pages"
+    for quadrant in ("tutorials", "how-to", "reference", "explanation"):
+        index = pages / quadrant / "index.md"
+        assert index.exists(), f"{quadrant} has no index page"
+        assert "<!-- SUBPAGES -->" in index.read_text(encoding="utf-8"), (
+            f"the {quadrant} index describes its quadrant but never lists its own pages"
+        )
