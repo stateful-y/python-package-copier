@@ -3133,11 +3133,6 @@ def test_update_guidance_restores_local_owned_files(copie_session_default):
         assert wrong not in conflicts, f"the guidance still claims a conflicted file is untouched: {wrong!r}"
 
 
-# ---------------------------------------------------------------------------
-# Docs marker substitution: sectioned galleries, companions, subpage indexes
-# ---------------------------------------------------------------------------
-
-
 def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category="how-to", companion=None):
     """Write a marimo notebook whose __gallery__ carries section/companion keys.
 
