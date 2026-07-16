@@ -46,6 +46,12 @@ _skip_if_exists:
   # wants nothing the template ships in them. Seed once; never deliver again.
   - "docs/index.md"
   - "docs/pages/tutorials/getting-started.md"
+  # The gallery index goes the same way once a project curates it: yohou's lists
+  # six hand-written section pages, and v0.22.0 overwrote it with the generic
+  # one-page version. The skill's own file-classification.md already says this
+  # file "must never be overwritten" -- that classification is advisory and
+  # copier ignores it; this line is what enforces it.
+  - "docs/pages/examples/index.md"
 
 _envops:
   block_start_string: "{%"

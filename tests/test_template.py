@@ -3257,11 +3257,18 @@ def test_seed_pages_every_project_rewrites_are_never_redelivered(copie_session_d
     copier_yml = yaml.safe_load((Path(__file__).parent.parent / "copier.yml").read_text(encoding="utf-8"))
     skipped = copier_yml.get("_skip_if_exists") or []
 
-    for page in ("docs/index.md", "docs/pages/tutorials/getting-started.md"):
+    # The gallery index goes the same way once curated: yohou's lists six
+    # hand-written section pages and v0.22.0 overwrote it with the generic one.
+    seed_pages = (
+        "docs/index.md",
+        "docs/pages/tutorials/getting-started.md",
+        "docs/pages/examples/index.md",
+    )
+    for page in seed_pages:
         assert page in skipped, f"{page} is re-delivered on every update; a stray line reverts it to the stub"
 
-    # Seeded, so a new project still has a landing page and a tutorial.
-    for page in ("docs/index.md", "docs/pages/tutorials/getting-started.md"):
+    # Still seeded, so a new project has a landing page, a tutorial and a gallery.
+    for page in seed_pages:
         assert (copie_session_default.project_dir / page).is_file(), f"{page} is not seeded for a new project"
 
 
@@ -3289,6 +3296,65 @@ def test_companion_marker_that_resolves_to_nothing_warns(copie_session_default):
     assert records, "a page asked for companion cards, got none, and said nothing"
     assert "named-by-nobody" in " ".join(records), "the warning does not name the offending page"
     assert "<!-- COMPANION_NOTEBOOKS -->" not in out, "the marker leaked into the page"
+
+
+def test_sectioned_gallery_is_still_findable_for_the_overflow_link(copie_session_default):
+    """A gallery split across section pages still has a home to link to.
+
+    A gallery too big for one page has no bare <!-- GALLERY --> at all -- it is a
+    directory of <!-- GALLERY:section:... --> pages behind an index. Looking only
+    for the bare marker returned None for those projects, and the caller dropped
+    the "see all N examples" link on an `and gallery_url`. The symbols that
+    overflow the cap are the most-used ones, so the link vanished exactly where
+    the remaining examples mattered most: yohou renders 6 of
+    PointReductionForecaster's 45 and links to none of the other 39. Silently --
+    no marker is involved, so the catch-all cannot see it.
+    """
+    project_dir = copie_session_default.project_dir
+    examples = project_dir / "docs" / "pages" / "examples"
+    gallery = examples / "index.md"
+    original = gallery.read_text(encoding="utf-8")
+
+    # Reshape into a sectioned gallery: a curated index with no bare marker, and
+    # section pages beside it. This is yohou's shape.
+    gallery.write_text("# Examples\n\n- [Alpha](alpha.md)\n", encoding="utf-8")
+    (examples / "alpha.md").write_text("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", encoding="utf-8")
+    hooks = _load_hooks(project_dir, "sectioned_gallery_home")
+    try:
+        _reset_gallery_caches(hooks)
+        assert "<!-- GALLERY -->" not in gallery.read_text(encoding="utf-8"), "fixture still has a bare marker"
+        url = hooks._get_gallery_page_url(project_dir)
+        assert url == "/pages/examples/", (
+            f"a sectioned gallery has no findable home (got {url!r}); the overflow link is dropped"
+        )
+    finally:
+        (examples / "alpha.md").unlink()
+        gallery.write_text(original, encoding="utf-8")
+        _reset_gallery_caches(hooks)
+
+
+def test_dropped_overflow_link_warns(copie_session_default):
+    """Having nowhere to link the remaining examples is reported, not swallowed.
+
+    The drop happens on an `if`, not a marker, so nothing else can notice it.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "dropped_overflow_warns")
+    _reset_gallery_caches(hooks)
+
+    # More notebooks than the cap, all using one symbol, and no gallery page.
+    examples_dir = project_dir / "examples"
+    for i in range(hooks._API_EXAMPLES_CAP + 2):
+        _write_sectioned_notebook(examples_dir, f"overflow_{i}", title=f"Overflow {i}", section="s")
+    hooks._NOTEBOOK_API_USAGE_CACHE = {"test_project.Widget": hooks._get_gallery_items(project_dir)}
+    hooks._GALLERY_PAGE_CACHE = ""  # no gallery page anywhere
+
+    with caplog_at_warning() as records:
+        html = hooks._build_api_examples_html(project_dir, "test_project.Widget")
+
+    assert "See all" not in html, "the fixture did not reproduce the drop"
+    assert records, "the overflow link was dropped with nothing said"
+    assert "Widget" in " ".join(records), "the warning does not name the symbol whose examples were dropped"
 
 
 def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default):
