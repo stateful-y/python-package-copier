@@ -2655,6 +2655,11 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
 
     The gallery page is local-owned, so a project may move it; a hardcoded path
     404s silently. It is located by the <!-- GALLERY --> placeholder instead.
+
+    Resolution mirrors use_directory_urls, under which `/a/b/` is served by
+    EITHER `a/b.md` OR `a/b/index.md`. This test knew only the first form, so it
+    passed while the url for an index page was `/a/b/index/` -- agreeing with the
+    bug rather than catching it. Both forms are checked now.
     """
     project_dir = copie_session_default.project_dir
     hooks = _load_hooks(project_dir, "gallery_url")
@@ -2663,9 +2668,15 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
     url = hooks._get_gallery_page_url(project_dir)
 
     assert url, "gallery page not found by its GALLERY placeholder"
-    page = project_dir / "docs" / (url.strip("/") + ".md")
-    assert page.is_file(), f"overflow link {url} points at a page that does not exist"
-    assert "<!-- GALLERY -->" in page.read_text(encoding="utf-8"), "located page is not the gallery"
+    docs = project_dir / "docs"
+    stem = url.strip("/")
+    candidates = [docs / f"{stem}.md", docs / stem / "index.md"]
+    served = next((p for p in candidates if p.is_file()), None)
+    assert served is not None, (
+        f"overflow link {url} points at a page that does not exist "
+        f"(tried {[str(p.relative_to(docs)) for p in candidates]})"
+    )
+    assert "<!-- GALLERY -->" in served.read_text(encoding="utf-8"), "located page is not the gallery"
 
 
 def test_see_also_leaves_description_text_alone(copie_session_minimal):
@@ -3229,6 +3240,164 @@ def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category
     )
 
 
+def test_seed_pages_every_project_rewrites_are_never_redelivered(copie_session_default):
+    """The landing page and the tutorial are seeded once, then left alone.
+
+    Same shape as the logos: the template ships a placeholder every real project
+    rewrites wholesale, then keeps trying to patch it. Copier applies an update as
+    a diff against the *template's* version, so once the local file no longer
+    resembles it, one shifted line rejects the whole hunk and the page silently
+    reverts to the stub. v0.22.0 proved it -- gating a blank line behind
+    {% raw %}{% if include_examples %}{% endraw %} was whitespace-only for projects without
+    examples and still replaced a 244-line curated tutorial with the 74-line stub.
+    Five of five projects with a customised getting-started.md were hit.
+    """
+    import yaml
+
+    copier_yml = yaml.safe_load((Path(__file__).parent.parent / "copier.yml").read_text(encoding="utf-8"))
+    skipped = copier_yml.get("_skip_if_exists") or []
+
+    # The gallery index goes the same way once curated: yohou's lists six
+    # hand-written section pages and v0.22.0 overwrote it with the generic one.
+    seed_pages = (
+        "docs/index.md",
+        "docs/pages/tutorials/getting-started.md",
+        "docs/pages/examples/index.md",
+    )
+    for page in seed_pages:
+        assert page in skipped, f"{page} is re-delivered on every update; a stray line reverts it to the stub"
+
+    # Still seeded, so a new project has a landing page, a tutorial and a gallery.
+    for page in seed_pages:
+        assert (copie_session_default.project_dir / page).is_file(), f"{page} is not seeded for a new project"
+
+
+def test_companion_marker_that_resolves_to_nothing_warns(copie_session_default):
+    """A well-formed COMPANION_NOTEBOOKS naming no notebook is reported.
+
+    The catch-all added in v0.21.2 only sees markers nothing *recognised*. A
+    well-formed one is consumed and replaced with an empty string, so a page that
+    asked for cards renders blank and the catch-all never sees it. This is the one
+    marker the template seeds by default -- it relies on hello.py naming the
+    tutorial, so any project that replaces hello.py without re-pointing its
+    `companion` silently empties that section. Exactly the shape v0.21.2 existed
+    to close, left open on the template's own default.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "companion_resolves_to_nothing")
+    _reset_gallery_caches(hooks)
+    page = _FakePage("pages/tutorials/named-by-nobody.md", "pages/tutorials/named-by-nobody/index.html")
+
+    with caplog_at_warning() as records:
+        out = hooks.on_page_markdown(
+            "# T\n\n<!-- COMPANION_NOTEBOOKS -->\n\n## Body\n", page, {"repo_url": "https://x/y"}, []
+        )
+
+    assert records, "a page asked for companion cards, got none, and said nothing"
+    assert "named-by-nobody" in " ".join(records), "the warning does not name the offending page"
+    assert "<!-- COMPANION_NOTEBOOKS -->" not in out, "the marker leaked into the page"
+
+
+def test_sectioned_gallery_is_still_findable_for_the_overflow_link(copie_session_default):
+    """A gallery split across section pages still has a home to link to.
+
+    A gallery too big for one page has no bare <!-- GALLERY --> at all -- it is a
+    directory of <!-- GALLERY:section:... --> pages behind an index. Looking only
+    for the bare marker returned None for those projects, and the caller dropped
+    the "see all N examples" link on an `and gallery_url`. The symbols that
+    overflow the cap are the most-used ones, so the link vanished exactly where
+    the remaining examples mattered most: yohou renders 6 of
+    PointReductionForecaster's 45 and links to none of the other 39. Silently --
+    no marker is involved, so the catch-all cannot see it.
+    """
+    project_dir = copie_session_default.project_dir
+    examples = project_dir / "docs" / "pages" / "examples"
+    gallery = examples / "index.md"
+    original = gallery.read_text(encoding="utf-8")
+
+    # Reshape into a sectioned gallery: a curated index with no bare marker, and
+    # section pages beside it. This is yohou's shape.
+    gallery.write_text("# Examples\n\n- [Alpha](alpha.md)\n", encoding="utf-8")
+    (examples / "alpha.md").write_text("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", encoding="utf-8")
+    hooks = _load_hooks(project_dir, "sectioned_gallery_home")
+    try:
+        _reset_gallery_caches(hooks)
+        assert "<!-- GALLERY -->" not in gallery.read_text(encoding="utf-8"), "fixture still has a bare marker"
+        url = hooks._get_gallery_page_url(project_dir)
+        assert url == "/pages/examples/", (
+            f"a sectioned gallery has no findable home (got {url!r}); the overflow link is dropped"
+        )
+    finally:
+        (examples / "alpha.md").unlink()
+        gallery.write_text(original, encoding="utf-8")
+        _reset_gallery_caches(hooks)
+
+
+def test_dropped_overflow_link_warns(copie_session_default):
+    """Having nowhere to link the remaining examples is reported, not swallowed.
+
+    The drop happens on an `if`, not a marker, so nothing else can notice it.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "dropped_overflow_warns")
+    _reset_gallery_caches(hooks)
+
+    # More notebooks than the cap, all using one symbol, and no gallery page.
+    examples_dir = project_dir / "examples"
+    for i in range(hooks._API_EXAMPLES_CAP + 2):
+        _write_sectioned_notebook(examples_dir, f"overflow_{i}", title=f"Overflow {i}", section="s")
+    hooks._NOTEBOOK_API_USAGE_CACHE = {"test_project.Widget": hooks._get_gallery_items(project_dir)}
+    hooks._GALLERY_PAGE_CACHE = ""  # no gallery page anywhere
+
+    with caplog_at_warning() as records:
+        html = hooks._build_api_examples_html(project_dir, "test_project.Widget")
+
+    assert "See all" not in html, "the fixture did not reproduce the drop"
+    assert records, "the overflow link was dropped with nothing said"
+    assert "Widget" in " ".join(records), "the warning does not name the symbol whose examples were dropped"
+
+
+def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default):
+    """The "see all examples" link points where the gallery actually serves.
+
+    Under use_directory_urls, `pages/examples/index.md` serves at
+    `/pages/examples/` -- but the URL was built from the file path, yielding
+    `/pages/examples/index/`, a 404. Dormant while the gallery was a non-index
+    page; v0.22.0 moved it to index.md and so shipped the break by default.
+
+    The link is emitted as raw HTML, so mkdocs never validates it and even
+    --strict cannot see it: it surfaces only in RTD's post-build linkchecker.
+    Driven through the real generated tree because that is the shape that broke.
+    """
+    project_dir = copie_session_default.project_dir
+    gallery = project_dir / "docs" / "pages" / "examples" / "index.md"
+    assert "<!-- GALLERY -->" in gallery.read_text(encoding="utf-8"), (
+        "the seeded gallery page carries no <!-- GALLERY --> marker; this test would assert nothing"
+    )
+
+    hooks = _load_hooks(project_dir, "gallery_url_index")
+    _reset_gallery_caches(hooks)
+    url = hooks._get_gallery_page_url(project_dir)
+
+    assert url == "/pages/examples/", f"the gallery link is {url!r}, which 404s; the page serves at /pages/examples/"
+
+    # A gallery that is NOT an index page keeps its own segment -- the case that
+    # worked before and must keep working.
+    other = project_dir / "docs" / "pages" / "examples" / "browse.md"
+    gallery_text = gallery.read_text(encoding="utf-8")
+    gallery.write_text("# Moved\n", encoding="utf-8")
+    other.write_text(gallery_text, encoding="utf-8")
+    try:
+        _reset_gallery_caches(hooks)
+        assert hooks._get_gallery_page_url(project_dir) == "/pages/examples/browse/", (
+            "a non-index gallery page lost its own path segment"
+        )
+    finally:
+        other.unlink()
+        gallery.write_text(gallery_text, encoding="utf-8")
+        _reset_gallery_caches(hooks)
+
+
 def test_examples_are_a_top_level_section(copie_session_default):
     """Examples is its own nav section, not a page filed under Tutorials.
 
@@ -3551,6 +3720,12 @@ def test_docs_warnings_are_fatal_somewhere_automated(copie_session_default):
     assert "MKDOCS_SKIP_NOTEBOOKS" in session, (
         "check_docs executes every notebook; that is too slow to run per-PR and it will be dropped from CI"
     )
+    # An unpinned session takes the ambient interpreter, which can sit outside
+    # requires-python and die in `uv sync` before mkdocs ever runs. CI passes
+    # today only because the runner's default happens to be in range.
+    assert (
+        "python=PYTHON_VERSIONS[0]" in noxfile[noxfile.index("def check_docs") - 60 : noxfile.index("def check_docs")]
+    ), "check_docs pins no Python; it runs on whatever the caller happens to have"
 
     workflow = project_dir / ".github" / "workflows" / "tests.yml"
     assert workflow.is_file(), "no tests workflow"
