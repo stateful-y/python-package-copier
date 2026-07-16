@@ -386,9 +386,10 @@ rather than an API object — are left as plain text rather than failing the
 build, so you can reference anything that reads well.
 
 Fully qualified names work too (`{{ package_name }}.module.OtherClass`), and
-resolve to the same page as the short form. A name from another project (for
-example `sklearn.linear_model.Ridge`) links to that project's documentation
-when its inventory is configured in `mkdocs.yml`.
+resolve to the same page as the short form. A member reference
+(`OtherClass.method`) links to that member on its class page. A name from
+another project (for example `sklearn.linear_model.Ridge`) links to that
+project's documentation when its inventory is configured in `mkdocs.yml`.
 
 For hyperlinks, always use Markdown syntax: `[text](url)`.
 

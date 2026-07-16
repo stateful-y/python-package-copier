@@ -2,6 +2,8 @@
 
 import os
 import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -1706,6 +1708,33 @@ def test_see_also_links_method_level_entries(copie_session_minimal):
     assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "method-level entry not linked"
 
 
+def test_see_also_links_member_path_entries(copie_session_minimal):
+    """A ``Class.member`` See Also entry qualifies to a full autoref identifier.
+
+    A member -- a method or attribute -- has no page of its own; it is an anchor
+    on its class page, so it cannot resolve to a direct URL the way a class can.
+    Its short leading segment (``Beta``) is a project symbol, so the entry is
+    qualified to ``minimal_project.models.Beta.build`` and deferred to autorefs,
+    which knows the anchor. The pre-fix path treated any dotted entry whose head
+    was not the package as external and emitted the bare ``Beta.build`` as the
+    identifier, which never matches the registered qualified name and degraded
+    silently to plain text under the ``optional`` attribute.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "seealso_member")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    html = _see_also_page("minimal_project", "Alpha", "Beta.build : Instantiate from a config.")
+    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+
+    assert '<autoref optional identifier="minimal_project.models.Beta.build">Beta.build</autoref>' in out, (
+        "a Class.member entry was not qualified to its full autoref identifier"
+    )
+    assert 'identifier="Beta.build"' not in out, "member path was deferred to autorefs unqualified (never resolves)"
+
+
 def test_see_also_linkify_runs_before_restructure(copie_session_minimal):
     """Order-locking: reordering on_page_content silently reverts this feature.
 
@@ -2093,6 +2122,41 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
         assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
 
 
+def test_project_branding_assets_are_local_owned(copie_session_default):
+    """A project's logo and favicon must survive a template update.
+
+    The template seeds placeholder branding, and a project replaces it with its
+    own. These files are binary, so a template update overwrites them with no
+    conflict and no signal -- the project's brand is silently reverted to the
+    placeholder. Classifying them Tier 1 (template-managed) is what caused that;
+    they belong in Tier 3. ``made_by_stateful-y.png`` is the exception: it is the
+    template's own mark and stays Tier 1.
+    """
+    classification = (
+        copie_session_default.project_dir
+        / ".github"
+        / "skills"
+        / "update-from-template"
+        / "references"
+        / "file-classification.md"
+    )
+    if not classification.is_file():
+        pytest.skip("update-from-template skill not shipped to generated projects")
+    text = classification.read_text(encoding="utf-8")
+    t3_start = text.index("## Tier 3")
+    t3_end = text.find("\n## ", t3_start + 1)
+    tier3 = text[t3_start : t3_end if t3_end > 0 else len(text)]
+    t1_start = text.index("## Tier 1")
+    t1_end = text.find("\n## ", t1_start + 1)
+    tier1 = text[t1_start:t1_end]
+
+    for asset in ("favicon.png", "logo.png", "logo_dark.png", "logo_light.png"):
+        assert f"docs/assets/{asset}" in tier3, f"{asset} is not local-owned; a template update would overwrite it"
+        assert f"docs/assets/{asset}" not in tier1, f"{asset} is still Tier 1 (template-managed)"
+    # The template's own mark is genuinely template-managed.
+    assert "docs/assets/made_by_stateful-y.png" in tier1, "the made-by mark should stay template-managed"
+
+
 def _cache_names(hooks_module):
     return [n for n in vars(hooks_module) if n.endswith("_CACHE") and not n.startswith("__")]
 
@@ -2457,6 +2521,19 @@ def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
     assert "Circle" in html, "re-exported class absent from the searchable API index"
     assert "area" in html, "re-exported function absent from the searchable API index"
 
+    # The index renders on pages/reference/api.md, served at pages/reference/api/.
+    # Its symbol and module links must climb two levels to reach pages/api/, the
+    # same as _build_module_toc on the same page. A single ../ resolves to
+    # pages/reference/api/... which does not exist, so the links 404 in every
+    # generated site while the table still looks populated.
+    assert '<a href="../../api/generated/minimal_project.shapes.Circle/">' in html, (
+        "symbol link does not resolve from pages/reference/api/ to the generated page"
+    )
+    assert '<a href="../../api/shapes/">' in html, (
+        "module link does not resolve from pages/reference/api/ to the submodule page"
+    )
+    assert 'href="../api/' not in html, "a single-../ link (the pre-fix 404) is still emitted"
+
 
 def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
     """Without __all__, the package-root guard is what excludes stdlib imports.
@@ -2547,6 +2624,52 @@ def test_every_generated_file_is_classified(copie, include_examples):
 
     assert not missing, (
         f"these generated files have no update tier, so a conflict on them has no resolution rule: {missing}"
+    )
+
+
+@pytest.mark.parametrize("include_examples", [True, False])
+def test_generated_project_is_ruff_format_clean(copie, include_examples):
+    """A freshly generated project passes ``ruff format --check``.
+
+    The template's Python is authored in ``.jinja`` files, which ruff does not
+    recognise as Python and never formats in this repo. So unformatted code can
+    ship, and because the generated ``pyproject.toml`` enables preview-style
+    formatting, a generated project's first ``pre-commit run`` reformats
+    template-owned files (``docs/hooks.py`` chief among them) and reds its CI on
+    arrival -- the fix then drifts the file from the template, guaranteeing a
+    conflict at the next update. This checks the emitted code, not the code the
+    template happens to be.
+
+    Both include_examples values run: the gallery hooks ship in only one variant,
+    so a formatting slip behind that gate is invisible to the other.
+
+    Runs ruff via the project's own config (discovered from its pyproject.toml),
+    so the check matches what the project would run.
+    """
+    ruff = shutil.which("ruff")
+    if ruff is None:
+        pytest.skip("ruff is not installed in the test environment")
+
+    result = copie.copy(extra_answers={"include_examples": include_examples})
+    project_dir = result.project_dir
+
+    check = subprocess.run(
+        [ruff, "format", "--check", "."],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    diff = subprocess.run(
+        [ruff, "format", "--check", "--diff", "."],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert check.returncode == 0, (
+        "the template ships Python that ruff would reformat, so a generated "
+        f"project's first `pre-commit run` reds CI:\n{diff.stdout}{check.stdout}{check.stderr}"
     )
 
 
