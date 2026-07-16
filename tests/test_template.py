@@ -1,6 +1,7 @@
 """Tests for the copier template."""
 
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -2740,23 +2741,62 @@ def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
     hooks._API_NAME_LOOKUP_CACHE = None
     hooks._SUBMODULE_CACHE = None
 
-    html = hooks._build_api_table_html(project_dir)
+    prefix = hooks._site_root_prefix(_FakePage("pages/reference/api.md", "pages/reference/api/index.html"))
+    html = hooks._build_api_table_html(project_dir, prefix)
 
     assert "Circle" in html, "re-exported class absent from the searchable API index"
     assert "area" in html, "re-exported function absent from the searchable API index"
 
-    # The index renders on pages/reference/api.md, served at pages/reference/api/.
-    # Its symbol and module links must climb two levels to reach pages/api/, the
-    # same as _build_module_toc on the same page. A single ../ resolves to
-    # pages/reference/api/... which does not exist, so the links 404 in every
-    # generated site while the table still looks populated.
-    assert '<a href="../../api/generated/minimal_project.shapes.Circle/">' in html, (
+    # From pages/reference/api/, three levels reach the site root, then down to
+    # pages/api/. Get this wrong and the table still renders fully populated
+    # while every link 404s -- mkdocs does not validate hook-injected raw HTML.
+    assert '<a href="../../../pages/api/generated/minimal_project.shapes.Circle/">' in html, (
         "symbol link does not resolve from pages/reference/api/ to the generated page"
     )
-    assert '<a href="../../api/shapes/">' in html, (
+    assert '<a href="../../../pages/api/shapes/">' in html, (
         "module link does not resolve from pages/reference/api/ to the submodule page"
     )
-    assert 'href="../api/' not in html, "a single-../ link (the pre-fix 404) is still emitted"
+
+
+@pytest.mark.parametrize(
+    ("src_path", "dest_path", "prefix"),
+    [
+        ("pages/reference/api.md", "pages/reference/api/index.html", "../../../"),
+        ("pages/api/index.md", "pages/api/index.html", "../../"),
+    ],
+)
+def test_api_index_links_resolve_wherever_the_index_lives(copie_session_minimal, src_path, dest_path, prefix):
+    """The API table's links work from any page the index is placed on.
+
+    The template seeds the index at pages/reference/api.md, but a project may
+    move it -- yohou keeps it at pages/api/index.md, one level shallower. A
+    hardcoded `../../` is right for the seeded location and silently 404s every
+    one of the other's links: the table renders fully populated, and mkdocs
+    cannot catch it because it does not validate raw HTML injected by a hook.
+
+    So the prefix is derived from the page, and this checks both layouts by
+    resolving each href against the page's own URL -- the arithmetic is the
+    whole point, and asserting on a literal string would just restate it.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, f"api_index_{src_path.count('/')}_{len(prefix)}")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    page = _FakePage(src_path, dest_path)
+    assert hooks._site_root_prefix(page) == prefix
+
+    html = hooks._build_api_table_html(project_dir, hooks._site_root_prefix(page))
+    hrefs = re.findall(r'<a href="([^"]+)"', html)
+    assert hrefs, "the API table emitted no links at all"
+
+    page_dir = posixpath.dirname(dest_path)
+    for href in hrefs:
+        resolved = posixpath.normpath(posixpath.join(page_dir, href))
+        assert resolved.startswith("pages/api/"), (
+            f"from {dest_path}, href {href!r} resolves to {resolved!r} -- outside pages/api/, so it 404s"
+        )
 
 
 def _write_dependency_shim(project_dir, package_name):
