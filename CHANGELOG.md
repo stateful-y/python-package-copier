@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.20.0] - 2026-07-16
+
+This **minor release** includes 1 commit.
+
+
+### Features
+- Add glossary auto-linking and cache notebook exports by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.19.1] - 2026-07-16
 
 This **patch release** includes 1 commit.
