@@ -2535,6 +2535,94 @@ def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
     assert 'href="../api/' not in html, "a single-../ link (the pre-fix 404) is still emitted"
 
 
+def _write_dependency_shim(project_dir, package_name):
+    """A plain module whose public API is re-exported from outside the package.
+
+    Uses stdlib modules as the "dependency": they are outside the generated
+    package exactly as a third-party one is, and they are always installed, so
+    the test does not depend on the resolver finding some optional extra.
+    """
+    pkg = project_dir / "src" / package_name
+    (pkg / "shim.py").write_text(
+        '"""Convenience re-exports."""\n\n'
+        "from dataclasses import dataclass\n"
+        "from fractions import Fraction\n\n"
+        '__all__ = ["Fraction", "dataclass"]\n',
+        encoding="utf-8",
+    )
+    (pkg / "helpers.py").write_text(
+        '"""Helpers."""\n\n\nclass Helper:\n    """A helper."""\n',
+        encoding="utf-8",
+    )
+    # A plain module with no __all__ importing a sibling for its own use. The
+    # import is IN-package, so it resolves -- nothing but the missing __all__
+    # keeps it out of the API. An out-of-package import would not test this:
+    # the external resolver already refuses to run without __all__.
+    (pkg / "internal.py").write_text(
+        '"""Uses a helper; exports nothing."""\n\n'
+        "from .helpers import Helper\n\n\n"
+        "def ratio():\n"
+        '    """Build a helper."""\n'
+        "    return Helper()\n",
+        encoding="utf-8",
+    )
+    return pkg
+
+
+def test_dependency_reexports_stay_in_the_api(copie_session_minimal):
+    """A name re-exported from a dependency and named in __all__ is public API.
+
+    A convenience shim (``from otherpkg import Widget`` under this package's
+    ``__all__``) declares nothing itself and its source lives outside the
+    package, so resolution that only follows in-package imports drops the name
+    entirely: gone from the index, and no page. Measured on a real project, that
+    silently removed three of its four public symbols and rendered its module
+    page as a bare docstring.
+
+    The kind and docstring must come from the declaring module rather than being
+    guessed, so a class stays a class and carries its real summary.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_dependency_shim(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "depshim")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    members = hooks._get_public_members(pkg / "shim.py", pkg)
+
+    assert {e["name"] for e in members["classes"]} == {"Fraction"}, "a re-exported dependency class was dropped"
+    assert {e["name"] for e in members["functions"]} == {"dataclass"}, "a re-exported dependency function was dropped"
+    fraction = next(e for e in members["classes"] if e["name"] == "Fraction")
+    assert fraction["doc"], "the docstring was not read from the declaring module"
+    assert fraction["reexported"] is True
+
+
+def test_plain_module_imports_are_not_api_without_dunder_all(copie_session_minimal):
+    """Without __all__, a plain module's imports stay private.
+
+    Re-export resolution is not limited to __init__.py, because a plain module
+    can be a shim. That generality is what makes this necessary: in an ordinary
+    module an import is a private detail (imported to be *used*), and treating it
+    as API would publish every helper a module happens to import.
+
+    The import here is in-package on purpose. It resolves, so only the absent
+    __all__ stands between it and the API -- an out-of-package import would pass
+    this test without exercising anything, since the external resolver already
+    refuses to run without __all__.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = _write_dependency_shim(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "depshim_internal")
+    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._SUBMODULE_CACHE = None
+
+    members = hooks._get_public_members(pkg / "internal.py", pkg)
+    names = {e["name"] for e in members["classes"] + members["functions"]}
+
+    assert "ratio" in names, "the module's own function is missing"
+    assert "Helper" not in names, "a sibling imported for internal use leaked into the API without __all__"
+
+
 def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
     """Without __all__, the package-root guard is what excludes stdlib imports.
 

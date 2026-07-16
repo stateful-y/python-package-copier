@@ -2,6 +2,7 @@
 
 import ast
 import fnmatch
+import importlib.util
 {% if include_examples %}import os
 {% endif %}import re
 import shutil
@@ -165,8 +166,38 @@ def _resolve_import_from(node, init_file, pkg_dir):
     return None
 
 
+def _resolve_external_module(module_name):
+    """Locate a module that lives outside this package.
+
+    A package may deliberately re-export a dependency's symbol -- a convenience
+    shim such as ``from otherpkg.thing import Widget`` under its own ``__all__``.
+    That name is part of *this* package's public API, but no file under
+    ``pkg_dir`` declares it, so ``_resolve_import_from`` cannot reach it and the
+    symbol would silently vanish from the index and lose its page.
+
+    ``find_spec`` locates the module's source file so the kind and docstring can
+    be read from it like any other module, rather than guessed.  It imports the
+    *parent* package to do so, which is why this is only ever consulted for a
+    name the author listed in ``__all__``: an incidental ``from pathlib import
+    Path`` must never reach here.  Anything that does not resolve to readable
+    source is skipped, not invented.
+    """
+    try:
+        spec = importlib.util.find_spec(module_name)
+    except (ImportError, AttributeError, ValueError):
+        return None
+    if spec is None or not spec.origin or not spec.origin.endswith(".py"):
+        return None
+    return Path(spec.origin)
+
+
+def _reexports_a_dunder_all_name(node, exported):
+    """Whether this ImportFrom binds any name the package advertises in ``__all__``."""
+    return any((alias.asname or alias.name) in exported for alias in node.names if alias.name != "*")
+
+
 def _get_reexported_members(init_file, pkg_dir):
-    """Discover members a package exposes by re-export from its submodules.
+    """Discover members a module exposes by re-export rather than by declaring them.
 
     A re-exporting ``__init__.py`` declares no classes or functions of its own,
     so an AST scan of that file alone finds nothing.  This resolves each
@@ -177,6 +208,13 @@ def _get_reexported_members(init_file, pkg_dir):
     it is listed there (when present) *and* resolves to a class or function in
     its declaring module.  Constants and other exports are excluded, because
     only classes and functions get generated pages.
+
+    A plain module can be a re-export shim too, so this is not limited to
+    ``__init__.py`` -- but for one, an import is normally a private detail
+    (``from .base import Helper`` to use it), not an advertisement.  Only an
+    explicit ``__all__`` marks a plain module's imports as its public surface;
+    without one, nothing here is re-exported.  An ``__init__.py`` re-exports by
+    convention, so it needs no such marker.
     """
     try:
         tree = ast.parse(init_file.read_text(encoding="utf-8"))
@@ -184,6 +222,8 @@ def _get_reexported_members(init_file, pkg_dir):
         return {"classes": [], "functions": []}
 
     exported = _get_dunder_all(tree)
+    if exported is None and init_file.name != "__init__.py":
+        return {"classes": [], "functions": []}
     classes = []
     functions = []
     seen = set()
@@ -191,7 +231,15 @@ def _get_reexported_members(init_file, pkg_dir):
     for node in _iter_reexport_nodes(tree):
         decl_file = _resolve_import_from(node, init_file, pkg_dir)
         if decl_file is None:
-            continue
+            # The import leaves the package. That is normally an incidental
+            # third-party import and must stay out of the API -- unless the
+            # author advertised the name in __all__, which makes it this
+            # package's public API no matter where it was declared.
+            if exported is None or node.level or not node.module or not _reexports_a_dunder_all_name(node, exported):
+                continue
+            decl_file = _resolve_external_module(node.module)
+            if decl_file is None:
+                continue
         decl_members = None
         for alias in node.names:
             if alias.name == "*":
@@ -233,11 +281,10 @@ def _get_public_members(mod_file, pkg_dir):
         for entry in members[key]:
             entry.setdefault("origin", str(mod_file))
             entry.setdefault("reexported", False)
-    if mod_file.name == "__init__.py":
-        reexported = _get_reexported_members(mod_file, pkg_dir)
-        declared = {e["name"] for e in members["classes"] + members["functions"]}
-        for key in ("classes", "functions"):
-            members[key].extend(e for e in reexported[key] if e["name"] not in declared)
+    reexported = _get_reexported_members(mod_file, pkg_dir)
+    declared = {e["name"] for e in members["classes"] + members["functions"]}
+    for key in ("classes", "functions"):
+        members[key].extend(e for e in reexported[key] if e["name"] not in declared)
     return members
 
 
