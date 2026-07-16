@@ -2273,6 +2273,79 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
         assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
 
 
+def _is_ignored(project_dir, path):
+    """Whether git would ignore `path`, judged by the generated .gitignore itself."""
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", path],
+        cwd=project_dir,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _git_init(project_dir):
+    """A throwaway repo, so `git check-ignore` has a worktree to answer against."""
+    subprocess.run(["git", "init", "-q"], cwd=project_dir, capture_output=True, check=True)
+
+
+def test_only_the_claude_skills_copy_is_tracked(copie):
+    """.claude/skills is the tracked source of truth; the Copilot mirror is not.
+
+    The two copies are byte-identical by design, so tracking both doubles every
+    skill edit and its review. Judged with `git check-ignore` against the
+    generated .gitignore rather than by reading it: the rule that matters is the
+    one git actually applies, and this file's negation (`.claude/*` then
+    `!.claude/skills/`) is exactly the kind that looks right and silently is not.
+    """
+    project_dir = copie.copy().project_dir
+    _git_init(project_dir)
+
+    assert not _is_ignored(project_dir, ".claude/skills/update-from-template/SKILL.md"), (
+        ".claude/skills must be tracked -- it is the source of truth for the skills"
+    )
+    assert _is_ignored(project_dir, ".github/skills/update-from-template/SKILL.md"), (
+        ".github/skills is a byte-identical mirror of .claude/skills and must not be tracked"
+    )
+
+
+def test_openspec_skills_are_never_tracked(copie):
+    """openspec rewrites its own skills; they are tool state, not project content.
+
+    The `!.claude/skills/` negation would otherwise pull them in, so this needs
+    its own rule -- and needs testing, because the interaction between a
+    negation and a later ignore is where this silently goes wrong.
+    """
+    project_dir = copie.copy().project_dir
+    _git_init(project_dir)
+
+    assert _is_ignored(project_dir, ".claude/skills/openspec-propose/SKILL.md"), (
+        "an openspec skill under .claude/skills must stay untracked"
+    )
+    assert _is_ignored(project_dir, ".github/skills/openspec-review/SKILL.md"), (
+        "an openspec skill under .github/skills must stay untracked"
+    )
+    # The rule must not swallow the skills the template does ship.
+    assert not _is_ignored(project_dir, ".claude/skills/diataxis-howto-writer/SKILL.md"), (
+        "the openspec rule is too broad -- it is hiding a template-shipped skill"
+    )
+
+
+def test_contribute_guide_carries_no_other_projects_domain(copie_session_default):
+    """The notebook examples must not name another project's API.
+
+    Every generated project gets this page. Examples written around one
+    package's domain read as nonsense in the rest of the fleet -- a kedro plugin
+    told to document `OptunaSearchCV` -- and quietly invite copying the wrong
+    thing.
+    """
+    contribute = (copie_session_default.project_dir / "docs" / "pages" / "how-to" / "contribute.md").read_text(
+        encoding="utf-8"
+    )
+    for foreign in ("OptunaSearchCV", "Optuna", "Hyperparameter Search", "sklearn_optuna"):
+        assert foreign not in contribute, f"the contribute guide hardcodes another project's domain: {foreign!r}"
+
+
 def test_project_branding_assets_are_local_owned(copie_session_default):
     """A project's logo and favicon must survive a template update.
 
