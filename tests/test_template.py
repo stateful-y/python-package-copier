@@ -3298,6 +3298,62 @@ def test_companion_marker_that_resolves_to_nothing_warns(copie_session_default):
     assert "<!-- COMPANION_NOTEBOOKS -->" not in out, "the marker leaked into the page"
 
 
+def test_multiple_see_also_entries_render_one_per_line(copie_session_minimal):
+    """See Also entries become a list, not a run-on paragraph.
+
+    numpydoc puts each entry on its own source line inside one paragraph, and
+    HTML collapses those newlines to spaces -- so every reference runs together
+    on a single line, and the more references a symbol has the worse it reads.
+    An author can dodge it by hand-writing markdown bullets (yohou does, which is
+    why its pages look right and nobody else's do), but plain numpydoc is what
+    the other 145 blocks across the fleet are written in.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "see_also_listify")
+
+    entries = "Alpha : The first one.\nBeta : The second one.\nGamma : The third one."
+    html = _see_also_page("minimal_project", "Widget", entries)
+    out = hooks._linkify_see_also(html)
+
+    items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
+    assert len(items) == 3, f"3 See Also entries rendered as {len(items)} list item(s); they run together on one line"
+    for name in ("Alpha", "Beta", "Gamma"):
+        assert any(name in item for item in items), f"{name} is missing from the list"
+    # Each entry keeps its own description rather than absorbing the next.
+    assert any("first one" in i and "second one" not in i for i in items), "entries bled into one another"
+
+
+def test_a_single_see_also_entry_is_not_made_a_list(copie_session_minimal):
+    """One entry stays a paragraph -- a one-item bullet list is noise."""
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "see_also_single")
+
+    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", "Alpha : Only one."))
+    assert "<li>" not in out, "a lone See Also entry was turned into a single-item list"
+    assert "Alpha" in out
+
+
+def test_see_also_description_wrapping_onto_a_second_line_stays_one_entry(copie_session_minimal):
+    """A wrapped description belongs to the entry above, not a new one.
+
+    numpydoc lets a long description continue on an indented line that carries no
+    name. Splitting naively on newlines would turn each of those into its own
+    bullet with no reference in it.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_models_module(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, "see_also_wrapped")
+
+    entries = "Alpha : A description long enough that it\n    wraps onto a second line.\nBeta : Short."
+    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", entries))
+
+    items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
+    assert len(items) == 2, f"a wrapped description split into extra entries: {len(items)} items"
+    assert "wraps onto a second line" in items[0], "the continuation line was detached from its entry"
+
+
 def test_sectioned_gallery_is_still_findable_for_the_overflow_link(copie_session_default):
     """A gallery split across section pages still has a home to link to.
 
@@ -3434,24 +3490,33 @@ def test_examples_are_a_top_level_section(copie_session_default):
     assert not stale, f"these pages still link the old gallery path: {[str(p) for p in stale]}"
 
 
-def test_companion_cards_are_offered_before_the_page_body(copie_session_default):
-    """The seeded tutorial offers its notebook near the top, not after the footer.
+def test_companion_card_follows_the_prerequisites_and_precedes_the_body(copie_session_default):
+    """The card comes after what you need to have done, and before the body.
 
-    A reader decides whether to run the notebook instead of reading, so the offer
-    has to arrive before the thing it is an alternative to. The marker used to sit
-    at the very end, below "Next Steps" and "Get help" -- past the point anyone
-    who wanted it was still reading.
+    Two orderings matter and they pull opposite ways. A reader decides whether to
+    run the notebook *instead of* reading, so the offer has to arrive before the
+    thing it is an alternative to -- it used to sit below "Next Steps" and "Get
+    help", past anyone who wanted it. But it must not precede the prerequisites,
+    or it invites you to run something you cannot run yet.
+
+    The seeded tutorial has no "## Prerequisites" heading; installing is its
+    prerequisite, so the card follows Installation. Across the fleet the rule is
+    the same and every how-to already followed it -- the tutorials were the 15
+    pages that did not.
     """
     page = copie_session_default.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
     text = page.read_text(encoding="utf-8")
     assert "<!-- COMPANION_NOTEBOOKS -->" in text, "the seeded tutorial offers no companion notebook"
 
     marker_at = text.index("<!-- COMPANION_NOTEBOOKS -->")
-    body_at = text.index("## Installation")
+    prerequisite_at = text.index("## Installation")
+    body_at = text.index("## Your First Example")
+
+    assert prerequisite_at < marker_at, "the notebook is offered before the reader has been told how to install it"
     assert marker_at < body_at, "the companion offer comes after the page body instead of before it"
 
     tail = text[text.index("## Next Steps") :] if "## Next Steps" in text else ""
-    assert "<!-- COMPANION_NOTEBOOKS -->" not in tail, "the companion offer is still stranded in the footer"
+    assert "<!-- COMPANION_NOTEBOOKS -->" not in tail, "the companion offer is stranded in the footer"
 
 
 def test_misspelled_marker_warns_instead_of_shipping_blank_space(copie_session_default):
