@@ -2799,6 +2799,54 @@ def test_api_index_links_resolve_wherever_the_index_lives(copie_session_minimal,
         )
 
 
+@pytest.mark.parametrize(
+    ("src_path", "dest_path", "template_name"),
+    [
+        ("pages/reference/api.md", "pages/reference/api/index.html", "api-index.html"),
+        ("pages/api/index.md", "pages/api/index.html", "api-index.html"),
+        ("pages/api/shapes.md", "pages/api/shapes/index.html", "api-submodule.html"),
+    ],
+)
+def test_module_toc_is_built_and_resolves_wherever_the_page_lives(
+    copie_session_minimal, src_path, dest_path, template_name
+):
+    """Any page declaring an API template gets a module TOC whose links resolve.
+
+    Two failures this pins, both silent. The TOC used to be keyed on the
+    hardcoded path `pages/reference/api.md`, so a project that moved its index --
+    yohou keeps it at pages/api/index.md -- got no module_toc at all and rendered
+    an empty sidebar with nothing erroring. And its urls hardcoded that same
+    page's depth, so they 404'd from anywhere else.
+
+    Keying on the declared template is the fix: a page says what it is, rather
+    than being recognised by where it sits.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_reexport_package(project_dir, "minimal_project")
+    hooks = _load_hooks(project_dir, f"mtoc_{template_name}_{src_path.count('/')}")
+    hooks._SUBMODULE_CACHE = None
+
+    # The submodule pages the TOC points at are generated, not committed.
+    hooks._generate_api_pages(project_dir)
+
+    page = _FakePage(src_path, dest_path)
+    page.meta["template"] = template_name
+    hooks.on_page_content("<p>x</p>", page, {"docs_dir": str(project_dir / "docs")}, None)
+
+    toc = page.meta.get("module_toc")
+    assert toc, f"a page declaring {template_name} got no module_toc"
+
+    page_dir = posixpath.dirname(dest_path)
+    for entry in toc:
+        resolved = posixpath.normpath(posixpath.join(page_dir, entry["url"]))
+        assert resolved.startswith("pages/api/"), (
+            f"from {dest_path}, TOC url {entry['url']!r} resolves to {resolved!r} -- it 404s"
+        )
+        assert (project_dir / "docs" / f"{resolved}.md").exists() or (project_dir / "docs" / resolved).exists(), (
+            f"TOC url {entry['url']!r} points at a page that does not exist"
+        )
+
+
 def _write_dependency_shim(project_dir, package_name):
     """A plain module whose public API is re-exported from outside the package.
 
