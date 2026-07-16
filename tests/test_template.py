@@ -2093,6 +2093,41 @@ def test_quadrant_indexes_are_local_owned(copie_session_default):
         assert f"docs/pages/{quadrant}/index.md" in tier3, f"{quadrant}/index.md not listed as local-owned"
 
 
+def test_project_branding_assets_are_local_owned(copie_session_default):
+    """A project's logo and favicon must survive a template update.
+
+    The template seeds placeholder branding, and a project replaces it with its
+    own. These files are binary, so a template update overwrites them with no
+    conflict and no signal -- the project's brand is silently reverted to the
+    placeholder. Classifying them Tier 1 (template-managed) is what caused that;
+    they belong in Tier 3. ``made_by_stateful-y.png`` is the exception: it is the
+    template's own mark and stays Tier 1.
+    """
+    classification = (
+        copie_session_default.project_dir
+        / ".github"
+        / "skills"
+        / "update-from-template"
+        / "references"
+        / "file-classification.md"
+    )
+    if not classification.is_file():
+        pytest.skip("update-from-template skill not shipped to generated projects")
+    text = classification.read_text(encoding="utf-8")
+    t3_start = text.index("## Tier 3")
+    t3_end = text.find("\n## ", t3_start + 1)
+    tier3 = text[t3_start : t3_end if t3_end > 0 else len(text)]
+    t1_start = text.index("## Tier 1")
+    t1_end = text.find("\n## ", t1_start + 1)
+    tier1 = text[t1_start:t1_end]
+
+    for asset in ("favicon.png", "logo.png", "logo_dark.png", "logo_light.png"):
+        assert f"docs/assets/{asset}" in tier3, f"{asset} is not local-owned; a template update would overwrite it"
+        assert f"docs/assets/{asset}" not in tier1, f"{asset} is still Tier 1 (template-managed)"
+    # The template's own mark is genuinely template-managed.
+    assert "docs/assets/made_by_stateful-y.png" in tier1, "the made-by mark should stay template-managed"
+
+
 def _cache_names(hooks_module):
     return [n for n in vars(hooks_module) if n.endswith("_CACHE") and not n.startswith("__")]
 
