@@ -14,6 +14,14 @@ This **minor release** includes 1 commit.
 ### Features
 - Let notebooks reach their pages and indexes name their subpages  ([#151](https://github.com/stateful-y/python-package-copier/pull/151)) by @gtauzin
 
+## [0.20.4] - 2026-07-16
+
+This **patch release** includes 1 commit.
+
+
+### Bug Fixes
+- Build the module TOC for whichever page is the API index  ([#149](https://github.com/stateful-y/python-package-copier/pull/149)) by @gtauzin
+
 ### Contributors
 
 Thanks to all contributors for this release:

@@ -14,6 +14,22 @@ _exclude:
   - "htmlcov"
   - "*.egg-info"
 
+# A project's identity. Shipped once, so a new project has something to render,
+# and never delivered again.
+#
+# These are binaries, so copier cannot three-way merge them: on every update it
+# overwrites them with the template's placeholder, with no conflict, no .rej and
+# no output. Nothing marks the loss -- the project's own logo is simply gone,
+# and the docs render the template's wordmark under the project's name. Calling
+# them "local-owned" in the update skill does not help: that is a convention for
+# whoever resolves the update, and this never reaches a resolution step.
+# _skip_if_exists is the only thing copier itself honours here.
+_skip_if_exists:
+  - "docs/assets/logo.png"
+  - "docs/assets/logo_dark.png"
+  - "docs/assets/logo_light.png"
+  - "docs/assets/favicon.png"
+
 _envops:
   block_start_string: "{%"
   block_end_string: "%}"
