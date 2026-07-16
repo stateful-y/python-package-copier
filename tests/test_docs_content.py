@@ -322,7 +322,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "examples" / "index.md"
         assert examples_page.is_file()
 
     def test_examples_page_not_exists_when_disabled(self, copie):
@@ -330,7 +330,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": False})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "examples" / "index.md"
         assert not examples_page.exists()
 
     def test_examples_page_references_notebooks(self, copie):
@@ -338,7 +338,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "examples" / "index.md"
         content = examples_page.read_text(encoding="utf-8")
 
         # Should reference examples or notebooks
@@ -352,7 +352,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "examples" / "index.md"
         assert examples_page.is_file()
 
         content = examples_page.read_text(encoding="utf-8")
@@ -368,7 +368,7 @@ class TestExamplesPage:
         result = copie.copy(extra_answers={"include_examples": True})
         assert result.exit_code == 0
 
-        examples_page = result.project_dir / "docs" / "pages" / "tutorials" / "examples.md"
+        examples_page = result.project_dir / "docs" / "pages" / "examples" / "index.md"
         content = examples_page.read_text(encoding="utf-8")
 
         assert "Tutorials" in content

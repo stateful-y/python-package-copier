@@ -155,13 +155,14 @@ nav:
   - Tutorials:
     - pages/tutorials/index.md
     - Getting Started: pages/tutorials/getting-started.md
-{% if include_examples %}    - Examples: pages/tutorials/examples.md
-{% endif %}  - How-to Guides:
+  - How-to Guides:
     - pages/how-to/index.md
     - Configuration: pages/how-to/configure.md
     - Troubleshooting: pages/how-to/troubleshooting.md
     - Contributing: pages/how-to/contribute.md
-  - Reference:
+{% if include_examples %}  - Examples:
+    - pages/examples/index.md
+{% endif %}  - Reference:
     - pages/reference/index.md
     - API: pages/reference/api.md
     - Changelog: pages/reference/changelog.md
