@@ -1708,6 +1708,114 @@ def test_see_also_links_method_level_entries(copie_session_minimal):
     assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "method-level entry not linked"
 
 
+def _write_glossary(project_dir, extra=""):
+    """A glossary page in the shape the linker reads: def-list terms with anchors."""
+    page = project_dir / "docs" / "pages" / "explanation" / "glossary.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(
+        "# Glossary\n\n"
+        "## Core\n\n"
+        "Memory buffer { #memory-buffer .autolink }\n"
+        ":   The store of recent rows.\n\n"
+        "Forecasting horizon { #forecasting-horizon .autolink }\n"
+        ":   How far ahead to predict.\n\n"
+        # Defined but NOT opted in: a short common word that would over-link.
+        "Step { #step }\n"
+        ":   One timestep.\n\n" + extra,
+        encoding="utf-8",
+    )
+    return page
+
+
+def _glossary_page(src="pages/explanation/concepts.md"):
+    return _FakePage(src, src.replace(".md", "/index.html"))
+
+
+def test_glossary_terms_link_on_other_pages(copie_session_minimal):
+    """A term marked .autolink links to the glossary, once, from prose only.
+
+    The glossary page is the single source of truth: a second list of terms in
+    hooks.py would drift from the definitions it points at.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_glossary(project_dir)
+    hooks = _load_hooks(project_dir, "glossary_link")
+    hooks._GLOSSARY_TERMS_CACHE = None
+
+    html = "<p>The memory buffer holds rows. A second memory buffer mention.</p><p>The forecasting horizon matters.</p>"
+    out = hooks.on_page_content(html, _glossary_page(), {}, None)
+
+    assert '<a href="../glossary/#memory-buffer">memory buffer</a>' in out, "term was not linked"
+    assert '<a href="../glossary/#forecasting-horizon">forecasting horizon</a>' in out
+    # First occurrence only -- linking every mention is noise, not navigation.
+    assert out.count('href="../glossary/#memory-buffer"') == 1, "linked more than the first occurrence"
+
+
+def test_glossary_skips_terms_not_opted_in(copie_session_minimal):
+    """A defined term without .autolink is never linked.
+
+    Defining a word and advertising it everywhere are separate decisions. A
+    glossary legitimately defines short common words ("step"), and linking those
+    wherever prose happens to use them produces noise.
+    """
+    project_dir = copie_session_minimal.project_dir
+    _write_glossary(project_dir)
+    hooks = _load_hooks(project_dir, "glossary_optin")
+    hooks._GLOSSARY_TERMS_CACHE = None
+
+    out = hooks.on_page_content("<p>Each step is a step.</p>", _glossary_page(), {}, None)
+
+    assert "#step" not in out, "a term that did not opt in was linked"
+    assert "Each step is a step." in out, "text was altered"
+
+
+def test_glossary_never_links_inside_code_or_headings(copie_session_minimal):
+    """Code is not prose, and a link inside a heading or another link is broken markup."""
+    project_dir = copie_session_minimal.project_dir
+    _write_glossary(project_dir)
+    hooks = _load_hooks(project_dir, "glossary_skip")
+    hooks._GLOSSARY_TERMS_CACHE = None
+
+    html = (
+        "<h2>The memory buffer heading</h2>"
+        "<pre><code>memory buffer = 1</code></pre>"
+        '<p>See <a href="x">the memory buffer docs</a>.</p>'
+        "<p>A real memory buffer in prose.</p>"
+    )
+    out = hooks.on_page_content(html, _glossary_page(), {}, None)
+
+    assert "<h2>The memory buffer heading</h2>" in out, "linked inside a heading"
+    assert "<code>memory buffer = 1</code>" in out, "linked inside code"
+    assert '<a href="x">the memory buffer docs</a>' in out, "nested a link inside a link"
+    assert '<a href="../glossary/#memory-buffer">memory buffer</a>' in out, "prose occurrence was not linked"
+
+
+def test_glossary_page_does_not_link_itself(copie_session_minimal):
+    """The glossary must not turn its own definitions into links to themselves."""
+    project_dir = copie_session_minimal.project_dir
+    _write_glossary(project_dir)
+    hooks = _load_hooks(project_dir, "glossary_self")
+    hooks._GLOSSARY_TERMS_CACHE = None
+
+    page = _glossary_page("pages/explanation/glossary.md")
+    out = hooks.on_page_content("<p>A memory buffer is defined here.</p>", page, {}, None)
+
+    assert "<a href=" not in out, "the glossary linked its own terms"
+
+
+def test_glossary_absent_is_not_an_error(copie_session_minimal):
+    """Most projects ship no glossary; the feature must simply do nothing."""
+    project_dir = copie_session_minimal.project_dir
+    glossary = project_dir / "docs" / "pages" / "explanation" / "glossary.md"
+    if glossary.exists():
+        glossary.unlink()
+    hooks = _load_hooks(project_dir, "glossary_absent")
+    hooks._GLOSSARY_TERMS_CACHE = None
+
+    html = "<p>A memory buffer here.</p>"
+    assert hooks.on_page_content(html, _glossary_page(), {}, None) == html
+
+
 def test_see_also_links_member_path_entries(copie_session_minimal):
     """A ``Class.member`` See Also entry qualifies to a full autoref identifier.
 
@@ -1831,6 +1939,49 @@ def _write_notebook(project_dir, stem, gallery_body, imports=""):
     nb.parent.mkdir(parents=True, exist_ok=True)
     nb.write_text(f"import marimo\n\n{imports}\n__gallery__ = {{{gallery_body}}}\n", encoding="utf-8")
     return nb
+
+
+def test_notebook_export_is_cached_by_source_hash(copie_session_default):
+    """An unchanged notebook is not re-exported; an edited one is.
+
+    Exporting means executing the notebook, which dominates the docs build, so
+    this is the difference between a fast rebuild and a slow one under
+    `mkdocs serve`.
+    """
+    project_dir = copie_session_default.project_dir
+    hooks = _load_hooks(project_dir, "nbcache")
+
+    notebook = project_dir / "examples" / "cache_probe.py"
+    notebook.parent.mkdir(parents=True, exist_ok=True)
+    notebook.write_text("x = 1\n", encoding="utf-8")
+    output_dir = project_dir / "docs" / "examples" / "cache_probe"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    digest = hooks._notebook_content_hash(notebook)
+
+    # Nothing exported yet.
+    assert not hooks._is_cached(output_dir, digest), "claimed a cache hit with no exported page"
+
+    # A hash with no rendered page must not count: the export may have died
+    # before writing the html, and reusing that ships a missing page.
+    (output_dir / hooks._SOURCE_HASH_FILE).write_text(digest, encoding="utf-8")
+    assert not hooks._is_cached(output_dir, digest), "claimed a cache hit with no index.html"
+
+    (output_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+    assert hooks._is_cached(output_dir, digest), "did not reuse an unchanged export"
+
+    # Editing the notebook must invalidate it, or the site serves a stale render.
+    notebook.write_text("x = 2\n", encoding="utf-8")
+    assert not hooks._is_cached(output_dir, hooks._notebook_content_hash(notebook)), (
+        "reused the export of an edited notebook"
+    )
+
+
+def test_notebook_cache_is_absent_without_examples(copie_session_minimal):
+    """The caching code ships only where notebooks do."""
+    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
+    assert "_notebook_content_hash" not in hooks_source, "notebook caching leaked into a no-examples project"
+    assert "import hashlib" not in hooks_source, "hashlib imported with nothing to hash"
 
 
 def _reset_gallery_caches(hooks):
