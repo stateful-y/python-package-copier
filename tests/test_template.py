@@ -1,11 +1,13 @@
 """Tests for the copier template."""
 
+import contextlib
 import logging
 import os
 import posixpath
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -2352,15 +2354,69 @@ def test_contribute_guide_carries_no_other_projects_domain(copie_session_default
         assert foreign not in contribute, f"the contribute guide hardcodes another project's domain: {foreign!r}"
 
 
-def test_project_branding_assets_are_local_owned(copie_session_default):
-    """A project's logo and favicon must survive a template update.
+def test_project_branding_survives_a_second_template_run(tmp_path):
+    """A project's own logo is not overwritten by a later template run.
 
-    The template seeds placeholder branding, and a project replaces it with its
-    own. These files are binary, so a template update overwrites them with no
-    conflict and no signal -- the project's brand is silently reverted to the
-    placeholder. Classifying them Tier 1 (template-managed) is what caused that;
-    they belong in Tier 3. ``made_by_stateful-y.png`` is the exception: it is the
-    template's own mark and stays Tier 1.
+    The behavioural half of the guarantee that
+    test_branding_is_documented_as_local_owned only documents. That test asserts
+    a skill reference lists these files under Tier 3 and passed from v0.19.1
+    onward -- while copier went on silently overwriting real projects' logos,
+    because Tier 3 is a convention for whoever resolves an update and copier
+    never reaches a resolution step for a binary. It cannot merge one, so it
+    overwrites: no conflict, no .rej, no output, just the project's wordmark
+    replaced by the template's under the project's own name. Only
+    `_skip_if_exists` stops it, so only re-running the template can prove it.
+    """
+    from copier import run_copy
+
+    answers = {
+        "project_name": "Brand",
+        "project_slug": "brand",
+        "package_name": "brand",
+        "description": "d",
+        "author_name": "A",
+        "author_email": "a@b.c",
+        "github_username": "u",
+        "version": "0.1.0",
+        "min_python_version": "3.11",
+        "max_python_version": "3.14",
+        "license": "MIT",
+        "include_actions": True,
+        "include_examples": True,
+    }
+    template_dir = str(Path(__file__).parent.parent)
+    project = tmp_path / "brand-project"
+    run_copy(template_dir, str(project), data=answers, defaults=True, overwrite=True, unsafe=True, vcs_ref="HEAD")
+
+    assets = project / "docs" / "assets"
+    own = {
+        "logo.png": b"THIS-PROJECT-OWN-LOGO",
+        "logo_dark.png": b"THIS-PROJECT-OWN-LOGO-DARK",
+        "logo_light.png": b"THIS-PROJECT-OWN-LOGO-LIGHT",
+        "favicon.png": b"THIS-PROJECT-OWN-FAVICON",
+    }
+    for name, content in own.items():
+        assert assets.joinpath(name).is_file(), f"the template must seed {name} so a new project renders something"
+        assets.joinpath(name).write_bytes(content)
+
+    run_copy(template_dir, str(project), data=answers, defaults=True, overwrite=True, unsafe=True, vcs_ref="HEAD")
+
+    for name, content in own.items():
+        assert assets.joinpath(name).read_bytes() == content, (
+            f"the template overwrote the project's {name}; its branding is silently gone"
+        )
+
+    # The org mark is the template's own and stays template-managed -- skipping
+    # it would strand every project on the mark it was generated with.
+    assert (assets / "made_by_stateful-y.png").is_file()
+
+
+def test_branding_is_documented_as_local_owned(copie_session_default):
+    """The update skill classifies branding as Tier 3, so a human resolver keeps it.
+
+    Documentation only. The behaviour is pinned by
+    test_project_branding_survives_a_second_template_run -- this test passed
+    throughout the period when updates were still eating logos.
     """
     classification = (
         copie_session_default.project_dir
@@ -3133,6 +3189,26 @@ def test_update_guidance_restores_local_owned_files(copie_session_default):
         assert wrong not in conflicts, f"the guidance still claims a conflicted file is untouched: {wrong!r}"
 
 
+@contextlib.contextmanager
+def caplog_at_warning():
+    """Collect WARNING records from the hooks' mkdocs logger."""
+    records = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    logger = logging.getLogger("mkdocs.hooks")
+    handler = _Collect(level=logging.WARNING)
+    logger.addHandler(handler)
+    previous, logger.disabled = logger.disabled, False
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+        logger.disabled = previous
+
+
 def _write_sectioned_notebook(examples_dir, stem, *, title, section="", category="how-to", companion=None):
     """Write a marimo notebook whose __gallery__ carries section/companion keys.
 
@@ -3308,6 +3384,38 @@ def test_index_page_lists_its_subpages(copie_session_default):
     assert "getting-started" not in out, "the how-to index lists a tutorials page; it is not filtering by directory"
 
 
+def test_subpage_with_no_h1_falls_back_to_its_nav_title(copie_session_default):
+    """A page whose H1 only appears after snippet expansion still gets listed.
+
+    `reference/changelog.md` is often a bare `--8<-- "CHANGELOG.md"` include: it
+    has no H1 in its own source, growing one only once snippets expand, which is
+    after this hook runs. Reading the source alone, the page looks malformed --
+    so it was dropped from its own index and the warning failed --strict. The nav
+    already names it, and that name is what the sidebar shows.
+    """
+    project_dir = copie_session_default.project_dir
+    docs_dir = project_dir / "docs" / "pages" / "navfallback"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    (docs_dir / "changelog.md").write_text('--8<-- "CHANGELOG.md"\n', encoding="utf-8")
+    (docs_dir / "orphan.md").write_text("Body with no heading and no nav entry.\n", encoding="utf-8")
+
+    hooks = _load_hooks(project_dir, "subpages_navfallback")
+    page = _FakePage("pages/navfallback/index.md", "pages/navfallback/index.html")
+    files = [
+        _FakeFile(f"pages/navfallback/{n}.md", f"pages/navfallback/{n}/index.html", str(docs_dir / f"{n}.md"))
+        for n in ("changelog", "orphan")
+    ]
+    config = {"nav": [{"Reference": [{"Changelog": "pages/navfallback/changelog.md"}]}]}
+    out = hooks.on_page_markdown("# Nav\n\n<!-- SUBPAGES -->\n", page, config, files)
+
+    assert "[Changelog](changelog.md)" in out, (
+        "a page whose H1 comes from a snippet include was dropped from its own index"
+    )
+    # An orphan with neither an H1 nor a nav title has no name to show, and
+    # inventing one from the filename would hide a genuinely malformed page.
+    assert "orphan.md" not in out, "a page with no H1 and no nav title was listed under an invented name"
+
+
 def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_default):
     """Each listed subpage carries a summary read out of that page.
 
@@ -3338,6 +3446,49 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "Summary from frontmatter." in out, "a frontmatter description was not used as the summary"
     assert "The first real paragraph." in out, "the first prose paragraph was not used as the summary"
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
+
+
+def test_seeded_reference_index_lists_the_headingless_changelog(copie_session_default):
+    """The template's own seeded pages must survive their own SUBPAGES marker.
+
+    v0.21.0 shipped `<!-- SUBPAGES -->` in reference/index.md next to a
+    changelog.md that is a bare `--8<-- "CHANGELOG.md"` with no H1 of its own.
+    Every generated project's docs build therefore failed --strict, on the very
+    warning added to catch unresolved markers. Driven through the real seeded
+    pages and the real mkdocs.yml nav, because the synthetic fixtures all
+    happened to give their pages an H1 -- which is exactly how it shipped.
+    """
+    project_dir = copie_session_default.project_dir
+    changelog = project_dir / "docs" / "pages" / "reference" / "changelog.md"
+    assert "# " not in changelog.read_text(encoding="utf-8"), (
+        "the seeded changelog grew an H1; this test no longer reproduces the shipped bug"
+    )
+
+    import yaml
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    config = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)
+
+    docs = project_dir / "docs"
+    hooks = _load_hooks(project_dir, "seeded_reference_index")
+    page = _FakePage("pages/reference/index.md", "pages/reference/index.html")
+    files = [
+        _FakeFile(
+            f"pages/reference/{n}.md", f"pages/reference/{n}/index.html", str(docs / "pages" / "reference" / f"{n}.md")
+        )
+        for n in ("api", "changelog")
+    ]
+    source = (docs / "pages" / "reference" / "index.md").read_text(encoding="utf-8")
+    assert "<!-- SUBPAGES -->" in source, "the seeded reference index no longer asks for its subpages"
+
+    with caplog_at_warning() as records:
+        out = hooks.on_page_markdown(source, page, config, files)
+
+    assert "(changelog.md)" in out, "the seeded reference index drops its own changelog"
+    assert not records, f"the seeded docs warn on their own marker, which fails --strict: {records}"
 
 
 def test_generated_index_pages_introduce_their_subpages(copie_session_default):
