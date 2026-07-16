@@ -29,6 +29,23 @@ _skip_if_exists:
   - "docs/assets/logo_dark.png"
   - "docs/assets/logo_light.png"
   - "docs/assets/favicon.png"
+  # Seed pages, and the same shape of problem as the logos above. Every real
+  # project rewrites these two wholesale -- the template's `hello("World")` tour
+  # and placeholder landing page survive nowhere. The template then keeps trying
+  # to patch them, and copier applies an update as a diff against the *template's*
+  # version: when the local file no longer resembles it, one shifted line rejects
+  # the whole hunk and the page reverts to the placeholder, with the project's
+  # content left only in a .rej nobody reads.
+  #
+  # v0.22.0 proved it: gating a blank line behind {% if include_examples %} was a
+  # whitespace-only change for projects without examples, and it still replaced a
+  # 244-line curated tutorial with the 74-line stub. Five of five projects with a
+  # customised getting-started.md were hit by that one release.
+  #
+  # Unlike the logos there is no merge to lose: a project that has rewritten these
+  # wants nothing the template ships in them. Seed once; never deliver again.
+  - "docs/index.md"
+  - "docs/pages/tutorials/getting-started.md"
 
 _envops:
   block_start_string: "{%"

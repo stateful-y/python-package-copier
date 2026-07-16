@@ -790,6 +790,12 @@ def _get_gallery_page_url(project_root):
     placeholder -- found by looking, because that page is local-owned and a
     project is free to move it.  A hardcoded path is wrong the moment someone
     reorganises their docs, and produces a 404 with no build error.
+
+    ``index.md`` is dropped from the URL: under ``use_directory_urls`` (mkdocs'
+    default) ``pages/examples/index.md`` serves at ``/pages/examples/``, not at
+    ``/pages/examples/index/``.  This link is emitted as raw HTML, so mkdocs
+    never validates it and even --strict cannot see it break -- only RTD's
+    post-build linkchecker catches it.
     """
     global _GALLERY_PAGE_CACHE  # noqa: PLW0603
     if _GALLERY_PAGE_CACHE is not None:
@@ -802,7 +808,8 @@ def _get_gallery_page_url(project_root):
             try:
                 if "<!-- GALLERY -->" in md.read_text(encoding="utf-8"):
                     rel = md.relative_to(docs_dir).with_suffix("")
-                    _GALLERY_PAGE_CACHE = "/" + "/".join(rel.parts) + "/"
+                    parts = rel.parts[:-1] if rel.name == "index" else rel.parts
+                    _GALLERY_PAGE_CACHE = "/" + "".join(f"{part}/" for part in parts)
                     break
             except (OSError, UnicodeDecodeError):
                 continue
@@ -1936,6 +1943,19 @@ def on_page_markdown(markdown, page, config, files):
     # sufficient on its own, and the marker purely a placement override.
     companion_html = _build_companion_cards_html(project_root, page.file.src_path)
     if "<!-- COMPANION_NOTEBOOKS -->" in markdown:
+        if not companion_html:
+            # The marker is well-formed, so the catch-all below never sees it:
+            # it is consumed and replaced with nothing, leaving a blank where the
+            # page asked for cards. This is the one marker the template seeds by
+            # default -- it points at hello.py, so replacing hello.py without
+            # re-pointing its `companion` empties the page and says nothing.
+            log.warning(
+                "%s carries <!-- COMPANION_NOTEBOOKS --> but no notebook names it as their "
+                'companion, so it renders blank. Add `"companion": "%s"` to a notebook\'s '
+                "__gallery__, or drop the marker.",
+                page.file.src_path,
+                page.file.src_path,
+            )
         markdown = _replace_marker(markdown, "<!-- COMPANION_NOTEBOOKS -->", companion_html)
     elif companion_html:
         markdown = markdown.rstrip("\n") + "\n\n" + companion_html
