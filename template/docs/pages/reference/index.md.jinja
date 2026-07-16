@@ -5,4 +5,6 @@ its behaviour, and its release history. Reference material is for looking
 things up, not for learning — it describes the machinery and stays out of your
 way.
 
+<!-- SUBPAGES -->
+
 For the reasoning behind the design, see [Explanation](../explanation/index.md).
