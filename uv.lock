@@ -992,6 +992,7 @@ tests = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "pytest-xdist" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -1031,6 +1032,7 @@ tests = [
     { name = "pytest-cov", specifier = ">=7.0" },
     { name = "pytest-mock", specifier = ">=3.14" },
     { name = "pytest-xdist", specifier = ">=3.8" },
+    { name = "ruff", specifier = ">=0.15.21" },
 ]
 
 [[package]]

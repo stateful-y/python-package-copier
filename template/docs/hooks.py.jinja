@@ -207,9 +207,12 @@ def _get_reexported_members(init_file, pkg_dir):
                 match = next((e for e in entries if e["name"] == alias.name), None)
                 if match is None:
                     continue
-                (classes if bucket == "classes" else functions).append(
-                    {"name": exposed, "doc": match["doc"], "origin": str(decl_file), "reexported": True}
-                )
+                (classes if bucket == "classes" else functions).append({
+                    "name": exposed,
+                    "doc": match["doc"],
+                    "origin": str(decl_file),
+                    "reexported": True,
+                })
                 seen.add(exposed)
                 break
 
@@ -266,9 +269,11 @@ def _get_api_name_lookup(project_root):
         members = _get_public_members(mod_file, pkg_dir)
         for entry in members["classes"] + members["functions"]:
             qualified = f"{{ package_name }}.{mod['module_name']}.{entry['name']}"
-            candidates.setdefault(entry["name"], []).append(
-                {"qualified": qualified, "origin": entry.get("origin"), "reexported": entry.get("reexported", False)}
-            )
+            candidates.setdefault(entry["name"], []).append({
+                "qualified": qualified,
+                "origin": entry.get("origin"),
+                "reexported": entry.get("reexported", False),
+            })
 
     lookup = {}
     for name, cands in candidates.items():
@@ -429,7 +434,7 @@ def _build_api_table_html(project_root):
 
         members = _get_public_members(mod_file, pkg_dir)
         module_label = f"{{ package_name }}.{mod['module_name']}"
-        module_href = f"../api/{mod['module_name']}/"
+        module_href = f"../../api/{mod['module_name']}/"
 
         for cls in members["classes"]:
             qualified = f"{{ package_name }}.{mod['module_name']}.{cls['name']}"
@@ -448,7 +453,7 @@ def _build_api_table_html(project_root):
 
     tbody_lines = []
     for name, kind, module_label, module_href, desc, qualified in rows:
-        href = f"../api/generated/{qualified}/"
+        href = f"../../api/generated/{qualified}/"
         badge_cls = _type_badge_cls.get(kind, "")
         tbody_lines.append(
             f"      <tr>"
@@ -961,11 +966,42 @@ def _external_autoref(name, title):
     return f'<autoref optional identifier="{name}">{title}</autoref>'
 
 
+def _resolve_member_identifier(name):
+    """Qualify a dotted ``Class.member`` See Also entry to its autoref identifier.
+
+    A member -- a method or attribute -- has no page of its own; it is an anchor
+    on its class page, so it cannot be resolved to a URL the way a class or a
+    function can.  This qualifies the entry to a full identifier and hands it to
+    autorefs, which does know the anchor.
+
+    ``OtherClass.build`` becomes ``{{ package_name }}.module.OtherClass.build``
+    via the short-name lookup; an entry already led by the package name is
+    returned unchanged (its trailing segment is a member, so
+    ``_resolve_see_also_url`` did not resolve it to a page).  Returns None when
+    the leading segment is neither this package nor a known project symbol, so a
+    genuinely external dotted name (``sklearn.linear_model.Ridge``) falls through
+    to external handling and keeps its own inventory link.
+    """
+    package = "{{ package_name }}"
+    if "." not in name:
+        return None
+    head, rest = name.split(".", 1)
+    if head == package:
+        return name
+    qualified_head = _get_api_name_lookup(Path(__file__).parent.parent).get(head)
+    if qualified_head is None:
+        return None
+    return f"{qualified_head}.{rest}"
+
+
 def _link_entry(name, title, colon, entry):
     """Render one See Also entry: project link, deferred external ref, or as-is."""
     url = _resolve_see_also_url(name)
     if url:
         return f'<a href="{url}">{title}</a>{colon}'
+    member_identifier = _resolve_member_identifier(name)
+    if member_identifier is not None:
+        return _external_autoref(member_identifier, title) + colon
     if "." in name and name.split(".", 1)[0] != "{{ package_name }}":
         return _external_autoref(name, title) + colon
     return entry
@@ -1240,7 +1276,8 @@ def _process_api_page_content(html, page, config):
     if examples_h2:
         old = examples_h2.group(0)
         new = (
-            old.replace('<h2 id="examples">', '<h3 id="tutorials">')
+            old
+            .replace('<h2 id="examples">', '<h3 id="tutorials">')
             .replace("</h2>", "</h3>")
             .replace(">Examples<", ">Tutorials<")
             .replace("#examples", "#tutorials")
