@@ -2912,6 +2912,37 @@ def test_generated_project_is_ruff_format_clean(copie, include_examples):
     )
 
 
+@pytest.mark.parametrize("include_examples", [True, False])
+def test_generated_project_passes_ruff_check(copie, include_examples):
+    """A freshly generated project passes ``ruff check``.
+
+    The format guard above is not enough: it proved the template's Python is
+    *shaped* right, while nothing checked whether it *lints*. A class-based hook
+    shipped with three ARG002 violations under exactly that blind spot, and every
+    generated project without a local ARG002 ignore failed its first
+    `pre-commit run` -- the same failure the format guard exists to prevent,
+    through the other half of the same door.
+
+    Runs ruff with the project's own config, so this is what the project runs.
+    """
+    ruff = shutil.which("ruff")
+    if ruff is None:
+        pytest.skip("ruff is not installed in the test environment")
+
+    result = copie.copy(extra_answers={"include_examples": include_examples})
+    check = subprocess.run(
+        [ruff, "check", "--force-exclude", "--no-fix", "."],
+        cwd=result.project_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert check.returncode == 0, (
+        "the template ships Python that fails `ruff check`, so a generated "
+        f"project's first `pre-commit run` reds CI:\n{check.stdout}{check.stderr}"
+    )
+
+
 def test_update_guidance_restores_local_owned_files(copie_session_default):
     """The local-owned remedy must restore, not merely discard the rejection.
 
