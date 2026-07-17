@@ -34,11 +34,11 @@ tests = [
     # never sees here, so unformatted code ships and a generated project's first
     # hook run reformats template-owned files and reds its CI. Pinned to
     # match the lint group so the check agrees with what a project would run.
-    "ruff>=0.15.21",
+    "ruff>=0.15.22",
 ]
 lint = [
     "interrogate>=1.7.0",
-    "ruff>=0.15.21",
+    "ruff>=0.15.22",
     "rumdl>=0.1.33",
 ]
 docs = [
