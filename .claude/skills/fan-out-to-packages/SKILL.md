@@ -107,19 +107,52 @@ Group a section index under `##` headings only when it is big enough to need it 
   change replaced a 244-line curated tutorial with a 74-line placeholder in one release.
 - `_skip_if_exists` now covers the 4 logos, `docs/index.md`,
   `docs/pages/tutorials/getting-started.md` and `docs/pages/examples/index.md`.
-- **`mkdocs.yml` is NOT protected** and cannot be — it genuinely needs template updates.
-  Any release touching the template nav re-imposes the generic one: in a real probe it cut
-  tutorials 14→2, how-tos 36→4, api 18→2, with the real nav left in a single `.rej`.
-  **Warn every agent whenever the release touches `mkdocs.yml.jinja`.**
+- **`mkdocs.yml` is NOT protected, and a nav-touching release clobbers it every time.**
+  Not a risk — a certainty. v0.26.0 removed one nav line and the clobber fired in **7 of 7**
+  repos: 227 curated nav leaves collapsed to 87. Once a repo's nav has diverged, the hunk
+  rejects as a unit and copier falls back to the pristine nav wholesale, leaving the real
+  one in a single `.rej`. Per repo: yohou 95→12, kedro-azureml 29→11, kedro-dagster 25→11,
+  sklearn-wrap 24→16, sklearn-optuna 21→13, yohou-optuna 17→12, yohou-nixtla 16→12.
+  **Every single clobber preserved correct section order and kept `Reference` last**, and
+  several also injected a `configure.md` the repo does not have — a red `--strict` build.
+  Order-checking passes all seven. Total-count checking passes several. **Only per-section
+  counts catch it**, from parsed YAML, recorded *before* the update. yohou went further and
+  diffed leaf-by-leaf, which is what you want on a big nav.
+  Resolution is always `git checkout HEAD -- mkdocs.yml`, then hand-apply only what the
+  template genuinely changed — usually nothing, and prove that by diffing
+  `template/mkdocs.yml.jinja` across the pair rather than assuming.
 - A **`.rej` holds the PROJECT's own changes** that could not be re-applied — not the
   template's. That is why local content goes missing and every conflicted file is
   partially applied.
-- The template pins `actions/checkout@v6` while repos run dependabot-bumped `@v7`. A
-  release that inserts a job whose checkout step is textually identical to an existing one
-  makes the patch **strand v6 on the wrong job**. CI cannot catch it — v6 works. Diff the
-  whole workflow against baseline, not the update's own hunks.
+- **A `.rej` hunk that bundles a redundant change with load-bearing local work drops
+  both, and the `.rej` count does not show it.** The unit of rejection is the hunk, not
+  the line. yohou lost its `test_docstrings-${{ matrix.python-version }}` parametrization
+  because the hunk also carried a now-redundant codecov bump — the bare session would have
+  run 16 times against uninstalled interpreters. kedro-dagster lost its entire
+  `test-versions` job and its `needs:` the same way, with no `.rej` of its own.
+  yohou-optuna's `mkdocs.yml` hunk bundled the template's intended removal with 4 local
+  entries: 5 vanished, the `.rej` showed 4. **Diff every touched file WHOLE-FILE against
+  the pre-update baseline.** The update's own hunks always look innocent.
+- **Every action pin must match what the fleet runs.** A pin the fleet does not run is not
+  a stale version number: dependabot bumps the repo, so the gap becomes a permanent local
+  delta copier replays on every release, and each replay is a chance to strand it. CI
+  cannot catch it — the older version still works. v0.25.0 pinned `checkout` to the fleet's
+  v7 and stopped there; the very next fan-out found the identical bug on `github-script` in
+  four repos and `codecov` in another, because each repo's bump shared a hunk with its
+  checkout bump and the hunk stopped applying once the template shipped v7 itself.
+  `test_action_pins_are_consistent_and_current` now checks every action against
+  `EXPECTED_ACTION_PINS` — it asserted only `checkout` while four other pins matched no repo
+  alive, and stayed green throughout. The pins are current as of v0.25.1; when dependabot
+  moves the fleet, move the template and that map together.
 
 **Docs fail by rendering nothing.**
+- **Every link this hook emits is unvalidated, and that is where the bugs live.** `--strict`
+  checks markdown links; it never sees raw HTML a hook injects. Three separate defects hid
+  there: the gallery overflow link 404'd into RTD-red; every root export's API-table Module
+  cell pointed at `pages/api/`, a directory with no index; and See Also was linkified only
+  on `pages/api/generated/`, so a curated page rendered its entries as plain text while the
+  same names linked on generated pages. That last one is the shape to remember — **it works
+  everywhere anyone looked**. Check these by fetching the rendered links yourself.
 - An unresolved marker renders as blank space; `--strict` never validated it. `check_docs`
   (v0.21.2) makes marker warnings fatal — that job is the only reason any of this is caught.
 - **Hook-emitted raw HTML is invisible to `--strict`** — mkdocs never validates links inside
@@ -166,9 +199,27 @@ filters, so you will not see it). Pin `--vcs-ref` explicitly whenever you render
 version pair, it would have been untouched either way. Diff the pristine renders first
 (§2.2); if identical, you have tested nothing.
 
-**`copier update` NEVER recreates a locally-deleted file** — delta or not, skip-listed or
-not. Delete→recreate is `copy`/`recopy` semantics. So the delete-half of a two-way control
-**cannot** discriminate a firing skip from a blind check. What does:
+**`copier update` does not recreate a locally-deleted file — *except* a skip-listed one,
+which it recreates on every release.** `_skip_if_exists` means exactly what it says: skip
+if it *exists*. Absent, copier copies it. v0.25.2 skip-listed `troubleshooting.md` to stop
+it clobbering curated pages, and resurrected it in the three repos that had deleted or
+renamed theirs — every update, forever, and where the stub's link target did not exist it
+failed `--strict`. Three agents hit it independently; the control that settles it is same
+baseline, same command, only the ref differs (v0.25.1 → not created, v0.25.2 → created).
+An earlier version of this file stated the opposite, flatly, and it was wrong.
+
+So skip-listing cuts both ways, and there is no copier setting that both protects a
+curated page and respects its absence. When a page is wanted by some projects and unwanted
+by others, the template should not ship it at all.
+
+**Copier DELETES what the template removes.** Verified end to end: a customised 182-line
+page was destroyed outright by a release that dropped it from the template. That is the
+price of un-shipping something, and it is a one-time cost — a project restores its page
+from git once, and the template then knows nothing about it, so no later update touches it
+(also verified, on a run proven to have actually landed).
+
+Because of the above, the delete-half of a two-way control **cannot** discriminate a
+firing skip from a blind check. What does:
 1. diff the pristine renders across the pair; identical ⇒ vacuous, and
 2. **fork the template**, make a deliberate change to the file, update onto the fork, and
    confirm the customised file survives.
