@@ -3260,14 +3260,13 @@ def test_seed_pages_every_project_rewrites_are_never_redelivered(copie_session_d
     # The gallery index goes the same way once curated: yohou's lists six
     # hand-written section pages and v0.22.0 overwrote it with the generic one.
     # Troubleshooting was the one this list missed. A project's entries are about
-    # its own failures -- sklearn-wrap's 225-line error reference, yohou-nixtla's
-    # 178 lines on frequency detection and CUDA OOM -- and v0.25.0 touched a single
-    # em-dash in the stub's prose and reverted both to it.
+    # Troubleshooting was briefly on this list and is deliberately not any more: see
+    # test_the_template_seeds_no_troubleshooting_page. Skip-listing a page cuts both
+    # ways, and that one was wanted by four projects and unwanted by three.
     seed_pages = (
         "docs/index.md",
         "docs/pages/tutorials/getting-started.md",
         "docs/pages/examples/index.md",
-        "docs/pages/how-to/troubleshooting.md",
     )
     for page in seed_pages:
         assert page in skipped, f"{page} is re-delivered on every update; a stray line reverts it to the stub"
