@@ -564,6 +564,16 @@ def test_examples_directory_when_enabled(copie):
     assert "subprocess.run" in test_examples_content
     assert '["python", str(notebook_file)]' in test_examples_content
     assert "https://docs.marimo.io/getting_started/quickstart/#run-as-scripts" in test_examples_content
+    # The failure message must use a real newline escape (single backslash). A doubled
+    # backslash in the .jinja source renders as a literal two-character \n, printing the
+    # diagnostic on one line with a visible \n instead of breaking it.
+    assert r"failed with:\nSTDOUT" in test_examples_content, "assert message lost its newline escape"
+    assert r"failed with:\\nSTDOUT" not in test_examples_content, (
+        "assert message double-escapes the newline; use a single backslash in the .jinja source"
+    )
+    # The bounded-run guards from v0.27.0 must survive here too.
+    assert "stdin=subprocess.DEVNULL" in test_examples_content
+    assert "timeout=" in test_examples_content
 
     # Check docs/examples/ directory exists for exports
     docs_examples_dir = result.project_dir / "docs" / "examples"
@@ -640,6 +650,14 @@ def test_examples_directory_when_disabled(copie):
     # Check noxfile doesn't have test_examples session
     noxfile_content = (result.project_dir / "noxfile.py").read_text(encoding="utf-8")
     assert "def test_examples(session:" not in noxfile_content
+
+    # The example test itself must not exist at all. A previous template shipped two
+    # near-duplicate .jinja sources for it -- one filename-gated, one not -- and the
+    # ungated one rendered a stray 1-byte tests/test_examples.py here, invisible because
+    # an empty file breaks nothing.
+    assert not (result.project_dir / "tests" / "test_examples.py").exists(), (
+        "tests/test_examples.py should not exist when include_examples=False"
+    )
 
     # Check justfile doesn't have example command
     justfile_content = (result.project_dir / "justfile").read_text(encoding="utf-8")
