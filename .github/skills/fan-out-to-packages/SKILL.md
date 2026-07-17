@@ -227,11 +227,28 @@ Binaries are the exception: copier rewrites them regardless of delta, so "the ol
 overwrote it, the new one didn't" *is* a valid A/B on identical inputs.
 
 **Verify by rendering, not by reading.** Count in the built HTML, scoped to `<article>` —
-the ToC sidebar inflates counts ~3×. For JS behaviour (the DataTables API filter) drive a
-real headless browser; note DataTables **2.x** uses `.dt-search`, not 1.x's
-`#api-table_filter`, and two agents nearly reported a missing filter box over that alone.
+the ToC sidebar inflates counts ~3×.
 Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings emits
 multi-line `title=` attributes and the split cuts inside the tag, silently dropping entries.
+And do not key a See Also audit on `<details class="see-also">` in *final* HTML: there is
+none, because `_process_api_page_content` dissolves that container. Zero hits reads as a
+clean pass and is total blindness — two agents found this independently. The real markup is
+a heading with `id="see-also"` (h3 generated, h2 hand-written), and the surfaces do not
+share a shape: h2/h3 are `<ul><li>`, `details.see-also` is `<p>` plus newlines, so a
+single-shape counter silently collapses each list to one entry. **Make the audit abort on
+zero rather than report all-clear.**
+
+**Do NOT drive a headless browser for the DataTables filter.** An earlier version of this
+file said to, and every agent that read it dutifully installed one — seven browsers per
+release, to re-verify the same code. DataTables is **pinned at 2.2.2** and jQuery at 3.7.1
+in `mkdocs.yml`, the init script is emitted by `hooks.py`, and `hooks.py` is Tier 1 and
+already verified byte-identical everywhere. So the JS is pinned, template-owned and
+identical in all seven repos. The `.dt-search` vs 1.x `#api-table_filter` incident that
+produced that advice was agents using **1.x selectors against a 2.x pin** — a checker bug,
+not a drift risk; the pin is the guard. Check it statically instead: `<table id="api-table">`
+present, the init script emitted, the pinned CDN URLs returning 200 — and say plainly that
+this does **not** prove the JS executes. That is the honest limit, and the right trade.
+If the pin is ever bumped, that is when a real browser check earns its cost.
 
 **Prefer a no-op to churn.** If a repo already satisfies the change, say so plainly and
 push nothing.
