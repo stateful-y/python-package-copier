@@ -153,7 +153,10 @@ def test_generated_pyproject_uses_correct_tools(copie_session_default):
     assert "ruff" in content, "ruff not found in pyproject.toml"
     assert "pytest" in content, "pytest not found in pyproject.toml"
     assert "mkdocs" in content, "mkdocs not found in pyproject.toml"
-    assert "pre-commit-uv" in content, "pre-commit-uv not found in pyproject.toml"
+    assert "prek" in content, "prek not found in pyproject.toml"
+    # prek must be a pinned dependency, not fetched ad hoc: it supplies the `repo: builtin`
+    # hooks' implementations, so an unpinned runner means unpinned hook code.
+    assert "pre-commit-uv" not in content, "pre-commit-uv should have been replaced by prek"
 
     # Check for dependency groups structure
     assert "[dependency-groups]" in content, "dependency-groups not found in pyproject.toml"
@@ -270,6 +273,59 @@ def test_precommit_configuration(copie_session_default):
 
     # Check for commitizen
     assert "commitizen" in content, "commitizen not found in pre-commit config"
+
+
+def test_precommit_declares_builtins_explicitly(copie_session_default):
+    """Test that substituted hooks are declared as builtins, not against a rev that governs nothing.
+
+    prek swaps its own Rust implementations in for pre-commit/pre-commit-hooks' hooks and
+    ignores the `rev` field while doing so. Declaring them against that repo would leave a
+    pin in the file that controls nothing -- the silent divergence the config rules out.
+    """
+    content = (copie_session_default.project_dir / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+    assert "repo: builtin" in content, "builtin hooks not declared explicitly"
+    # Match the declaration, not the word: the config's comment names the repo in prose to
+    # explain why it is not used, and a substring check cannot tell the two apart.
+    assert "repo: https://github.com/pre-commit/pre-commit-hooks" not in content, (
+        "hooks still declared against pre-commit-hooks, whose rev prek ignores"
+    )
+    for hook_id in (
+        "trailing-whitespace",
+        "end-of-file-fixer",
+        "check-yaml",
+        "check-added-large-files",
+        "check-json",
+        "check-toml",
+        "check-merge-conflict",
+        "mixed-line-ending",
+    ):
+        assert f"id: {hook_id}" in content, f"{hook_id} missing from the builtin block"
+
+    # debug-statements is covered by ruff's T10, which also catches pdb.set_trace() calls
+    # that debug-statements misses entirely.
+    assert "debug-statements" not in content, "debug-statements is redundant with ruff T10"
+
+    # commitizen has no builtin, so its rev is real and must survive.
+    assert "rev: v4.3.0" in content, "commitizen's rev is genuine and must not be removed"
+
+
+def test_precommit_installs_the_commit_msg_hook_type(copie_session_default):
+    """Test that the commit-msg hook type is actually installed, not merely declared.
+
+    `prek install` creates only the pre-commit hook unless the config names other types.
+    Without this, commitizen's `stages: [commit-msg]` hook is configured but never wired
+    into .git/hooks, so it silently never runs -- a gate that exists only on paper.
+    """
+    content = (copie_session_default.project_dir / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+    assert "stages: [commit-msg]" in content, "commitizen should run at commit-msg"
+    assert "default_install_hook_types:" in content, (
+        "commit-msg hook is declared but nothing installs it, so it never runs"
+    )
+    hook_types = content.split("default_install_hook_types:")[1].split("\n")[0]
+    assert "commit-msg" in hook_types, f"commit-msg missing from install hook types: {hook_types}"
+    assert "pre-commit" in hook_types, f"pre-commit missing from install hook types: {hook_types}"
 
 
 def test_precommit_interrogate_checks_only_src(copie_session_default):

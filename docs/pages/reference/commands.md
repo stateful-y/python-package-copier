@@ -53,7 +53,7 @@ The template provides three ways to run common tasks, organized by use case:
 === "uv run"
 
     ```bash
-    uv run pre-commit run --all-files --show-diff-on-failure
+    uv run prek run --all-files --show-diff-on-failure
     ```
 
 ## Build Documentation
@@ -91,7 +91,7 @@ The template provides three ways to run common tasks, organized by use case:
 | `test_examples` | Run marimo notebook examples | Single |
 | `test_docstrings` | Run docstring examples (pytest --doctest) | Single (min) |
 | `lint` | Code quality checks (ruff, rumdl, ty) | Single (latest) |
-| `fix` | Auto-format and fix (pre-commit) | Single (latest) |
+| `fix` | Auto-format and fix (prek) | Single (latest) |
 | `build_docs` | Render documentation with MkDocs | Single (latest) |
 | `serve_docs` | Local dev server (localhost:8080) | Single (latest) |
 | `link_docs` | Check documentation for broken links | Single (latest) |
@@ -109,7 +109,7 @@ The template provides three ways to run common tasks, organized by use case:
 | `just example [file]` | Open marimo notebook interactively (if `include_examples`) |
 | `just test-examples` | Run all example tests (if `include_examples`) |
 | `just lint` | Ruff, rumdl, ty checks |
-| `just fix` | Run pre-commit on all files |
+| `just fix` | Run the hooks on all files |
 | `just build` / `just build-fast` | Build docs (fast skips notebook export) |
 | `just serve` / `just serve-fast` | Serve docs locally |
 | `just link` | Check for broken links |

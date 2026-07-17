@@ -14,7 +14,7 @@
 | **Docstring Testing** | pytest-doctest | Test code examples in docstrings |
 | **Coverage** | pytest-cov | Code coverage |
 | **Test Automation** | nox | Multi-environment testing |
-| **Pre-commit** | pre-commit | Git hooks |
+| **Hooks** | prek | Git hooks |
 | **Documentation** | MkDocs | Static site generator |
 | **Doc Theme** | Material | Beautiful theme |
 | **API Docs** | mkdocstrings | Docstring extraction |
@@ -83,11 +83,10 @@ Pre-commit hooks configured in generated projects:
 | check-json | Validate JSON syntax |
 | check-added-large-files | Prevent large file commits |
 | check-merge-conflict | Detect merge conflict markers |
-| debug-statements | Detect debugger imports |
 | mixed-line-ending | Normalize line endings |
 | commitizen | Enforce conventional commit messages (if `include_actions=true`) |
 | interrogate | Check docstring coverage (75% minimum) |
-| ruff | Format and lint code |
+| ruff | Format and lint code (including `T10`, debugger imports and `set_trace()` calls) |
 | rumdl | Lint markdown files (MkDocs flavor) |
 | ty | Type checking via uv run |
 

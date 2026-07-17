@@ -50,9 +50,9 @@ The template provides two command interfaces:
 
 The three layers compose: `just` calls `nox`, which uses `uv` internally for package installation. Just provides short aliases for the 90% case, while nox handles multi-version matrices and environment isolation.
 
-## Pre-commit Hooks
+## Git Hooks
 
-The template configures pre-commit hooks that run locally before each commit:
+The template configures git hooks, run by [prek](https://github.com/j178/prek), that fire locally before each commit:
 
 - Fast feedback - catches formatting and linting issues in seconds, not after a CI round-trip
 - Every commit is clean, not just every PR

@@ -62,12 +62,12 @@ _envops:
   comment_end_string: "#}"
   keep_trailing_newline: true
 
-# uv.lock is tracked (not gitignored) and CI/pre-commit run with --locked, so the
+# uv.lock is tracked (not gitignored) and CI/hooks run with --locked, so the
 # lockfile must exist and be committed before the first push, or CI will fail.
 _message_after_copy: |
   Next steps:
     1. cd into your new project
-    2. just install        # creates the uv.lock (uv sync) and installs pre-commit
+    2. just install        # creates the uv.lock (uv sync) and installs the git hooks
     3. git add uv.lock && git commit   # commit the lockfile — CI runs with --locked
 
 project_name:
