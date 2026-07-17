@@ -74,7 +74,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Download release artifacts
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         with:
           workflow: changelog.yml
           name: {% raw %}${{ env.dists-artifact-name }}{% endraw %}
@@ -123,7 +123,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download release artifacts
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         with:
           workflow: changelog.yml
           name: {% raw %}${{ env.dists-artifact-name }}{% endraw %}

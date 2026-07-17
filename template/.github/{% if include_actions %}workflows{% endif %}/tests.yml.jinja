@@ -134,7 +134,7 @@ jobs:
           file: {% raw %}'${{ github.workspace }}/junit.${{ matrix.python-version }}.xml'{% endraw %}
 
       - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         if: {% raw %}${{ matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}' && env.CODECOV_TOKEN != '' }}{% endraw %}
         with:
           token: {% raw %}${{ env.CODECOV_TOKEN }}{% endraw %}

@@ -36,7 +36,7 @@ jobs:
         run: nox -s test_docstrings
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         if: {% raw %}${{ matrix.python-version == '3.12' && env.CODECOV_TOKEN != '' }}{% endraw %}
         with:
           token: {% raw %}${{ env.CODECOV_TOKEN }}{% endraw %}
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Create issue on failure
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const title = '🔴 Nightly build failed';
