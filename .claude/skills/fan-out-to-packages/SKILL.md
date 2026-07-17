@@ -20,15 +20,19 @@ Seven repos in `stateful-y`, all generated from this template (verify with
 `.copier-answers.yml` `_src_path`). `internal`, `kedro-dagster-example`,
 `staged-recipes` and `website` are **not** generated and must never be included.
 
+Every repo is a `src/<package>/` layout. Nothing in this fleet is flat, so
+`_get_root_members`' hardcoded `src/<pkg>` path is inert here — a genuinely flat repo
+would get a silent empty return from it, but none exists yet.
+
 | repo | `include_examples` | what makes it different |
 |---|---|---|
-| **yohou** | True | The reference implementation and the biggest: ~79 notebooks in 6 `examples/` subdirs, 46 companion pages, 6 curated section pages, hand-written See Also bullets, a 35-link how-to index grouped under 8 headings. Its docs are the quality bar — do not "normalise" them without a reason. |
-| yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed so `BaseNixtlaForecaster` gets no API page. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race. |
-| yohou-optuna | True | 5 notebooks. Carries **8 custom skills / 24 files** under `.claude/skills/` that must stay tracked. `plot_model_comparison_bar` was hand-rewritten as a plotly grouped bar — flagged for human review, do not revert. |
-| sklearn-wrap | True | 9 notebooks. Flat `src/` layout. Docs build needs `--extra config` (pydantic is an optional extra; `uv sync --all-groups` alone leaves `ty` failing). |
-| sklearn-optuna | True | 9 notebooks. Flat layout. Some See Also entries resolve into the `sklearn_optuna` dependency's own inventory — that is correct, not a defect. |
-| **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. |
-| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical (46 warnings). Keeps a local `inventories` list. `distributed/` re-export layout. Best index coverage in the fleet. |
+| **yohou** | True | The reference implementation and the biggest: ~79 notebooks in **7** groups (6 `examples/` subdirs plus top-level `quickstart.py`), 46 companion pages, 6 curated section pages, hand-written See Also bullets, a 35-link how-to index grouped under 8 headings. It **deleted the seed how-tos** (`contribute.md`, `troubleshooting.md`) for 36 curated ones, so any release touching those is inert here. The only repo that `select`s ruff's `D`, so it is the only one that sees a docstring defect in a template-owned file. Its docs are the quality bar — do not "normalise" them without a reason. |
+| yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed, so `BaseNixtlaForecaster` reached the API only once `_get_root_members` landed (17→18 rows). Answers cap at `max_python_version: 3.13` — scipy ships no cp314 wheel. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race, `/en/stable/` 404 (no stable release yet). |
+| yohou-optuna | True | 5 notebooks, all flat. Carries **15 custom skills / 36 files** under `.claude/skills/` that must stay tracked. (`plot_model_comparison_bar` is **yohou's**, not this repo's — an earlier version of this table said otherwise.) |
+| sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`**, not for the docs build: `check_docs` passes with pydantic absent because nox builds its own env and mkdocstrings uses griffe's static analysis. Went RTD-red once from the v0.22.0 gallery bug. |
+| sklearn-optuna | True | 9 flat notebooks. Some See Also entries resolve into the `sklearn_optuna` dependency's own inventory — that is correct, not a defect. |
+| **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` nightly job (with its `needs:`) that copier has deleted before. |
+| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical (46 warnings). Keeps a local `inventories` list. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. Answers cap at `max_python_version: 3.13`. |
 
 **`include_examples: False` is real and load-bearing.** For those two repos the gallery,
 companion-notebook and `GALLERY:section` machinery is Jinja-gated *out of their
@@ -149,6 +153,14 @@ a See Also audit grepping `<h2>` when the markup is `<h3 id="see-also">`; a card
 matching `gallery-card` when Material emits `grid cards`; a `tee | head` that SIGPIPE'd and
 truncated the log *before the build ran*; a `pgrep` matching its own command line; a
 readback that diffed an empty file because `gh` errored outside the repo.
+
+**Copier renders a local template repo at its latest *tag*, not your working tree.** So
+`copier copy /path/to/template` verifying an unreleased edit renders the *last release* and
+reports, convincingly, that your change did nothing. This cost two wrong diagnoses in one
+release: the fix was correct both times and the render was answering a different question.
+`tests/conftest.py` passes `vcs_ref="HEAD"` for exactly this reason, and that form *does*
+pick up uncommitted changes (that is what `DirtyLocalWarning` means — which the test suite
+filters, so you will not see it). Pin `--vcs-ref` explicitly whenever you render.
 
 **"Untouched" is not evidence.** If the template's render of a file is unchanged across the
 version pair, it would have been untouched either way. Diff the pristine renders first
