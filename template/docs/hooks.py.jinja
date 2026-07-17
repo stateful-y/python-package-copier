@@ -353,7 +353,7 @@ def _get_api_name_lookup(project_root):
 
     Shared by See Also resolution and example-notebook cross-referencing so the
     two cannot disagree about what a symbol is called.  Built by static
-    analysis only — the package is never imported.
+    analysis only; the package is never imported.
 
     When one symbol is reachable by two paths -- declared in a module and
     re-exported by a package -- the published path wins: that is the name users

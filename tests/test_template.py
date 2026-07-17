@@ -3454,6 +3454,28 @@ def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default)
         _reset_gallery_caches(hooks)
 
 
+def test_docs_use_no_em_or_en_dashes(copie_session_default):
+    """Seeded prose punctuates without em or en dashes.
+
+    A house style rule, and the template is where it has to hold: its pages are
+    the first draft of every project's docs, so a dash seeded here is one every
+    project inherits and nobody re-reads. Ranges are not punctuation and are left
+    alone; this only catches the dash standing in for a comma, colon or bracket.
+    """
+    docs = copie_session_default.project_dir / "docs"
+    pages = sorted(p for p in docs.rglob("*.md") if "examples" not in p.relative_to(docs).parts)
+    assert pages, "no docs pages generated; this test would assert nothing"
+
+    offenders = []
+    for page in pages:
+        for lineno, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+            for dash in ("\u2014", "\u2013"):
+                if dash in line:
+                    offenders.append(f"{page.relative_to(docs)}:{lineno}: {line.strip()}")
+
+    assert not offenders, "seeded docs punctuate with em/en dashes:\n" + "\n".join(offenders)
+
+
 def test_action_pins_are_consistent_and_current(copie_session_default):
     """Every workflow pins the same actions/checkout, and it is the one the fleet runs.
 
