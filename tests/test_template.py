@@ -3984,6 +3984,27 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
 
 
+def test_uv_subprocesses_cannot_retarget_the_runner_venv():
+    """No `uv` subprocess may resolve its project environment to the venv running the tests.
+
+    nox exports UV_PROJECT_ENVIRONMENT at its session venv, and the 17 `uv`/`uvx nox`
+    calls in this suite inherit it, so a `uv sync` meant for a generated project
+    re-syncs the runner's venv instead. One such test, with no xdist at all, installed
+    test_project and marimo into .nox/test-3-14 and re-resolved Markdown off the
+    version uv.lock pins. Under xdist that swap races every other worker: a worker
+    importing markdown.extensions.toc while Markdown was being replaced died with
+    ModuleNotFoundError, on 3.14 only, reproducibly, for a change that touched no code.
+
+    The effect is the wrong thing to assert on: which worker pollutes first is
+    scheduling-dependent, so this pins the cause instead.
+    """
+    assert os.environ.get("UV_PROJECT_ENVIRONMENT") is None, (
+        "UV_PROJECT_ENVIRONMENT points at the test runner's own venv, so any `uv sync` "
+        "a test runs inside a generated project will re-resolve the suite's packages "
+        "underneath it; conftest must unset it for the session"
+    )
+
+
 def test_docs_warnings_are_fatal_somewhere_automated(copie_session_default):
     """Something that runs on every PR must build the docs with warnings fatal.
 

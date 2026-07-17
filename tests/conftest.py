@@ -62,6 +62,22 @@ class CopierResult:
         self.exception = None
 
 
+@pytest.fixture(scope="session", autouse=True)
+def keep_uv_out_of_the_runner_venv():
+    """Stop `uv` subprocesses from re-syncing the venv the tests run in.
+
+    nox exports UV_PROJECT_ENVIRONMENT pointing at its session venv, and every
+    subprocess inherits it, so `uv sync` inside a generated project retargets the
+    runner's own venv instead of the project's: it installed test_project, marimo and
+    pandas into it and re-resolved Markdown out from under the suite. A worker that
+    imported markdown.extensions.toc during that swap died with ModuleNotFoundError.
+    Unset, uv falls back to the project's own .venv, which is what these tests mean.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
+        yield
+
+
 @pytest.fixture(scope="session")
 def session_projects_dir(tmp_path_factory):
     """Session-scoped temp directory for generated projects.
