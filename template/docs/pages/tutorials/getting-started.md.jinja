@@ -1,7 +1,9 @@
 # Getting Started
 
 In this tutorial, we will install {{ project_name }} and run a first example.
-
+{% if include_examples %}
+<!-- COMPANION_NOTEBOOKS -->
+{% endif %}
 ## Installation
 
 Choose your preferred package manager:
@@ -38,9 +40,7 @@ Verify the installation:
 import {{ package_name }}
 print({{ package_name }}.__version__)
 ```
-{% if include_examples %}
-<!-- COMPANION_NOTEBOOKS -->
-{% endif %}
+
 ## Your First Example
 
 ```python
