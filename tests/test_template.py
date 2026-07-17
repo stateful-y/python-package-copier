@@ -1693,8 +1693,12 @@ def test_see_also_links_class_level_entries(copie_session_minimal):
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "plain entry not linked"
-    assert '<a href="../minimal_project.models.Gamma/"><code>Gamma</code></a>' in out, "code-span entry not linked"
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
+        "plain entry not linked"
+    )
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/"><code>Gamma</code></a>' in out, (
+        "code-span entry not linked"
+    )
     assert "Plain numpydoc." in out, "description text was altered"
     assert not re.search(r"<a[^>]*>NotARealThing", out), "unresolvable entry was linked"
     # The container is gone by the end -- proof the linkifier ran before the restructure.
@@ -1712,7 +1716,9 @@ def test_see_also_links_method_level_entries(copie_session_minimal):
     html = _see_also_page("minimal_project", "Alpha", "Beta : Class level.", method_entries="Gamma : Method level.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "method-level entry not linked"
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/">Gamma</a>' in out, (
+        "method-level entry not linked"
+    )
 
 
 def _write_glossary(project_dir, extra=""):
@@ -1867,19 +1873,40 @@ def test_see_also_linkify_runs_before_restructure(copie_session_minimal):
     )
 
 
-def test_see_also_scoped_to_generated_api_pages(copie_session_minimal):
-    """A See Also block on a non-generated page is not rewritten."""
+def test_see_also_links_on_any_page_that_renders_a_docstring(copie_session_minimal):
+    """A See Also block is linkified wherever it renders, not only under pages/api/generated/.
+
+    mkdocstrings emits the block wherever a docstring is rendered, and a project is
+    free to put ::: directives on a curated reference page. This was gated on the
+    src_path, so those blocks stayed raw: kedro-dagster's datasets page rendered
+    three entries as plain text while the same names linked correctly on the
+    generated pages -- the exact shape of "it works everywhere we looked". Nothing
+    catches it, because the block is our own HTML and --strict does not check it.
+
+    The URL must come from the page's own depth. `../` is right from exactly one
+    place, so ungating without that would have turned unlinked text into 404s.
+    """
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_scope")
+    hooks = _load_hooks(project_dir, "seealso_any_page")
     hooks._API_NAME_LOOKUP_CACHE = None
     hooks._SUBMODULE_CACHE = None
 
     html = '<details class="see-also" open><summary>See Also</summary><p>Beta : Nope.</p></details>'
-    page = _FakePage("pages/api/models.md", "pages/api/models/index.html")
-    out = hooks.on_page_content(html, page, {}, None)
 
-    assert out == html, "linkification leaked outside pages/api/generated/"
+    # A curated reference page, two deep -- kedro-dagster's shape.
+    page = _FakePage("pages/reference/datasets.md", "pages/reference/datasets/index.html")
+    out = hooks.on_page_content(html, page, {}, None)
+    assert '<a href="../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
+        "a See Also block on a curated page was left raw, so its entries render as plain text"
+    )
+
+    # The same block, rendered deeper, must resolve to the same page from its own depth.
+    deep = _FakePage("pages/api/generated/minimal_project.models.Alpha.md", "pages/api/generated/x/index.html")
+    out_deep = hooks.on_page_content(html, deep, {}, None)
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out_deep, (
+        "the See Also URL is not built from the page's own depth, so it 404s once the page moves"
+    )
 
 
 def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
@@ -1903,7 +1930,7 @@ def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
         "external name was not deferred to autorefs"
     )
     # The project symbol is still resolved here, against the page set we own.
-    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out
 
 
 def test_see_also_bare_unresolvable_name_is_left_alone(copie_session_minimal):
@@ -1936,9 +1963,9 @@ def test_see_also_qualified_name_matches_bare_form(copie_session_minimal):
     html = _see_also_page("minimal_project", "Alpha", "minimal_project.models.Beta : Qualified.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Beta/">minimal_project.models.Beta</a>' in out, (
-        "qualified project name did not resolve to the same page as the bare form"
-    )
+    assert (
+        '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">minimal_project.models.Beta</a>' in out
+    ), "qualified project name did not resolve to the same page as the bare form"
 
 
 def _write_notebook(project_dir, stem, gallery_body, imports=""):
@@ -2553,7 +2580,9 @@ def test_see_also_links_list_form_entries(copie_session_minimal):
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "list-form entry was not linked"
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
+        "list-form entry was not linked"
+    )
 
 
 def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
@@ -2699,7 +2728,9 @@ def test_see_also_leaves_description_text_alone(copie_session_minimal):
     html = _see_also_page("minimal_project", "Alpha", "Beta : Note: a colon-terminated word in the description.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Beta/">Beta</a>' in out, "the entry name was not linked"
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
+        "the entry name was not linked"
+    )
     assert not re.search(r"<a[^>]*>Note</a>", out), "a word in the description was linkified as an entry"
     assert "Note: a colon-terminated word in the description." in out, "description text was altered"
 
@@ -2736,7 +2767,9 @@ def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minim
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
 
-    assert '<a href="../minimal_project.models.Gamma/">Gamma</a>' in out, "the See Also entry was not linked"
+    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/">Gamma</a>' in out, (
+        "the See Also entry was not linked"
+    )
     assert not re.search(r"<a[^>]*>Beta</a>", out), "a name outside the See Also section was linkified"
 
 
@@ -3318,7 +3351,7 @@ def test_multiple_see_also_entries_render_one_per_line(copie_session_minimal):
 
     entries = "Alpha : The first one.\nBeta : The second one.\nGamma : The third one."
     html = _see_also_page("minimal_project", "Widget", entries)
-    out = hooks._linkify_see_also(html)
+    out = hooks._linkify_see_also(html, "../../../../")
 
     items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
     assert len(items) == 3, f"3 See Also entries rendered as {len(items)} list item(s); they run together on one line"
@@ -3334,7 +3367,7 @@ def test_a_single_see_also_entry_is_not_made_a_list(copie_session_minimal):
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "see_also_single")
 
-    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", "Alpha : Only one."))
+    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", "Alpha : Only one."), "../../../../")
     assert "<li>" not in out, "a lone See Also entry was turned into a single-item list"
     assert "Alpha" in out
 
@@ -3351,7 +3384,7 @@ def test_see_also_description_wrapping_onto_a_second_line_stays_one_entry(copie_
     hooks = _load_hooks(project_dir, "see_also_wrapped")
 
     entries = "Alpha : A description long enough that it\n    wraps onto a second line.\nBeta : Short."
-    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", entries))
+    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", entries), "../../../../")
 
     items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
     assert len(items) == 2, f"a wrapped description split into extra entries: {len(items)} items"
