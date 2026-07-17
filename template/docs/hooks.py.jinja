@@ -566,8 +566,12 @@ def _build_api_table_html(project_root, prefix):
 
     for module_name, members in scans:
         module_label = _qualified_name(module_name, "").rstrip(".") or "{{ package_name }}"
-        # A root export has no module page to point at; the API index is its home.
-        module_href = f"{prefix}pages/api/{module_name}/" if module_name else f"{prefix}pages/api/"
+        # A root export has no module page, and there is nothing to link it to: this
+        # pointed at pages/api/, which is only a directory of generated module pages
+        # and has no index of its own, so every root export's Module cell was a 404.
+        # Nothing catches that -- the cell is raw HTML from this hook, which --strict
+        # never validates, and only a project with a root-only export renders one.
+        module_href = f"{prefix}pages/api/{module_name}/" if module_name else None
 
         for cls in members["classes"]:
             qualified = _qualified_name(module_name, cls["name"])
@@ -588,11 +592,12 @@ def _build_api_table_html(project_root, prefix):
     for name, kind, module_label, module_href, desc, qualified in rows:
         href = f"{prefix}pages/api/generated/{qualified}/"
         badge_cls = _type_badge_cls.get(kind, "")
+        module_cell = f'<a href="{module_href}">{module_label}</a>' if module_href else module_label
         tbody_lines.append(
             f"      <tr>"
             f'<td><a href="{href}"><code>{name}</code></a></td>'
             f'<td><span class="api-badge {badge_cls}">{kind}</span></td>'
-            f'<td><a href="{module_href}">{module_label}</a></td>'
+            f"<td>{module_cell}</td>"
             f"<td>{desc}</td>"
             f"</tr>"
         )

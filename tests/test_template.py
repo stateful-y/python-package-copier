@@ -3732,6 +3732,54 @@ def test_duplicate_notebook_stems_are_reported(copie_session_default):
             d.rmdir()
 
 
+def test_api_table_module_links_point_at_pages_that_exist(copie_session_minimal):
+    """Every Module cell links to a module page that is generated, or does not link.
+
+    A root export belongs to no submodule and has no module page. The cell pointed at
+    `pages/api/` regardless -- but that is only the directory the generated module
+    pages live in; it has no index of its own, so the link 404'd. yohou-nixtla found
+    it in production on `BaseNixtlaForecaster`, its one root export.
+
+    Nothing catches this: the cell is raw HTML this hook emits, which mkdocs --strict
+    never validates, and only a project that has a root-only export renders such a
+    row at all. So the check is that every Module href corresponds to a module the
+    hook actually generates a page for -- not that this one string is gone.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = project_dir / "src" / "minimal_project"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "_base.py").write_text(
+        '"""Private module."""\n\n\nclass BaseThing:\n    """A public base class in a private module."""\n',
+        encoding="utf-8",
+    )
+    (pkg / "widgets.py").write_text('"""Widgets."""\n\n\nclass Widget:\n    """A widget."""\n', encoding="utf-8")
+    (pkg / "__init__.py").write_text(
+        '"""Pkg."""\n\nfrom minimal_project._base import BaseThing\n'
+        "from minimal_project.widgets import Widget\n\n"
+        '__all__ = ["BaseThing", "Widget"]\n',
+        encoding="utf-8",
+    )
+    hooks = _load_hooks(project_dir, "api_module_links")
+    hooks._SUBMODULE_CACHE = None
+    hooks._API_NAME_LOOKUP_CACHE = None
+
+    html = hooks._build_api_table_html(project_dir, "")
+    assert "BaseThing" in html, "no root export rendered; this test would assert nothing"
+
+    generated = {mod["module_name"] for mod in hooks._get_submodules(project_dir)}
+    assert generated, "no submodules found; this test would assert nothing"
+
+    # The Name cell links too, at pages/api/generated/<qualified>/, and wraps its
+    # label in <code>. Only the Module cell does not, which is what separates them.
+    module_links = re.findall(r'<td><a href="pages/api/([^"]*)">(?!<code>)', html)
+    assert module_links, "no Module cell links at all; the row shape changed and this asserts nothing"
+    for target in module_links:
+        assert target.strip("/") in generated, (
+            f"a Module cell links to pages/api/{target}, which the hook generates no page for; "
+            f"it generates pages only for {sorted(generated)}"
+        )
+
+
 def test_root_only_exports_reach_the_api(copie_session_minimal):
     """A symbol exported only from the package root still gets a page and a table row.
 
