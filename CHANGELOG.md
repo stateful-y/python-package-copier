@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.26.0] - 2026-07-17
+
+This **minor release** includes 3 commits.
+
+
+### Bug Fixes
+- Make both release jobs read the same version  ([#173](https://github.com/stateful-y/python-package-copier/pull/173)) by @gtauzin
+- Stop seeding a troubleshooting page  ([#174](https://github.com/stateful-y/python-package-copier/pull/174)) by @gtauzin
+
+### Documentation
+- Correct the fleet table, and the copier render trap  ([#172](https://github.com/stateful-y/python-package-copier/pull/172)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.25.2] - 2026-07-17
 
 This **patch release** includes 1 commit.
