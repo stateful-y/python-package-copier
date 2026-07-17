@@ -24,7 +24,6 @@ my-package/
 │   │   └── examples.md
 │   ├── how-to/
 │   │   ├── configure.md
-│   │   ├── troubleshooting.md
 │   │   └── contribute.md
 │   ├── reference/
 │   │   └── api.md
@@ -109,7 +108,6 @@ The project uses a **src layout** - all package code lives under `src/<package_n
 | `tutorials/getting-started.md` | Installation and first steps (tutorial) |
 | `tutorials/examples.md` | Interactive examples gallery (if `include_examples=true`) |
 | `how-to/configure.md` | Configuration guide scaffold |
-| `how-to/troubleshooting.md` | Common problems and solutions |
 | `how-to/contribute.md` | Full contributing guidelines |
 | `reference/api.md` | Auto-generated API reference |
 | `explanation/concepts.md` | Core concepts and architecture |

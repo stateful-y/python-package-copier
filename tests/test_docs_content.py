@@ -149,15 +149,39 @@ class TestConfigurePage:
 
 
 class TestTroubleshootingPage:
-    """Test the troubleshooting how-to page."""
+    """The template deliberately seeds no troubleshooting page."""
 
-    def test_troubleshooting_exists(self, copie):
-        """Test that troubleshooting page exists."""
+    def test_the_template_seeds_no_troubleshooting_page(self, copie):
+        """Troubleshooting is a project's own how-to, so the template must not ship one.
+
+        It was a seed page, and seeding it was a trap either way. Left unprotected, a
+        single em-dash in the stub's prose reverted sklearn-wrap's 225-line error
+        reference and yohou-nixtla's 178 lines on frequency detection and CUDA OOM,
+        each surviving only in a .rej. Adding it to _skip_if_exists fixed that and
+        broke the other half: skip-if-exists means copy-if-absent, so the three
+        projects that had deleted or renamed the page got the stub resurrected on
+        every release -- and where configure.md does not exist, its link failed the
+        strict build.
+
+        A project's troubleshooting entries are about its own failures. Nothing
+        generic belongs there, so the template seeds nothing and a project writes its
+        own how-to if it wants one.
+        """
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
-        troubleshooting = result.project_dir / "docs" / "pages" / "how-to" / "troubleshooting.md"
-        assert troubleshooting.is_file()
+        how_to = result.project_dir / "docs" / "pages" / "how-to"
+        assert how_to.is_dir(), "no how-to directory; this test would assert nothing"
+        assert not (how_to / "troubleshooting.md").exists(), (
+            "the template seeds a troubleshooting page again; it is either clobbering a project's "
+            "curated one or resurrecting a page three projects deleted"
+        )
+
+        mkdocs = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
+        assert "how-to/troubleshooting.md" not in mkdocs, (
+            "the nav still points at a troubleshooting page the template no longer ships, "
+            "so every generated project fails its own strict docs build"
+        )
 
 
 class TestAPIReferencePage:
