@@ -11,7 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: [{%- set versions = ["3.11", "3.12", "3.13", "3.14"] -%}
+          {%- for v in versions if v >= min_python_version and v <= max_python_version -%}
+            "{{ v }}"{{ ", " if not loop.last else "" }}
+          {%- endfor -%}]
     env:
       CODECOV_TOKEN: {% raw %}${{ secrets.CODECOV_TOKEN }}{% endraw %}
     steps:
