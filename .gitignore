@@ -228,9 +228,25 @@ Desktop.ini
 /.ai/
 /.llm/
 /.copilot/
-/.claude/
 /ai-instructions/
 /llm-instructions/
+
+# Claude Code. Personal config (settings.local.json and friends) stays private,
+# but .claude/skills is project content -- it is the copy Claude Code actually
+# reads, and the one .github/skills is meant to mirror. Ignoring the whole
+# directory made that mirror unenforceable: the skills existed only in whoever's
+# working tree wrote them, and a fresh clone got none of them.
+#
+# Must be "/.claude/*" and not "/.claude/": git does not descend into an excluded
+# directory, so a negation under it would never be reached. Anchored with a
+# leading "/" like everything else here, so template/.claude/ is untouched.
+/.claude/*
+!/.claude/skills/
+
+# openspec installs its own skills and commands. They are tool state that openspec
+# rewrites, not project content -- the same reason /.github/skills/openspec-*/ and
+# /.github/prompts/ are ignored above.
+/.claude/skills/openspec-*/
 
 # Project-specific AI context (kept private)
 /.cursorrules
