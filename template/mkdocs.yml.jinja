@@ -162,13 +162,18 @@ nav:
     - Contributing: pages/how-to/contribute.md
 {% if include_examples %}  - Examples:
     - pages/examples/index.md
-{% endif %}  - Reference:
+{% endif %}  - Explanation:
+    - pages/explanation/index.md
+    - Concepts: pages/explanation/concepts.md
+  # Reference is last on purpose: it is the section you arrive at knowing what
+  # you want, so it earns its place by being findable, not by being passed
+  # through. Everything above it is read in roughly the order a newcomer needs
+  # it -- learn, do, see, understand -- and reference is where you stop reading
+  # and start looking things up.
+  - Reference:
     - pages/reference/index.md
     - API: pages/reference/api.md
     - Changelog: pages/reference/changelog.md
-  - Explanation:
-    - pages/explanation/index.md
-    - Concepts: pages/explanation/concepts.md
 
 extra:
   social:

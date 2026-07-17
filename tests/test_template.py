@@ -3454,6 +3454,42 @@ def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default)
         _reset_gallery_caches(hooks)
 
 
+def test_nav_order_is_diataxis_with_reference_last(copie_session_default, copie_minimal):
+    """The nav reads learn -> do -> see -> understand -> look up, in that order.
+
+    Reference is last on purpose: it is where you stop reading and start looking
+    things up, so it earns its place by being findable rather than by being passed
+    through. The fleet had drifted into three different orders -- only yohou put
+    Reference last -- and the template itself shipped Reference before Explanation,
+    which is where four of the repos got it from.
+
+    Examples is present exactly when the package has notebooks: a nav entry for a
+    section that does not exist is a build error, and a package with notebooks and
+    no Examples entry hides them entirely.
+    """
+    import yaml
+
+    class _Loader(yaml.SafeLoader):
+        pass
+
+    _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+
+    def _top_level(project_dir):
+        nav = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)["nav"]
+        return [key for entry in nav if isinstance(entry, dict) for key in entry]
+
+    with_examples = _top_level(copie_session_default.project_dir)
+    assert with_examples == ["Home", "Tutorials", "How-to Guides", "Examples", "Explanation", "Reference"], (
+        f"nav order drifted: {with_examples}"
+    )
+
+    # A package with no notebooks must not advertise an Examples section.
+    result = copie_minimal.copy(extra_answers={"include_examples": False})
+    without = _top_level(result.project_dir)
+    assert "Examples" not in without, f"a package with no notebooks still has an Examples nav entry: {without}"
+    assert without[-1] == "Reference", f"Reference is not last without examples: {without}"
+
+
 def test_examples_are_a_top_level_section(copie_session_default):
     """Examples is its own nav section, not a page filed under Tutorials.
 
