@@ -19,6 +19,23 @@ This **patch release** includes 1 commit.
 Thanks to all contributors for this release:
 - @gtauzin
 
+## [0.27.0] - 2026-07-17
+
+This **minor release** includes 3 commits.
+
+
+### Features
+- Run hooks with prek, and gate what reaches the changelog  ([#180](https://github.com/stateful-y/python-package-copier/pull/180)) by @gtauzin
+
+### Documentation
+- Record what the v0.25.x-v0.26.x fan-outs proved  ([#178](https://github.com/stateful-y/python-package-copier/pull/178)) by @gtauzin
+- Stop telling every agent to install a browser  ([#179](https://github.com/stateful-y/python-package-copier/pull/179)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.26.1] - 2026-07-17
 
 This **patch release** includes 1 commit.
