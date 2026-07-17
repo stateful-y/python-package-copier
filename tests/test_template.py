@@ -3454,6 +3454,31 @@ def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default)
         _reset_gallery_caches(hooks)
 
 
+def test_action_pins_are_consistent_and_current(copie_session_default):
+    """Every workflow pins the same actions/checkout, and it is the one the fleet runs.
+
+    The template pinned @v6 while every generated repo had been dependabot-bumped
+    to @v7. That gap is not cosmetic: when a release inserts a job whose checkout
+    step is textually identical to an existing one, the patch aligns the repo's v7
+    line with the *inserted* job and pushes the template's v6 down into the old
+    one. Two repos hit exactly that. CI cannot catch it -- v6 works -- so it
+    reviews past as a version bump.
+
+    Pinned rather than merely self-consistent: consistency alone is satisfied by
+    the whole fleet drifting together, which is the state this fixes.
+    """
+    workflows = sorted((copie_session_default.project_dir / ".github" / "workflows").glob("*.yml"))
+    assert workflows, "no workflows generated"
+
+    pins = {}
+    for wf in workflows:
+        for match in re.finditer(r"uses:\s*actions/checkout@(\S+)", wf.read_text(encoding="utf-8")):
+            pins.setdefault(match.group(1), []).append(wf.name)
+
+    assert pins, "no actions/checkout usage found; this test would assert nothing"
+    assert set(pins) == {"v7"}, f"actions/checkout pins are {dict(pins)}; expected every one at v7"
+
+
 def test_nav_order_is_diataxis_with_reference_last(copie_session_default, copie_minimal):
     """The nav reads learn -> do -> see -> understand -> look up, in that order.
 
@@ -3526,29 +3551,31 @@ def test_examples_are_a_top_level_section(copie_session_default):
     assert not stale, f"these pages still link the old gallery path: {[str(p) for p in stale]}"
 
 
-def test_companion_card_follows_the_prerequisites_and_precedes_the_body(copie_session_default):
-    """The card comes after what you need to have done, and before the body.
+def test_companion_card_precedes_the_install_step(copie_session_default):
+    """The notebook is offered before the reader is asked to install anything.
 
-    Two orderings matter and they pull opposite ways. A reader decides whether to
-    run the notebook *instead of* reading, so the offer has to arrive before the
-    thing it is an alternative to -- it used to sit below "Next Steps" and "Get
-    help", past anyone who wanted it. But it must not precede the prerequisites,
-    or it invites you to run something you cannot run yet.
+    The card links a marimo playground whose dependencies are declared in the
+    notebook itself, so running it is an *alternative* to installing rather than
+    something installing unlocks. Offering it after the install step asks the
+    reader to do the work first and only then mentions they need not have.
 
-    The seeded tutorial has no "## Prerequisites" heading; installing is its
-    prerequisite, so the card follows Installation. Across the fleet the rule is
-    the same and every how-to already followed it -- the tutorials were the 15
-    pages that did not.
+    It still precedes the body: a reader decides whether to run the notebook
+    instead of reading the page, so the offer has to arrive before the thing it
+    is an alternative to -- it used to sit below "Next Steps" and "Get help",
+    past anyone who wanted it.
     """
     page = copie_session_default.project_dir / "docs" / "pages" / "tutorials" / "getting-started.md"
     text = page.read_text(encoding="utf-8")
     assert "<!-- COMPANION_NOTEBOOKS -->" in text, "the seeded tutorial offers no companion notebook"
 
     marker_at = text.index("<!-- COMPANION_NOTEBOOKS -->")
-    prerequisite_at = text.index("## Installation")
+    install_at = text.index("## Installation")
     body_at = text.index("## Your First Example")
 
-    assert prerequisite_at < marker_at, "the notebook is offered before the reader has been told how to install it"
+    assert marker_at < install_at, (
+        "the notebook is offered only after the reader has installed the package, "
+        "when running it in the browser is the alternative to installing"
+    )
     assert marker_at < body_at, "the companion offer comes after the page body instead of before it"
 
     tail = text[text.index("## Next Steps") :] if "## Next Steps" in text else ""
@@ -3581,6 +3608,139 @@ def test_misspelled_marker_warns_instead_of_shipping_blank_space(copie_session_d
     with caplog_at_warning() as records:
         hooks.on_page_markdown("# X\n\n<!-- prettier-ignore -->\n", page, {"repo_url": "https://x/y"}, [])
     assert not records, "an ordinary HTML comment was flagged as a broken marker"
+
+
+def test_nested_notebook_playground_link_keeps_its_subdirectory(copie_session_default):
+    """The marimo link points at the notebook's real path, not a flat guess.
+
+    The HTML export is flat (docs/examples/<stem>/), so [View] keys on the stem.
+    The playground is not: it reconstructs the repo path from this URL, so a URL
+    built from the stem alone 404s for every notebook in a subdirectory -- 78 of
+    yohou's 79. yohou's pre-de-fork hooks.py kept the subdirectory for exactly
+    this reason and the behaviour was lost when the fork was dropped.
+
+    The link is generated rather than authored, so mkdocs never validates it and
+    --strict stays green while every one of them is broken.
+    """
+    project_dir = copie_session_default.project_dir
+    nested = project_dir / "examples" / "data-features"
+    _write_sectioned_notebook(nested, "nested_demo", title="Nested Demo", section="data-features")
+    try:
+        hooks = _load_hooks(project_dir, "nested_playground")
+        _reset_gallery_caches(hooks)
+        item = next(i for i in hooks._get_gallery_items(project_dir) if i["stem"] == "nested_demo")
+
+        assert item["open_path"] == "/examples/data-features/nested_demo/edit/", (
+            f"playground url is {item['open_path']!r}; it drops the subdirectory and 404s"
+        )
+        # [View] keys on the stem because the export really is flat.
+        assert item["view_path"] == "/examples/nested_demo/"
+    finally:
+        (nested / "nested_demo.py").unlink()
+        nested.rmdir()
+
+
+def test_duplicate_notebook_stems_are_reported(copie_session_default):
+    """Two notebooks sharing a stem export to one page; the loser must not vanish quietly.
+
+    The export dir is keyed on the stem alone, so a second notebook rmtree's the
+    first and both gallery cards point at whichever won. yohou has exactly this:
+    data-features/signal_processing.py and visualization/signal_processing.py --
+    79 View links, 78 unique. The winner is filesystem-order dependent, since the
+    export walk is unsorted while the gallery's is sorted.
+    """
+    project_dir = copie_session_default.project_dir
+    a = project_dir / "examples" / "dir_a"
+    b = project_dir / "examples" / "dir_b"
+    _write_sectioned_notebook(a, "collide", title="A", section="a")
+    _write_sectioned_notebook(b, "collide", title="B", section="b")
+    try:
+        hooks = _load_hooks(project_dir, "stem_collision")
+        _reset_gallery_caches(hooks)
+        os.environ["MKDOCS_SKIP_NOTEBOOKS"] = "1"
+        with caplog_at_warning() as records:
+            hooks.on_pre_build({"docs_dir": str(project_dir / "docs")})
+        assert any("collide" in r for r in records), (
+            "two notebooks share a stem and overwrite each other's export, and nothing said so"
+        )
+    finally:
+        os.environ.pop("MKDOCS_SKIP_NOTEBOOKS", None)
+        for d in (a, b):
+            (d / "collide.py").unlink()
+            d.rmdir()
+
+
+def test_root_only_exports_reach_the_api(copie_session_minimal):
+    """A symbol exported only from the package root still gets a page and a table row.
+
+    _get_submodules skips every `_`-prefixed name -- right for private modules,
+    and it also excludes __init__.py itself. A package that keeps a base class in
+    _base.py and re-exports it from the root (an ordinary layout) therefore has a
+    public symbol belonging to no submodule, which reached no page and never
+    appeared in the table. yohou-nixtla ships 18 names in __all__ and listed 17.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = project_dir / "src" / "minimal_project"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "_base.py").write_text(
+        '"""Private module."""\n\n\nclass BaseThing:\n    """A public base class in a private module."""\n',
+        encoding="utf-8",
+    )
+    (pkg / "widgets.py").write_text('"""Widgets."""\n\n\nclass Widget:\n    """A widget."""\n', encoding="utf-8")
+    (pkg / "__init__.py").write_text(
+        '"""Pkg."""\n\nfrom minimal_project._base import BaseThing\n'
+        "from minimal_project.widgets import Widget\n\n"
+        '__all__ = ["BaseThing", "Widget"]\n',
+        encoding="utf-8",
+    )
+    hooks = _load_hooks(project_dir, "root_exports")
+    hooks._SUBMODULE_CACHE = None
+    hooks._API_NAME_LOOKUP_CACHE = None
+
+    html = hooks._build_api_table_html(project_dir, "")
+    assert "BaseThing" in html, "a symbol exported only from the package root is missing from the API table"
+    assert "minimal_project.BaseThing" in html, "the root export is not published at its public path"
+
+    # A name a real submodule publishes keeps its module path -- root adoption is
+    # for the homeless only, not a second home for everything.
+    roots = hooks._get_root_members(project_dir)
+    assert [c["name"] for c in roots["classes"]] == ["BaseThing"], (
+        f"root adoption swallowed a symbol that has a module: {[c['name'] for c in roots['classes']]}"
+    )
+
+    hooks._SUBMODULE_CACHE = None
+    hooks._API_NAME_LOOKUP_CACHE = None
+    assert hooks._get_api_name_lookup(project_dir).get("BaseThing") == "minimal_project.BaseThing", (
+        "See Also cannot resolve a root-exported symbol"
+    )
+
+
+def test_subpages_reports_a_sibling_missing_from_the_nav(copie_session_default):
+    """An index lists sibling files; the sidebar comes from mkdocs.yml. Disagreement is reported.
+
+    When a nav entry is dropped the index papers over it -- the page is still
+    listed and still linked, while vanishing from navigation. mkdocs reports
+    not-in-nav pages at INFO, which --strict does not fail on, so nothing else
+    says a word. A copier update deleted a real nav entry exactly this way and
+    every other guard passed it.
+    """
+    project_dir = copie_session_default.project_dir
+    docs = project_dir / "docs"
+    hooks = _load_hooks(project_dir, "subpages_orphan")
+    page = _FakePage("pages/how-to/index.md", "pages/how-to/index.html")
+    files = [
+        _FakeFile(f"pages/how-to/{n}.md", f"pages/how-to/{n}/index.html", str(docs / "pages" / "how-to" / f"{n}.md"))
+        for n in ("configure", "troubleshooting")
+    ]
+    # troubleshooting is deliberately absent from the nav.
+    config = {"nav": [{"How-to Guides": ["pages/how-to/index.md", {"Configuration": "pages/how-to/configure.md"}]}]}
+
+    with caplog_at_warning() as records:
+        hooks.on_page_markdown("# H\n\n<!-- SUBPAGES -->\n", page, config, files)
+
+    assert any("troubleshooting" in r for r in records), (
+        "a page missing from the nav is still listed by the index, and nothing reports it"
+    )
 
 
 def test_gallery_section_marker_renders_only_that_section(copie_session_default):
