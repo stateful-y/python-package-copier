@@ -3984,6 +3984,39 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
 
 
+def test_the_two_skill_mirrors_stay_byte_identical():
+    """.claude/skills and .github/skills are one skill set read by two tools.
+
+    CLAUDE.md tells contributors to edit both, and nothing enforced it. A convention
+    that lives only in prose is how this repo lost its logos for months: the guard was
+    a heading in a markdown file, and the logos burned underneath it. These two mirrors
+    have already drifted in a way that reddened CI, when .github/skills carried an
+    MD007 exemption that .claude/skills did not and byte-identical files linted
+    differently.
+
+    Tracked files only: the openspec-* skills under .claude/skills are gitignored and
+    deliberately unmirrored, so walking the directory would compare a set that is not
+    supposed to match.
+    """
+    root = Path(__file__).parent.parent
+
+    def tracked(rel):
+        out = subprocess.run(
+            ["git", "ls-files", rel], cwd=root, capture_output=True, text=True, check=True
+        ).stdout.split()
+        return {path[len(rel) + 1 :]: (root / path).read_bytes() for path in out}
+
+    claude, github = tracked(".claude/skills"), tracked(".github/skills")
+
+    assert claude, "no tracked files under .claude/skills; this test would assert nothing"
+    assert set(claude) == set(github), (
+        f"the skill mirrors hold different files: only in .claude/skills "
+        f"{sorted(set(claude) - set(github))}, only in .github/skills {sorted(set(github) - set(claude))}"
+    )
+    differing = sorted(name for name, blob in claude.items() if github[name] != blob)
+    assert not differing, f"these skills have drifted between the two mirrors: {differing}"
+
+
 def test_uv_subprocesses_cannot_retarget_the_runner_venv():
     """No `uv` subprocess may resolve its project environment to the venv running the tests.
 
