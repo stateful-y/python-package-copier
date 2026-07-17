@@ -48,7 +48,7 @@ The template organizes development dependencies into these groups:
 | `tests` | Testing tools | pytest, pytest-cov, pytest-mock, pytest-xdist, covdefaults, hypothesis |
 | `lint` | Code quality | ruff, ty |
 | `docs` | Documentation | mkdocs, mkdocs-material, mkdocstrings, pymdown-extensions |
-| `fix` | Auto-formatting | pre-commit-uv |
+| `fix` | Auto-formatting | prek |
 | `examples` | Interactive notebooks | marimo (if `include_examples=true`) |
 
 ## Add an Optional Dependency

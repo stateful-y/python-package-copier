@@ -13,7 +13,7 @@ This is a **Copier template** for generating modern Python packages.
     - **Fast (Unit)**: `just test-fast` (Checks file structure/content generation).
     - **Slow (Integration)**: `just test-slow` (Runs `nox` *inside* generated projects).
     - **Fixture**: Use `copie` fixture (wraps `CopierTestFixture`) in `tests/conftest.py`.
-- **Lint/Fix**: `just fix` (Runs `uv run pre-commit`; lint tools are pinned by `uv.lock`).
+- **Lint/Fix**: `just fix` (Runs `uv run prek`; prek and the lint tools are all pinned by `uv.lock`).
 
 ## Architecture & Patterns
 - **Template Files**: End in `.jinja`. Variables: `{{ min_python_version }}`.

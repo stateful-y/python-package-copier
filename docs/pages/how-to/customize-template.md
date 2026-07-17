@@ -43,12 +43,16 @@ Edit `.pre-commit-config.yaml` to add or remove hooks. For example, to add a sec
       args: ["-r", "src/"]
 ```
 
-After editing, update hooks and run them:
+After editing, run the hooks:
 
 ```bash
-uv run pre-commit autoupdate
-uv run pre-commit run --all-files
+uv run prek run --all-files
 ```
+
+Most hooks have no `rev` to update: the `repo: builtin` hooks are pinned by prek's own
+version, and the linters resolve from `uv.lock`. Both are kept current by Dependabot's
+`uv` ecosystem. `uv run prek update` bumps the remaining pinned `rev:` — today only
+commitizen's — and is not something you should need routinely.
 
 ## Customize the Docstring Coverage Threshold
 

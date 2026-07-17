@@ -51,7 +51,7 @@ See [About the Release Process](../explanation/release-process.md) for the desig
 
 - Generates changelog from conventional commits using git-cliff
 - Creates a Pull Request with updated `CHANGELOG.md`
-- Runs pre-commit hooks on generated changelog
+- Runs the hooks on the generated changelog
 - Builds and validates package distributions
 - Stores distributions as workflow artifacts for reuse (avoiding rebuilds)
 

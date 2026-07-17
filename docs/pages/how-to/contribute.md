@@ -46,8 +46,8 @@ cd python-package-copier
 # Install dependencies
 uv sync --group test --group docs
 
-# Install pre-commit hooks (optional but recommended)
-uv run pre-commit install
+# Install the git hooks (required)
+uv run prek install
 ```
 
 ## Test Template Changes
@@ -145,7 +145,7 @@ After making changes:
 === "uv run"
 
     ```bash
-    uv run pre-commit run --all-files --show-diff-on-failure
+    uv run prek run --all-files --show-diff-on-failure
     ```
 
 ## Documentation
@@ -176,7 +176,10 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`
 
 Breaking changes: Add `!` after the type (`feat!: remove deprecated API`) or include `BREAKING CHANGE:` in the footer.
 
-The pre-commit hook validates your commit messages automatically.
+The commit-msg hook validates your commit messages automatically, and CI validates them again on
+single-commit PRs — because that is the case where your commit message, not the PR title, becomes
+the squash commit and lands in the changelog. On a multi-commit PR the PR title ships instead, and
+the individual commit messages are free-form.
 
 ## Before You Open a PR
 
@@ -199,8 +202,8 @@ Maintainers: see [About the Release Process](../explanation/release-process.md) 
 **Problem: `uvx nox` not found**
 : Install uv first: `curl -LsSf https://astral.sh/uv/install.sh | sh`. Nox is run via `uvx`, not installed globally.
 
-**Problem: Pre-commit fails on first run**
-: Run `uv sync --group test` first to install all dependencies, then `uv run pre-commit install`.
+**Problem: Hooks fail on first run**
+: Run `uv sync --group test` first to install all dependencies, then `uv run prek install`.
 
 **Problem: Tests pass locally but fail in CI**
 : Check the Python version matrix. CI tests across 3.11–3.14 and multiple operating systems. Your local Python may differ.

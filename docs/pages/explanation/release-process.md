@@ -44,7 +44,11 @@ The template uses PyPI's [Trusted Publishing](https://docs.pypi.org/trusted-publ
 
 ## Changelog Generation
 
-The changelog is generated automatically from [Conventional Commits](https://www.conventionalcommits.org/) using git-cliff - `feat:` commits appear under **Added**, `fix:` under **Fixed**, breaking changes are highlighted prominently. The template enforces conventional commits via pre-commit hooks and PR title validation.
+The changelog is generated automatically from [Conventional Commits](https://www.conventionalcommits.org/) using git-cliff - `feat:` commits appear under **Added**, `fix:` under **Fixed**, breaking changes are highlighted prominently. The template enforces conventional commits at three points, because different PRs ship different
+text. GitHub's `squash_merge_commit_title` defaults to `COMMIT_OR_PR_TITLE`, so a **single-commit
+PR ships its commit message** while a multi-commit PR ships its **PR title** — and git-cliff reads
+whichever landed. A commit-msg hook catches bad messages as you write them, a CI job validates the
+commit message on single-commit PRs, and PR title validation covers the multi-commit case.
 
 ## Version Numbering
 

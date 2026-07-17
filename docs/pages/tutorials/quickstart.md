@@ -42,8 +42,8 @@ cd my-package
 # Install dependencies
 uv sync --group dev
 
-# Set up pre-commit hooks
-uv run pre-commit install
+# Set up the git hooks
+uv run prek install
 ```
 
 ## Verify Setup

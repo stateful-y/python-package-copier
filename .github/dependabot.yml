@@ -27,7 +27,9 @@ updates:
           - "ruff"
           - "rumdl"
           - "interrogate"
-          - "pre-commit*"
+          # prek is the hook runner. Its version is what pins the `repo: builtin`
+          # hooks' implementations, so it belongs in lockstep with the linters.
+          - "prek"
       # Batch everything else (runtime, tests, docs) into a second PR to keep noise low.
       python-dependencies:
         patterns:

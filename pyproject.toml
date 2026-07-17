@@ -32,7 +32,7 @@ tests = [
     # A generated project is format-checked with ruff (test_generated_project_is
     # _ruff_format_clean): the template's Python lives in .jinja files that ruff
     # never sees here, so unformatted code ships and a generated project's first
-    # pre-commit run reformats template-owned files and reds its CI. Pinned to
+    # hook run reformats template-owned files and reds its CI. Pinned to
     # match the lint group so the check agrees with what a project would run.
     "ruff>=0.15.21",
 ]
@@ -47,7 +47,10 @@ docs = [
     "mkdocstrings[python]>=1.0.6",
 ]
 fix = [
-  "pre-commit-uv>=4.2.2",
+  # prek runs the hooks. Pinned here, never invoked via `uvx`: prek substitutes its
+  # own Rust implementations for the `repo: builtin` hooks, so an unpinned prek would
+  # mean unpinned hook code -- exactly what the config comment below rules out.
+  "prek>=0.4.10",
 ]
 
 [tool.hatch.version]
@@ -116,6 +119,7 @@ select = [
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
     "PL",  # Pylint
+    "T10", # flake8-debugger
     "T201", # Print statement
 ]
 ignore = [
