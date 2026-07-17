@@ -3476,29 +3476,65 @@ def test_docs_use_no_em_or_en_dashes(copie_session_default):
     assert not offenders, "seeded docs punctuate with em/en dashes:\n" + "\n".join(offenders)
 
 
+# What the fleet actually runs, verified against all seven generated repos. A pin the
+# fleet does not run is not a stale version number, it is a permanent local delta in
+# every repo that copier must replay on every release -- see the test below.
+EXPECTED_ACTION_PINS = {
+    "actions/checkout": "v7",
+    "actions/github-script": "v9",
+    "actions/upload-artifact": "v7",
+    "amannn/action-semantic-pull-request": "v6",
+    "astral-sh/setup-uv": "v7",
+    "codecov/codecov-action": "v7",
+    "codecov/test-results-action": "v1",
+    "dawidd6/action-download-artifact": "v21",
+    "peter-evans/create-pull-request": "v8",
+    "pypa/gh-action-pypi-publish": "release/v1",
+    "taiki-e/install-action": "v2",
+}
+
+
 def test_action_pins_are_consistent_and_current(copie_session_default):
-    """Every workflow pins the same actions/checkout, and it is the one the fleet runs.
+    """Every workflow pins one version per action, and it is the one the fleet runs.
 
-    The template pinned @v6 while every generated repo had been dependabot-bumped
-    to @v7. That gap is not cosmetic: when a release inserts a job whose checkout
-    step is textually identical to an existing one, the patch aligns the repo's v7
-    line with the *inserted* job and pushes the template's v6 down into the old
-    one. Two repos hit exactly that. CI cannot catch it -- v6 works -- so it
-    reviews past as a version bump.
+    A pin the fleet does not run is not a stale version number. Dependabot bumps the
+    repo, so the difference becomes a local delta copier must replay on every release,
+    and when a release touches that workflow the hunk can fail and take the repo's own
+    bump down with it -- silently, because the older version still works and CI stays
+    green. The template pinned checkout @v6 against a fleet on @v7 and two repos had
+    the pin stranded on the wrong job. Then v0.25.0 fixed checkout alone, and the very
+    next fan-out found `github-script` doing it again in two more repos: the repo's
+    v8->v9 bump shared a hunk with its v6->v7 checkout bump, the hunk stopped applying
+    once the template shipped v7 itself, and github-script silently fell back to v8.
 
-    Pinned rather than merely self-consistent: consistency alone is satisfied by
-    the whole fleet drifting together, which is the state this fixes.
+    This asserted only actions/checkout while four other pins matched no repo in the
+    fleet, which is why it passed throughout. Checking every action is the point: a
+    partial check that reads as a complete one is worse than none.
+
+    Pinned rather than merely self-consistent: consistency alone is satisfied by the
+    whole fleet drifting together, which is the state this fixes.
     """
     workflows = sorted((copie_session_default.project_dir / ".github" / "workflows").glob("*.yml"))
     assert workflows, "no workflows generated"
 
     pins = {}
     for wf in workflows:
-        for match in re.finditer(r"uses:\s*actions/checkout@(\S+)", wf.read_text(encoding="utf-8")):
-            pins.setdefault(match.group(1), []).append(wf.name)
+        for match in re.finditer(r"uses:\s*([\w./-]+)@(\S+)", wf.read_text(encoding="utf-8")):
+            pins.setdefault(match.group(1), {}).setdefault(match.group(2), []).append(wf.name)
 
-    assert pins, "no actions/checkout usage found; this test would assert nothing"
-    assert set(pins) == {"v7"}, f"actions/checkout pins are {dict(pins)}; expected every one at v7"
+    assert pins, "no `uses:` action pins found at all; this test would assert nothing"
+
+    split = {a: {v: sorted(f) for v, f in vs.items()} for a, vs in pins.items() if len(vs) > 1}
+    assert not split, f"these actions are pinned at more than one version: {split}"
+
+    actual = {action: next(iter(versions)) for action, versions in pins.items()}
+    unknown = sorted(set(actual) - set(EXPECTED_ACTION_PINS))
+    assert not unknown, (
+        f"new actions {unknown} are pinned but absent from EXPECTED_ACTION_PINS; check what the "
+        f"fleet runs and record it, rather than letting a fresh pin drift from day one"
+    )
+    wrong = {a: (v, EXPECTED_ACTION_PINS[a]) for a, v in actual.items() if EXPECTED_ACTION_PINS[a] != v}
+    assert not wrong, f"pins disagree with what the fleet runs (action: template -> expected): {wrong}"
 
 
 def test_nav_order_is_diataxis_with_reference_last(copie_session_default, copie_minimal):
