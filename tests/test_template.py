@@ -4025,6 +4025,36 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
 
 
+def test_release_jobs_agree_on_the_version_they_are_shipping(copie_session_default):
+    """Both publish-release jobs must read the same version out of the same PR title.
+
+    create-release used a pre-release-aware pattern and pypi-publish a plain one, so
+    for `v1.2.0-alpha.1` the first cut a release for v1.2.0-alpha.1 while the second
+    went looking for v1.2.0's artifacts and found nothing. Nothing catches it until a
+    project ships its first pre-release, and sklearn-optuna carries a local patch to
+    the second job -- which means every generated project needs the same patch.
+
+    Runs the patterns rather than comparing them: two different spellings of a correct
+    regex are fine, and one spelling used twice is not the property under test.
+    """
+    workflow = copie_session_default.project_dir / ".github" / "workflows" / "publish-release.yml"
+    assert workflow.is_file(), "no publish-release workflow; this test would assert nothing"
+
+    patterns = re.findall(r"grep -oP '([^']+)'", workflow.read_text(encoding="utf-8"))
+    assert patterns, "no version-extraction pattern found; this test would assert nothing"
+
+    title = "chore(release): update CHANGELOG.md for v1.2.0-alpha.1"
+    extracted = set()
+    for pattern in patterns:
+        found = re.search(pattern.replace(r"\.", r"\."), title)
+        extracted.add(found.group(0) if found else None)
+
+    assert extracted == {"v1.2.0-alpha.1"}, (
+        f"the release jobs disagree about which version this PR ships: {extracted}. A job that "
+        f"reads v1.2.0 will look for artifacts the job that read v1.2.0-alpha.1 never published"
+    )
+
+
 def test_nightly_tests_the_pythons_the_project_supports(copie):
     """The nightly matrix follows the answers, like every other matrix does.
 
