@@ -47,11 +47,23 @@ a template bug: report it, do not accommodate it.
 2. **Diff the two pristine renders across the version pair, per `include_examples` value.**
    This tells you what each repo will actually receive, and it is the only thing that makes
    a later "untouched!" result meaningful. Do it before writing the briefs.
-3. **Give each agent a scratch directory unique to its repo.** Agents have collided at the
-   shared scratchpad root and overwritten each other's scripts. One even found a foreign
-   script pointed at another repo's clone and correctly refused to run it.
-4. **Assume the clones are gone.** The scratchpad is wiped between sessions. Have each
-   agent clone fresh from its PR branch; the work lives on GitHub, not on disk.
+3. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
+   it writes inside that directory.** A unique directory is necessary but not sufficient:
+   agents have still collided at the shared scratchpad root. One had a sibling overwrite its
+   script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
+   empty lists. Another found a foreign script pointed at a different repo's clone and
+   correctly refused to run it. Tell each agent to distrust any file it did not write.
+4. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
+   wiped between sessions — agents have found their previous clones intact, at the previous
+   release's ref. That is the more dangerous direction: a stale clone updates from the wrong
+   baseline and every later measurement is against a fiction. Have each agent clone fresh,
+   and verify the ref it actually landed on rather than the ref it asked for. The work lives
+   on GitHub, not on disk.
+5. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
+   carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
+   release that created it; the content advances every release while `main` stays behind. The
+   branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
+   the branch and resolve it against the tag list.
 
 ## 3. What every repo must satisfy (the invariants)
 
