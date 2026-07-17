@@ -20,12 +20,12 @@ dev = [
     {include-group = "fix"},
 ]
 tests = [
-    "copier>=9.11",
+    "copier>=9.17.0",
     # hooks tests drive on_page_content, and _process_api_page_content imports
     # mkdocs.structure.toc, so mkdocs must be importable from the test env.
     "mkdocs>=1.6",
-    "pytest>=8.3",
-    "pytest-cov>=7.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "pytest-mock>=3.14",
     "pytest-xdist>=3.8",
     "covdefaults>=2.3",
@@ -43,8 +43,8 @@ lint = [
 ]
 docs = [
     "mkdocs>=1.6.0",
-    "mkdocs-material>=9.7",
-    "mkdocstrings[python]>=0.26.0",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.6",
 ]
 fix = [
   "pre-commit-uv>=4.2.2",
