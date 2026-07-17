@@ -52,6 +52,14 @@ _skip_if_exists:
   # file "must never be overwritten" -- that classification is advisory and
   # copier ignores it; this line is what enforces it.
   - "docs/pages/examples/index.md"
+  # Troubleshooting is a seed page too, and it was missed. A project's entries are
+  # about *its* failures -- sklearn-wrap's 225-line error reference, yohou-nixtla's
+  # 178 lines on frequency detection, panel separators, NaN loss and CUDA OOM --
+  # and none of that resembles the template's generic stub. v0.25.0 touched one
+  # em-dash in the stub's prose and both pages reverted to it, each surviving only
+  # in a .rej. The stub also links to configure.md, which a project need not have,
+  # so the revert can leave a broken link behind it.
+  - "docs/pages/how-to/troubleshooting.md"
 
 _envops:
   block_start_string: "{%"

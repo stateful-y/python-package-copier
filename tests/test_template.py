@@ -3259,10 +3259,15 @@ def test_seed_pages_every_project_rewrites_are_never_redelivered(copie_session_d
 
     # The gallery index goes the same way once curated: yohou's lists six
     # hand-written section pages and v0.22.0 overwrote it with the generic one.
+    # Troubleshooting was the one this list missed. A project's entries are about
+    # its own failures -- sklearn-wrap's 225-line error reference, yohou-nixtla's
+    # 178 lines on frequency detection and CUDA OOM -- and v0.25.0 touched a single
+    # em-dash in the stub's prose and reverted both to it.
     seed_pages = (
         "docs/index.md",
         "docs/pages/tutorials/getting-started.md",
         "docs/pages/examples/index.md",
+        "docs/pages/how-to/troubleshooting.md",
     )
     for page in seed_pages:
         assert page in skipped, f"{page} is re-delivered on every update; a stray line reverts it to the stub"
@@ -4018,6 +4023,65 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
     assert "Summary from frontmatter." in out, "a frontmatter description was not used as the summary"
     assert "The first real paragraph." in out, "the first prose paragraph was not used as the summary"
     assert "An admonition, not the summary." not in out, "an admonition was mistaken for the page's opening prose"
+
+
+def test_nightly_tests_the_pythons_the_project_supports(copie):
+    """The nightly matrix follows the answers, like every other matrix does.
+
+    nightly.yml hardcoded ["3.11", "3.12", "3.13", "3.14"] while tests.yml derived
+    its matrix from min/max_python_version. A project that caps below 3.14 gets a
+    nightly job on a Python it does not support: yohou-nixtla excludes 3.14 because
+    scipy ships no cp314 wheel, kedro-azureml has capped at 3.13 since its first
+    commit. Both had deleted it locally, so the hardcoded list came back as a
+    rejected hunk on every update, and the nightly went red on a version nobody
+    claimed to support.
+
+    Driven through a real render at a capped max, reproducing yohou-nixtla's answers.
+    The default answers happen to end at 3.14, so the hardcoded list matched them
+    exactly -- which is why this looked correct for as long as it did.
+    """
+    import yaml
+
+    result = copie.copy(extra_answers={"min_python_version": "3.11", "max_python_version": "3.13"})
+    assert result.exit_code == 0
+    project_dir = result.project_dir
+
+    nightly = yaml.safe_load((project_dir / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8"))
+    tests = yaml.safe_load((project_dir / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8"))
+
+    matrix = nightly["jobs"]["test"]["strategy"]["matrix"]["python-version"]
+    assert matrix, "the nightly matrix is empty; this test would assert nothing"
+
+    answers = yaml.safe_load((project_dir / ".copier-answers.yml").read_text(encoding="utf-8"))
+    lo, hi = answers["min_python_version"], answers["max_python_version"]
+    assert all(lo <= v <= hi for v in matrix), (
+        f"nightly runs {matrix}, outside the project's own {lo}-{hi}; it is hardcoded, not derived"
+    )
+    assert matrix == tests["jobs"]["test-full"]["strategy"]["matrix"]["python-version"], (
+        "nightly and the full test suite disagree about which Pythons this project supports"
+    )
+
+
+def test_hooks_docstrings_read_as_instructions(copie_session_default):
+    """docs/hooks.py survives a docstring linter, because projects lint it.
+
+    The template does not `select = ["D"]`, so a pristine render lints clean and the
+    template cannot see this. Projects can: yohou selects D, and v0.25.0's new
+    _module_source docstring ("The file backing a submodule...") tripped D401 there,
+    reddening a repo for a file the template owns and Tier 1 forbids it editing. The
+    repo's only outs were a local ignore that drifts forever, or a fork of a Tier 1
+    file. Neither should be the price of a template docstring.
+    """
+    hooks = copie_session_default.project_dir / "docs" / "hooks.py"
+    assert hooks.is_file(), "no hooks.py generated; this test would assert nothing"
+
+    result = subprocess.run(
+        ["uvx", "ruff", "check", "--select", "D401", "--no-cache", str(hooks)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"docs/hooks.py fails D401 in any project that lints docstrings:\n{result.stdout}"
 
 
 def test_the_two_skill_mirrors_stay_byte_identical():
