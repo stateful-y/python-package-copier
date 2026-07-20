@@ -139,22 +139,39 @@ class TestAPISubmodulePages:
         assert "# API Reference" in content
 
     def test_hooks_has_api_discovery_functions(self, copie_session_default):
-        """Test that hooks.py has API submodule discovery functions."""
+        """The API discovery layer ships, and has exactly one definition.
+
+        Discovery lives in ``docs/_api_pages.py``; ``hooks.py`` imports what the
+        page hooks need. Asserting each name against the module that owns it is
+        what keeps a second, drifting copy from passing this test.
+        """
         result = copie_session_default
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
-        assert "_get_submodules" in content
-        assert "_generate_api_pages" in content
-        assert "_build_api_table_html" in content
-        assert "_extract_module_docstring" in content
-        assert "_get_module_members" in content
-        assert "_build_members_tables" in content
+        docs = result.project_dir / "docs"
+        api_pages = (docs / "_api_pages.py").read_text()
+        hooks = (docs / "hooks.py").read_text()
+        for name in (
+            "_get_submodules",
+            "_generate_api_pages",
+            "_extract_module_docstring",
+            "_get_module_members",
+            "_build_members_tables",
+        ):
+            assert f"def {name}" in api_pages, f"{name} missing from _api_pages.py"
+            assert f"def {name}" not in hooks, f"{name} was redeclared in hooks.py instead of imported"
+        # Built while rendering a page, so it stays with the page hooks.
+        assert "_build_api_table_html" in hooks
 
     def test_hooks_on_pre_build_generates_api_pages(self, copie_session_default):
-        """Test that on_pre_build always exists for API page generation."""
+        """on_pre_build still triggers API generation, by delegating to the step.
+
+        The hook must survive the split: ``mkdocs.yml`` watches ``src`` so that
+        adding a class shows up without restarting ``mkdocs serve``, and that only
+        works because this hook regenerates on every rebuild.
+        """
         result = copie_session_default
         content = (result.project_dir / "docs" / "hooks.py").read_text()
         assert "on_pre_build" in content
-        assert "_generate_api_pages" in content
+        assert "_api_pages.generate(" in content
 
     def test_gitignore_excludes_generated_api_pages(self, copie_session_default):
         """Test that .gitignore excludes generated API pages."""
@@ -364,7 +381,11 @@ class TestHooksSkipNotebooks:
     """Test MKDOCS_SKIP_NOTEBOOKS support."""
 
     def test_hooks_supports_skip_notebooks(self, copie):
-        """Test that hooks.py checks MKDOCS_SKIP_NOTEBOOKS env var."""
+        """The notebook export honours MKDOCS_SKIP_NOTEBOOKS.
+
+        The check moved with the export loop into ``docs/_notebooks.py``; it is
+        what lets ``check_docs`` build without executing every notebook.
+        """
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
+        content = (result.project_dir / "docs" / "_notebooks.py").read_text()
         assert "MKDOCS_SKIP_NOTEBOOKS" in content

@@ -37,11 +37,15 @@ def test_hooks_file_created_with_examples(copie_with_examples):
     assert "on_pre_build" in hooks_content, "on_pre_build hook not found"
     assert "on_post_build" in hooks_content, "on_post_build hook not found"
 
-    # Verify marimo export logic is present
-    assert "marimo" in hooks_content, "marimo export logic not found"
-    assert "export" in hooks_content, "export logic not found"
-    assert "--no-sandbox" in hooks_content, "--no-sandbox flag not found"
+    # The playground link is built while rendering a page, so it stays in the hooks.
     assert "marimo.app" in hooks_content, "marimo.app playground link not found"
+    # The export itself moved to _notebooks.py; assert against the module that owns it
+    # so this keeps failing if the export disappears, rather than passing because
+    # hooks.py still happens to mention marimo.
+    assert "_notebooks.export" in hooks_content, "on_pre_build does not delegate the notebook export"
+    notebooks_content = (copie_with_examples.project_dir / "docs" / "_notebooks.py").read_text(encoding="utf-8")
+    assert "marimo" in notebooks_content, "marimo export logic not found"
+    assert "--no-sandbox" in notebooks_content, "--no-sandbox flag not found"
 
 
 def test_hooks_file_created_without_examples(copie_without_examples):
@@ -308,7 +312,7 @@ def test_html_to_markdown_conversion_preserves_structure(copie_with_examples):
         </ul>
         """
 
-        markdown = hooks._html_to_markdown(test_html)
+        markdown = hooks._markdown_export._html_to_markdown(test_html)
 
         # Verify structure is preserved
         assert "# Main Title" in markdown, "H1 not converted"
@@ -344,7 +348,7 @@ def test_html_to_markdown_handles_tables(copie_with_examples):
         </table>
         """
 
-        markdown = hooks._html_to_markdown(test_html)
+        markdown = hooks._markdown_export._html_to_markdown(test_html)
 
         # Verify table structure
         assert "|" in markdown, "Table pipes not found"
