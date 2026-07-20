@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.27.2] - 2026-07-20
+
+This **patch release** includes 1 commit.
+
+
+### Refactoring
+- Extract the docs build steps out of hooks.py  ([#185](https://github.com/stateful-y/python-package-copier/pull/185)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.27.1] - 2026-07-17
 
 This **patch release** includes 1 commit.
