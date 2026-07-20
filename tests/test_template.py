@@ -203,17 +203,27 @@ def test_pyproject_ruff_ignores_docs_directory(copie):
     # Should have per-file-ignores covering both docs/ populations
     assert "[tool.ruff.lint.per-file-ignores]" in content
     # The hooks implement mkdocs' event signatures, so they need the unused-argument
-    # exemptions. The extracted build steps implement no imposed signature and
-    # deliberately do NOT get them -- an unused parameter there is a real defect,
+    # exemptions. Everything else under docs/ implements no imposed signature and
+    # deliberately does NOT get them -- an unused parameter there is a real defect,
     # and this test would pass on a single broad "docs/**/*" glob that hid it.
     assert '"docs/hooks.py"' in content
-    assert '"docs/_*.py"' in content
     assert "T201" in content  # Print statement
     assert "ARG001" in content  # Unused function argument
     hooks_ignores = content.split('"docs/hooks.py"')[1].split("\n")[0]
-    steps_ignores = content.split('"docs/_*.py"')[1].split("\n")[0]
+    docs_ignores = content.split('"docs/*.py"')[1].split("\n")[0]
     assert "ARG001" in hooks_ignores, "hooks lost its event-signature exemption"
-    assert "ARG001" not in steps_ignores, "the build steps must not get a blanket unused-argument exemption"
+    assert "ARG001" not in docs_ignores, "docs scripts must not get a blanket unused-argument exemption"
+
+    # The glob must match a PROJECT-OWNED script, not just the ones the template
+    # ships. v0.27.2 used "docs/_*.py", which silently dropped lint coverage for
+    # yohou's docs/precache_datasets.py -- removing the exemption without removing
+    # the lint. Assert the pattern, because the failure is a missing match and a
+    # test that only checks the template's own files cannot see it.
+    assert '"docs/*.py"' in content, (
+        'the docs glob must be "docs/*.py", not "docs/_*.py" -- a project-owned '
+        "script under docs/ would otherwise lose its print exemption"
+    )
+    assert '"docs/_*.py"' not in content, 'the narrow "docs/_*.py" glob was replaced by "docs/*.py"'
 
 
 def test_generated_project_has_correct_license(copie):
