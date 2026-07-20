@@ -29,10 +29,10 @@ would get a silent empty return from it, but none exists yet.
 | **yohou** | True | The reference implementation and the biggest: ~79 notebooks in **7** groups (6 `examples/` subdirs plus top-level `quickstart.py`), 46 companion pages, 6 curated section pages, hand-written See Also bullets, a 35-link how-to index grouped under 8 headings. It **deleted the seed how-tos** (`contribute.md`, `troubleshooting.md`) for 36 curated ones, so any release touching those is inert here. The only repo that `select`s ruff's `D`, so it is the only one that sees a docstring defect in a template-owned file. Its docs are the quality bar — do not "normalise" them without a reason. |
 | yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed, so `BaseNixtlaForecaster` reached the API only once `_get_root_members` landed (17→18 rows). Answers cap at `max_python_version: 3.13` — scipy ships no cp314 wheel. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race, `/en/stable/` 404 (no stable release yet). |
 | yohou-optuna | True | 5 notebooks, all flat. Carries **15 custom skills / 36 files** under `.claude/skills/` that must stay tracked. (`plot_model_comparison_bar` is **yohou's**, not this repo's — an earlier version of this table said otherwise.) |
-| sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`**, not for the docs build: `check_docs` passes with pydantic absent because nox builds its own env and mkdocstrings uses griffe's static analysis. Went RTD-red once from the v0.22.0 gallery bug. |
+| sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`** and for **notebook execution during export**, but *not* for rendering: `check_docs` passes with pydantic absent because mkdocstrings uses griffe's static analysis. So `build_docs`/`build_steps` fail locally on `examples/yaml_config.py` while CI and RTD stay green — RTD's recipe passes the extra, the nox sessions never got it (`test_docstrings` already does, so the pattern exists locally). Pre-existing, verified identical on the prior tag. An earlier version of this table said the extra was "not for the docs build", full stop; that is wrong for the export leg. `test_docstrings` has **no matrix parametrization** here — a single ubuntu job on 3.11 — so do not go looking for one to preserve. Went RTD-red once from the v0.22.0 gallery bug. |
 | sklearn-optuna | True | 9 flat notebooks. Some See Also entries resolve into the `sklearn_optuna` dependency's own inventory — that is correct, not a defect. |
 | **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` nightly job (with its `needs:`) that copier has deleted before. |
-| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical (46 warnings). Keeps a local `inventories` list. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. Answers cap at `max_python_version: 3.13`. |
+| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), not 24. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
 
 **`include_examples: False` is real and load-bearing.** For those two repos the gallery,
 companion-notebook and `GALLERY:section` machinery is Jinja-gated *out of their
@@ -169,6 +169,15 @@ Group a section index under `##` headings only when it is big enough to need it 
 - **`gh pr edit` silently fails here** (GraphQL Projects-classic deprecation). Use
   `gh api -X PATCH repos/OWNER/REPO/pulls/N -f title=... -F body=@file` and **read it back**.
 - **A CONFLICTING PR runs no Actions.** "0 failures" out of ~1 check is meaningless.
+- **`gh pr checks --json name,bucket` silently returns EMPTY here** while the plain text
+  form works. Two agents in one release built CI monitors on it and each watched an empty
+  result for ~10 minutes before re-querying directly. So "0 checks" has *two* causes now —
+  a conflicting PR, and this. Confirm with a second method before believing either.
+- **`Validate Commit Message` skips on a multi-commit PR** — it carries
+  `if: github.event.pull_request.commits == 1`. Folding a second release into an open PR
+  flips it from pass to skip, which is correct, not a regression: with two commits GitHub
+  takes the squash title from the **PR title**, which `pr-title.yml` validates instead.
+  **This makes the PR title load-bearing for the changelog** — update it when you fold.
 - **RTD 403s urllib's user-agent** — use `curl`.
 - A stale `.rumdl_cache` gives a **false clean**. Delete it and re-run.
 - Cached notebook exports (`.source_hash`) make a docs build **vacuous**. Clear
@@ -230,13 +239,25 @@ overwrote it, the new one didn't" *is* a valid A/B on identical inputs.
 the ToC sidebar inflates counts ~3×.
 Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings emits
 multi-line `title=` attributes and the split cuts inside the tag, silently dropping entries.
-And do not key a See Also audit on `<details class="see-also">` in *final* HTML: there is
-none, because `_process_api_page_content` dissolves that container. Zero hits reads as a
-clean pass and is total blindness — two agents found this independently. The real markup is
-a heading with `id="see-also"` (h3 generated, h2 hand-written), and the surfaces do not
-share a shape: h2/h3 are `<ul><li>`, `details.see-also` is `<p>` plus newlines, so a
-single-shape counter silently collapses each list to one entry. **Make the audit abort on
-zero rather than report all-clear.**
+And do not key a See Also audit on `<details class="see-also">` in *final* HTML: on a
+**generated API page** there is none. Zero hits reads as a clean pass and is total
+blindness — two agents found this independently. The real markup is a heading with
+`id="see-also"`.
+
+**But "no `details.see-also` survives" is true of generated pages only, and an earlier
+version of this file stated it unconditionally.** A hand-written page that renders its own
+See Also keeps its container — kedro-dagster's curated `pages/reference/datasets.md` does.
+So there are **three** shapes in the fleet, not two: heading + `<ul><li>`, heading + `<p>`
+(single-entry sections), and a surviving container. A single-shape counter collapses each
+list to one entry or misses whole sections; three agents in one release each reported a
+confident false count (15, 17 and 15 "unlinked") before going shape-agnostic. **Write the
+audit shape-agnostic and make it abort on zero rather than report all-clear.**
+
+One more vacuous-check trap, found four times independently in one release: **testing
+`T201` against `docs/hooks.py` proves nothing** — since the build steps moved out, that
+file contains zero `print()` calls, so the rule cannot fire and every configuration looks
+clean. Test a rule that actually fires in the file you are checking, and confirm with
+`--isolated` that the ignore suppresses a real finding.
 
 **Do NOT drive a headless browser for the DataTables filter.** An earlier version of this
 file said to, and every agent that read it dutifully installed one — seven browsers per
@@ -250,8 +271,24 @@ present, the init script emitted, the pinned CDN URLs returning 200 — and say 
 this does **not** prove the JS executes. That is the honest limit, and the right trade.
 If the pin is ever bumped, that is when a real browser check earns its cost.
 
+**`max_python_version` is not the interpreter constraint — `requires-python` is.** An
+unpinned nox session takes the ambient interpreter, and whether that fails depends on the
+project's `requires-python`, not on the answers file. yohou-nixtla (`>=3.11,<3.14`) failed
+on a 3.14 machine; kedro-azureml-pipeline caps at `max_python_version: 3.13` in its answers
+but has `>=3.11` with **no upper bound**, so the identical session ran fine on 3.14. Same
+cap, opposite outcomes. `max_python_version` constrains `ALL_VERSIONS` and the classifiers;
+it never reaches `uv sync`. Predicting one from the other produced a wrong brief once —
+check the actual `requires-python` before claiming a session will fail.
+
 **Prefer a no-op to churn.** If a repo already satisfies the change, say so plainly and
 push nothing.
+
+**A fan-out is the cheapest audit this fleet gets, and its findings are the point.** One
+release's fan-out found four factual errors in *this file* — every one a claim an agent was
+handed as fact and checked anyway. It also caught a bug in the release being shipped early
+enough to fix upstream and fold into the same open PRs, so no repo ever carried a
+workaround. **When an agent reports that this file is wrong, fix this file** — the next
+release reads it.
 
 ## 6. Reporting
 
