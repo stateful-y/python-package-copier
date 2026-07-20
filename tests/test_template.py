@@ -1774,23 +1774,30 @@ class _FakePage:
 
 
 def _see_also_page(package_name, class_name, entries, *, method_entries=""):
-    """Build a page shaped like real mkdocstrings output.
+    """Build a page shaped like real mkdocstrings output, as the templates emit it.
 
-    The ``<h2 id="{pkg}.{Class}">`` and the ``doc-children`` boundary are not
-    decoration: without the h2, ``_process_api_page_content`` returns early, and
-    a fixture missing it makes every downstream assertion meaningless.
+    The container is `<div class="doc-section-item doc-admonition-see-also">`,
+    written by the `admonition.html.jinja` override, with its heading emitted
+    separately by the `docstring.html.jinja` dispatcher. It used to be
+    `<details class="see-also">` -- the shipped markup -- which a restructuring
+    pass dissolved partway through `on_page_content`, forcing the linkifier to
+    run first. Both the pass and that ordering constraint are gone; this fixture
+    tracks the markup that actually ships, because a fixture describing markup
+    nobody emits tests nothing.
     """
+
+    def _section(body):
+        return (
+            '<h3 id="see-also" class="doc-section-heading">See Also</h3>'
+            f'<div class="doc-section-item doc-admonition-see-also"><p>{body}</p></div>'
+        )
+
     method_block = ""
     if method_entries:
-        method_block = (
-            f'<h3 id="{package_name}.{class_name}.fit">fit</h3>'
-            f'<details class="see-also" open><summary>See Also</summary><p>{method_entries}</p></details>'
-        )
+        method_block = f'<h4 id="{package_name}.{class_name}.fit">fit</h4>{_section(method_entries)}'
     return (
         f'<h2 id="{package_name}.{class_name}">{class_name}</h2>'
-        f'<div class="doc doc-contents">'
-        f'<details class="see-also" open><summary>See Also</summary><p>{entries}</p></details>'
-        f"</div>"
+        f'<div class="doc doc-contents">{_section(entries)}</div>'
         f'<div class="doc doc-children">{method_block}</div>'
     )
 
@@ -1837,8 +1844,9 @@ def test_see_also_links_class_level_entries(copie_session_minimal):
     )
     assert "Plain numpydoc." in out, "description text was altered"
     assert not re.search(r"<a[^>]*>NotARealThing", out), "unresolvable entry was linked"
-    # The container is gone by the end -- proof the linkifier ran before the restructure.
-    assert '<details class="see-also"' not in out
+    # The container survives now -- nothing dissolves it. What matters is that
+    # its entries were linked, which the assertions above already establish.
+    assert "doc-admonition-see-also" in out, "the See Also container was consumed by something"
 
 
 def test_see_also_links_method_level_entries(copie_session_minimal):
@@ -1990,21 +1998,26 @@ def test_see_also_links_member_path_entries(copie_session_minimal):
     assert 'identifier="Beta.build"' not in out, "member path was deferred to autorefs unqualified (never resolves)"
 
 
-def test_see_also_linkify_runs_before_restructure(copie_session_minimal):
-    """Order-locking: reordering on_page_content silently reverts this feature.
+def test_see_also_has_no_ordering_constraint(copie_session_minimal):
+    """The linkifier no longer depends on running before anything else.
 
-    Linkifying after the restructure produces nothing for class-level sections
-    while still working for method-level ones, so a test that only covers
-    method-level entries would not catch the regression.
+    There used to be an order-lock here: a restructuring pass dissolved the
+    `<details class="see-also">` container the linkifier matched, so linkifying
+    afterwards silently produced nothing for class-level sections while still
+    working for method-level ones -- a regression a method-only test would miss.
+
+    The container is now emitted by a template override and nothing consumes it,
+    so the constraint is gone. This asserts the *absence*: no dissolving pass may
+    come back, because reintroducing one would re-create the hazard without
+    reintroducing the test that caught it.
     """
     hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    body = hooks_source[hooks_source.index("def on_page_content") :]
-    linkify_at = body.index("_linkify_see_also(")
-    restructure_at = body.index("_process_api_page_content(")
-    assert linkify_at < restructure_at, (
-        "_linkify_see_also must be called BEFORE _process_api_page_content; "
-        "the latter dissolves the <details class='see-also'> block the former matches"
+    assert "_process_api_page_content" not in hooks_source, (
+        "the restructuring pass is back; it dissolves the See Also container and re-creates the order-lock"
     )
+    assert "ORDER IS LOAD-BEARING" not in hooks_source, "the ordering hazard comment is back"
+    body = hooks_source[hooks_source.index("def on_page_content") :]
+    assert "_linkify_see_also(" in body, "the linkifier must still run"
 
 
 def test_see_also_links_on_any_page_that_renders_a_docstring(copie_session_minimal):
@@ -2025,7 +2038,7 @@ def test_see_also_links_on_any_page_that_renders_a_docstring(copie_session_minim
     hooks = _load_hooks(project_dir, "seealso_any_page")
     _reset_hook_caches(hooks)
 
-    html = '<details class="see-also" open><summary>See Also</summary><p>Beta : Nope.</p></details>'
+    html = '<div class="doc-section-item doc-admonition-see-also"><p>Beta : Nope.</p></div>'
 
     # A curated reference page, two deep -- kedro-dagster's shape.
     page = _FakePage("pages/reference/datasets.md", "pages/reference/datasets/index.html")
@@ -2801,6 +2814,127 @@ def test_markdown_export_runs_against_a_prebuilt_site(copie_session_default, tmp
     assert "Body text." in fallback, "a page with no built HTML was not copied as source"
 
 
+def _toc_hrefs(html):
+    """Same-page hrefs listed in the rendered table of contents.
+
+    Parsed with nav nesting tracked, not sliced out of the raw HTML: every
+    heading also carries a permalink anchor with the identical href, so a naive
+    substring search finds `#greet-parameters` on any page that *has* that
+    heading, whether or not the ToC lists it -- which is exactly the distinction
+    this is used to assert.
+    """
+    from html.parser import HTMLParser
+
+    class _Nav(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.depth = 0
+            self.hrefs = set()
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "nav" and "md-nav--secondary" in (a.get("class") or ""):
+                self.depth += 1
+            elif tag == "nav" and self.depth:
+                self.depth += 1
+            if self.depth and tag == "a" and (a.get("href") or "").startswith("#"):
+                self.hrefs.add(a["href"])
+
+        def handle_endtag(self, tag):
+            if tag == "nav" and self.depth:
+                self.depth -= 1
+
+    p = _Nav()
+    p.feed(html)
+    p.close()
+    return p.hrefs
+
+
+def test_hooks_do_not_touch_the_table_of_contents(copie_session_default):
+    """The hooks build no table-of-contents entries and import no ToC machinery.
+
+    mkdocstrings registers every heading a template emits, so `page.toc` needs no
+    help. The hooks used to rebuild it by hand with `AnchorLink` objects, purely
+    because a regex invented those headings *after* the `toc` extension had run.
+    That is the one part of this file measured to have no path onto any other
+    renderer, and it is gone.
+    """
+    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
+    assert "mkdocs.structure.toc" not in source, "the hooks import ToC machinery again"
+    assert "AnchorLink" not in source, "the hooks construct ToC entries again"
+    assert "page.toc" not in source, "the hooks mutate page.toc again"
+
+
+@pytest.mark.parametrize("fixture_name", ["copie_session_default", "copie_session_minimal"])
+def test_mkdocstrings_template_overrides_ship(request, fixture_name):
+    """The overrides ship, and are wired where mkdocstrings actually reads them.
+
+    `custom_templates` is a PLUGIN-level key. Putting it under
+    `handlers.python.options` fails the build outright with
+    `PythonOptions.__init__() got an unexpected keyword argument`, so asserting
+    the key exists somewhere in the file would pass on a broken config.
+    """
+    import yaml
+
+    project_dir = request.getfixturevalue(fixture_name).project_dir
+    templates = project_dir / "docs" / "material" / "templates" / "python" / "material"
+    for rel in ("docstring.html.jinja", "class.html.jinja", "function.html.jinja", "docstring/admonition.html.jinja"):
+        assert (templates / rel).is_file(), f"missing override: {rel}"
+
+    raw = (project_dir / "mkdocs.yml").read_text(encoding="utf-8")
+    config = yaml.load(raw, Loader=type("L", (yaml.SafeLoader,), {}))
+    plugin = next(p["mkdocstrings"] for p in config["plugins"] if isinstance(p, dict) and "mkdocstrings" in p)
+    assert plugin.get("custom_templates") == "docs/material/templates", (
+        "custom_templates must sit at plugin level, not under handlers.python.options"
+    )
+    assert "custom_templates" not in plugin["handlers"]["python"].get("options", {}), (
+        "custom_templates under options fails the build"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("include_examples", [True, False])
+def test_section_headings_reach_the_table_of_contents(copie, include_examples, tmp_path):
+    """Docstring section headings appear in a built page's ToC.
+
+    This is the claim the whole change rests on: that a heading emitted from a
+    mkdocstrings template is registered for the table of contents automatically,
+    so nothing needs to rebuild `page.toc`. Asserted from a real build rather
+    than trusted -- and paired with a control, because "the sidebar contains
+    #parameters" would also pass if the sidebar simply contained everything.
+    """
+    project_dir = copie.copy(extra_answers={"include_examples": include_examples}).project_dir
+    env = dict(os.environ, UV_PROJECT_ENVIRONMENT=str(project_dir / ".venv"), MKDOCS_SKIP_NOTEBOOKS="1")
+    sync = ["uv", "sync", "--no-default-groups", "--group", "docs"]
+    if (project_dir / "examples").exists():
+        sync += ["--group", "examples"]
+    assert subprocess.run(sync, cwd=project_dir, env=env, capture_output=True, check=False).returncode == 0
+    build = subprocess.run(
+        ["uv", "run", "--no-sync", "mkdocs", "build", "--clean", "--strict"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert build.returncode == 0, build.stderr[-2000:]
+
+    page = project_dir / "site" / "pages" / "api" / "generated" / "test_project.hello.Greeter" / "index.html"
+    html = page.read_text(encoding="utf-8")
+    toc = _toc_hrefs(html)
+    assert toc, "no table of contents was parsed -- the assertions below would be vacuous"
+
+    for anchor in ("#parameters", "#see-also", "#source-code", "#methods"):
+        assert anchor in toc, f"{anchor} is missing from the rendered table of contents ({sorted(toc)})"
+    # Control: a heading that exists on the page but is deeper than toc_depth
+    # must NOT be listed. Without this the assertions above would also pass on a
+    # sidebar that simply listed every heading.
+    assert 'id="greet-parameters"' in html, "the method-level anchor should still exist on the page"
+    assert "#greet-parameters" not in toc, (
+        "method-level sections must stay out of the ToC (toc_depth), or a class page's sidebar becomes a wall"
+    )
+
+
 def test_no_phantom_cache_without_examples(copie_session_minimal):
     """The reset must not name caches a project does not define.
 
@@ -2851,7 +2985,7 @@ def test_see_also_links_list_form_entries(copie_session_minimal):
 
     html = (
         '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
-        '<details class="see-also" open><summary>See Also</summary>'
+        '<div class="doc-section-item doc-admonition-see-also">'
         "<ul><li>Beta : A list entry.</li></ul></details></div>"
         '<div class="doc doc-children"></div>'
     )
@@ -2877,7 +3011,7 @@ def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
     inner = '<li><autoref identifier="minimal_project.models.Beta"><code>Beta</code></autoref> : Explicit.</li>'
     html = (
         '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
-        f'<details class="see-also" open><summary>See Also</summary><ul>{inner}</ul></details></div>'
+        f'<div class="doc-section-item doc-admonition-see-also"><ul>{inner}</ul></div></div>'
         '<div class="doc doc-children"></div>'
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -3033,7 +3167,7 @@ def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minim
     html = (
         '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
         "<h3>Notes</h3><p>Beta : mentioned in prose, not a See Also entry.</p>"
-        '<details class="see-also" open><summary>See Also</summary><p>Gamma : A real entry.</p></details>'
+        '<div class="doc-section-item doc-admonition-see-also"><p>Gamma : A real entry.</p></div>'
         '</div><div class="doc doc-children"></div>'
     )
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -3347,6 +3481,10 @@ _CLASSIFICATION_PATTERNS = (
     "docs/examples/",
     ".github/skills/",
     ".claude/skills/",
+    # mkdocstrings template overrides. A whole tree rather than a line per file:
+    # its shape follows mkdocstrings' own template layout, so it changes when
+    # that does, and a per-file list would go stale on every handler bump.
+    "docs/material/templates/",
 )
 
 
