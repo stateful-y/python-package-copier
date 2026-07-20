@@ -31,12 +31,30 @@ class TestPyprojectNewDeps:
         assert "[tool.rumdl.per-file-ignores]" in content
 
     def test_ruff_docs_per_file_ignores_expanded(self, copie_session_default):
-        """Test that ruff per-file-ignores for docs/ includes PLW0603, SIM105, SIM108."""
+        """The docs per-file-ignores carry the exemptions those files actually need.
+
+        Asserts against the parsed ignore lists, not a substring sweep of the whole
+        file. The previous version checked `"SIM108" in content` and stayed green
+        for a release after SIM108 had been removed from every list -- the only
+        remaining match was the *comment* explaining that it had been dropped. A
+        check that a comment can satisfy is not checking the configuration.
+        """
+        import tomllib
+
         result = copie_session_default
         content = (result.project_dir / "pyproject.toml").read_text()
-        assert "PLW0603" in content
-        assert "SIM105" in content
-        assert "SIM108" in content
+        ignores = tomllib.loads(content)["tool"]["ruff"]["lint"]["per-file-ignores"]
+
+        # Every script under docs/ prints build progress and may hold per-build caches.
+        assert "T201" in ignores["docs/*.py"]
+        assert "PLW0603" in ignores["docs/*.py"]
+        # The hooks additionally implement mkdocs' imposed event signatures.
+        assert "SIM105" in ignores["docs/hooks.py"]
+        assert "ARG001" in ignores["docs/hooks.py"]
+        # SIM108 is deliberately absent: nothing under docs/ trips it since the
+        # build steps moved out, and an ignore for a rule that no longer fires
+        # reads as "this file needs an exemption" long after it stopped being true.
+        assert not any("SIM108" in v for v in ignores.values()), "SIM108 is unused; do not re-add it"
 
 
 class TestMkdocsYmlFeatures:
