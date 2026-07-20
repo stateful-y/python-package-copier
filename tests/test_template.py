@@ -7,6 +7,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -199,12 +200,20 @@ def test_pyproject_ruff_ignores_docs_directory(copie):
 
     content = pyproject_path.read_text(encoding="utf-8")
 
-    # Should have per-file-ignores section with docs/** configuration
+    # Should have per-file-ignores covering both docs/ populations
     assert "[tool.ruff.lint.per-file-ignores]" in content
-    # Should ignore prints (T201) and unused args (ARG001) in docs
-    assert '"docs/**/*"' in content
+    # The hooks implement mkdocs' event signatures, so they need the unused-argument
+    # exemptions. The extracted build steps implement no imposed signature and
+    # deliberately do NOT get them -- an unused parameter there is a real defect,
+    # and this test would pass on a single broad "docs/**/*" glob that hid it.
+    assert '"docs/hooks.py"' in content
+    assert '"docs/_*.py"' in content
     assert "T201" in content  # Print statement
     assert "ARG001" in content  # Unused function argument
+    hooks_ignores = content.split('"docs/hooks.py"')[1].split("\n")[0]
+    steps_ignores = content.split('"docs/_*.py"')[1].split("\n")[0]
+    assert "ARG001" in hooks_ignores, "hooks lost its event-signature exemption"
+    assert "ARG001" not in steps_ignores, "the build steps must not get a blanket unused-argument exemption"
 
 
 def test_generated_project_has_correct_license(copie):
@@ -775,14 +784,19 @@ def test_markdown_docs_script_configuration(copie):
     assert "on_pre_build" in hooks_content, "on_pre_build hook not found"
     assert "on_post_build" in hooks_content, "on_post_build hook not found"
 
-    # Check marimo export logic
-    assert "marimo" in hooks_content.lower(), "hooks.py doesn't handle marimo export"
-    assert "export" in hooks_content, "hooks.py doesn't export notebooks"
+    # The work itself lives in the build-step modules now; the hooks only delegate.
+    # Assert against the module that owns each behaviour, so this test keeps failing
+    # if a step disappears rather than passing because hooks.py happens to name it.
+    assert "_notebooks.export" in hooks_content, "on_pre_build doesn't delegate the notebook export"
+    assert "_markdown_export.export" in hooks_content, "on_post_build doesn't delegate the markdown export"
 
-    # Check HTML and markdown copying logic
-    assert "shutil.copy2" in hooks_content, "hooks.py doesn't copy files"
-    assert "index.html" in hooks_content, "hooks.py doesn't handle HTML files"
-    assert "markdown" in hooks_content.lower(), "hooks.py doesn't handle markdown files"
+    notebooks_content = (result.project_dir / "docs" / "_notebooks.py").read_text(encoding="utf-8")
+    assert "marimo" in notebooks_content.lower(), "_notebooks.py doesn't handle marimo export"
+    assert "index.html" in notebooks_content, "_notebooks.py doesn't write the exported page"
+
+    export_content = (result.project_dir / "docs" / "_markdown_export.py").read_text(encoding="utf-8")
+    assert "shutil.copy2" in export_content, "_markdown_export.py doesn't copy files"
+    assert "markdown" in export_content.lower(), "_markdown_export.py doesn't handle markdown files"
 
     # Verify mkdocs.yml configures hooks
     mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
@@ -1527,6 +1541,12 @@ def test_claude_skills_not_gitignored(copie_session_default):
     )
 
 
+# The build steps hooks.py imports as siblings. They are plain top-level module
+# names, so `sys.modules` caches them globally and a second project would silently
+# reuse the first project's copies -- see _load_hooks.
+_BUILD_STEP_MODULES = ("_api_pages", "_notebooks", "_markdown_export")
+
+
 def _load_hooks(project_dir, unique_suffix):
     """Import a generated docs/hooks.py under a unique module name.
 
@@ -1534,13 +1554,40 @@ def _load_hooks(project_dir, unique_suffix):
     generated hooks modules under one name makes ``sys.modules`` return the
     first, so the second variant is never actually exercised and the test
     passes while asserting nothing.
+
+    The same trap is wider than it looks. ``hooks.py`` puts its own directory on
+    ``sys.path`` and imports ``_api_pages``, ``_notebooks`` and
+    ``_markdown_export`` as plain top-level names, which ``sys.modules`` caches
+    globally -- so the *second* project loaded in a session would get the first
+    project's build steps, pointed at the first project's source tree, while its
+    own hooks module looked correctly isolated. Purging those names before each
+    load is what keeps the isolation real; ``sys.path.insert(0, ...)`` inside
+    hooks.py then resolves them against this project.
+
+    Reach the build steps through the returned module (``hooks._api_pages``),
+    not by importing them directly -- that is the copy bound to this project.
     """
     import importlib.util
+
+    for name in _BUILD_STEP_MODULES:
+        sys.modules.pop(name, None)
 
     spec = importlib.util.spec_from_file_location(f"generated_hooks_{unique_suffix}", project_dir / "docs" / "hooks.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _reset_hook_caches(hooks):
+    """Clear every per-build cache the hooks reach, across all modules.
+
+    Tests used to do ``hooks._SUBMODULE_CACHE = None``. After the build steps were
+    split out that assignment still *succeeds* -- it simply creates a new, unread
+    attribute on the hooks module -- while the real cache in ``_api_pages`` stays
+    populated and leaks into the next test. Calling the production reset is the
+    only version that cannot drift from what a build actually does.
+    """
+    hooks.on_config({})
 
 
 def _write_reexport_package(project_dir, package_name):
@@ -1646,8 +1693,7 @@ def test_api_name_lookup_without_importing_package(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "noimport")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     lookup = hooks._get_api_name_lookup(project_dir)
 
@@ -1662,10 +1708,9 @@ def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "interlock")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
-    hooks._generate_api_pages(project_dir)
+    hooks._api_pages._generate_api_pages(project_dir)
     generated = {p.stem for p in (project_dir / "docs" / "pages" / "api" / "generated").glob("*.md")}
     lookup = hooks._get_api_name_lookup(project_dir)
 
@@ -1677,16 +1722,24 @@ def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
 
 def test_api_name_lookup_available_without_examples(copie_session_minimal):
     """The lookup is not gated behind include_examples."""
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "def _get_api_name_lookup" in hooks_source, "lookup missing when examples are disabled"
-    assert "_API_NAME_LOOKUP_CACHE" in hooks_source, "lookup cache missing when examples are disabled"
+    docs = copie_session_minimal.project_dir / "docs"
+    api_pages_source = (docs / "_api_pages.py").read_text(encoding="utf-8")
+    hooks_source = (docs / "hooks.py").read_text(encoding="utf-8")
+    assert "def _get_api_name_lookup" in api_pages_source, "lookup missing when examples are disabled"
+    assert "_API_NAME_LOOKUP_CACHE" in api_pages_source, "lookup cache missing when examples are disabled"
     assert "def _get_notebook_api_usage" not in hooks_source, "gallery code leaked into a no-examples project"
+    assert not (docs / "_notebooks.py").exists(), "the notebook export module leaked into a no-examples project"
 
 
 def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
     """The gallery consumes the shared lookup instead of building its own map."""
     hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "def _get_api_name_lookup" in hooks_source
+    api_pages_source = (copie_session_default.project_dir / "docs" / "_api_pages.py").read_text(encoding="utf-8")
+    # Declared once, in the module that owns discovery; imported by name here so
+    # the gallery and the generator cannot disagree about what a symbol is called.
+    assert "def _get_api_name_lookup" in api_pages_source
+    assert "def _get_api_name_lookup" not in hooks_source, "the lookup was redeclared instead of imported"
+    assert "_get_api_name_lookup," in hooks_source, "hooks.py does not import the shared lookup"
     assert "name_to_qualified = _get_api_name_lookup(project_root)" in hooks_source, (
         "_get_notebook_api_usage must consume the shared lookup, not derive a second map"
     )
@@ -1755,8 +1808,7 @@ def test_see_also_links_class_level_entries(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_class")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     # One entry per line, as mkdocstrings actually renders them. Running them
     # together on one line hides whether the linkifier respects entry boundaries.
@@ -1784,8 +1836,7 @@ def test_see_also_links_method_level_entries(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_method")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "Beta : Class level.", method_entries="Gamma : Method level.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -1918,8 +1969,7 @@ def test_see_also_links_member_path_entries(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_member")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "Beta.build : Instantiate from a config.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -1963,8 +2013,7 @@ def test_see_also_links_on_any_page_that_renders_a_docstring(copie_session_minim
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_any_page")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = '<details class="see-also" open><summary>See Also</summary><p>Beta : Nope.</p></details>'
 
@@ -1994,8 +2043,7 @@ def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_external")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "sklearn.linear_model.Ridge : External.\nBeta : Project.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -2016,8 +2064,7 @@ def test_see_also_bare_unresolvable_name_is_left_alone(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_bare")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "NotAThing : Unknown bare name.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -2031,8 +2078,7 @@ def test_see_also_qualified_name_matches_bare_form(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_qualified")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "minimal_project.models.Beta : Qualified.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -2065,22 +2111,22 @@ def test_notebook_export_is_cached_by_source_hash(copie_session_default):
     output_dir = project_dir / "docs" / "examples" / "cache_probe"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    digest = hooks._notebook_content_hash(notebook)
+    digest = hooks._notebooks._notebook_content_hash(notebook)
 
     # Nothing exported yet.
-    assert not hooks._is_cached(output_dir, digest), "claimed a cache hit with no exported page"
+    assert not hooks._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no exported page"
 
     # A hash with no rendered page must not count: the export may have died
     # before writing the html, and reusing that ships a missing page.
-    (output_dir / hooks._SOURCE_HASH_FILE).write_text(digest, encoding="utf-8")
-    assert not hooks._is_cached(output_dir, digest), "claimed a cache hit with no index.html"
+    (output_dir / hooks._notebooks._SOURCE_HASH_FILE).write_text(digest, encoding="utf-8")
+    assert not hooks._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no index.html"
 
     (output_dir / "index.html").write_text("<html></html>", encoding="utf-8")
-    assert hooks._is_cached(output_dir, digest), "did not reuse an unchanged export"
+    assert hooks._notebooks._is_cached(output_dir, digest), "did not reuse an unchanged export"
 
     # Editing the notebook must invalidate it, or the site serves a stale render.
     notebook.write_text("x = 2\n", encoding="utf-8")
-    assert not hooks._is_cached(output_dir, hooks._notebook_content_hash(notebook)), (
+    assert not hooks._notebooks._is_cached(output_dir, hooks._notebooks._notebook_content_hash(notebook)), (
         "reused the export of an edited notebook"
     )
 
@@ -2096,8 +2142,7 @@ def _reset_gallery_caches(hooks):
     hooks._GALLERY_CACHE = None
     hooks._NOTEBOOK_API_USAGE_CACHE = None
     hooks._COMPANION_INDEX_CACHE = None
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
     hooks._GALLERY_PAGE_CACHE = None
 
 
@@ -2544,8 +2589,31 @@ def test_branding_is_documented_as_local_owned(copie_session_default):
     assert "docs/assets/made_by_stateful-y.png" in tier1, "the made-by mark should stay template-managed"
 
 
+def _cache_modules(hooks_module):
+    """The hooks module and every build step it loads.
+
+    The build steps are reached through the hooks module rather than imported
+    directly, so these are the instances bound to *this* generated project.
+    """
+    modules = [hooks_module]
+    modules += [m for m in (getattr(hooks_module, n, None) for n in _BUILD_STEP_MODULES) if m is not None]
+    return modules
+
+
 def _cache_names(hooks_module):
-    return [n for n in vars(hooks_module) if n.endswith("_CACHE") and not n.startswith("__")]
+    """Every ``*_CACHE`` global across every module the hooks load, as (module, name).
+
+    Scanning only ``hooks`` was correct until the build steps were split out of it.
+    Two of the caches now live in ``_api_pages``, and a scan of ``hooks`` alone
+    would keep passing while quietly covering less -- the guarantee is "every
+    ``*_CACHE`` global is cleared", not "every one that stayed behind".
+    """
+    return [
+        (module, name)
+        for module in _cache_modules(hooks_module)
+        for name in vars(module)
+        if name.endswith("_CACHE") and not name.startswith("__")
+    ]
 
 
 @pytest.mark.parametrize(
@@ -2564,19 +2632,26 @@ def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
     project_dir = request.getfixturevalue(fixture_name).project_dir
     hooks = _load_hooks(project_dir, f"reset_{fixture_name}")
 
-    names = _cache_names(hooks)
-    assert names, "no *_CACHE globals discovered"
-    assert ("_GALLERY_CACHE" in names) is expects_gallery, (
-        f"gallery cache presence should follow include_examples; found {sorted(names)}"
+    found = _cache_names(hooks)
+    assert found, "no *_CACHE globals discovered"
+    flat = {name for _, name in found}
+    assert ("_GALLERY_CACHE" in flat) is expects_gallery, (
+        f"gallery cache presence should follow include_examples; found {sorted(flat)}"
+    )
+    # The discovery caches moved to _api_pages with the functions that own them.
+    # Naming them explicitly is what stops this test from silently narrowing to
+    # "whatever stayed in hooks.py" if the scan is ever reduced to one module.
+    assert {"_SUBMODULE_CACHE", "_API_NAME_LOOKUP_CACHE"} <= flat, (
+        f"the API discovery caches are not being scanned; found {sorted(flat)}"
     )
 
     sentinel = object()
-    for name in names:
-        setattr(hooks, name, sentinel)
+    for module, name in found:
+        setattr(module, name, sentinel)
 
     hooks.on_config({})
 
-    still_set = [n for n in names if getattr(hooks, n) is sentinel]
+    still_set = [f"{module.__name__}.{name}" for module, name in found if getattr(module, name) is sentinel]
     assert not still_set, f"on_config did not clear: {still_set}"
 
 
@@ -2595,6 +2670,125 @@ def test_hooks_define_on_config_not_on_startup(copie_session_default):
     source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
     assert "def on_config(" in source, "no per-build reset"
     assert "def on_startup(" not in source, "on_startup fires once per invocation, not per build"
+
+
+def _module_imports(path):
+    """Top-level module names imported by a Python file, via AST."""
+    import ast as _ast
+
+    tree = _ast.parse(path.read_text(encoding="utf-8"))
+    names = set()
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Import):
+            names |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, _ast.ImportFrom) and node.module and node.level == 0:
+            names.add(node.module.split(".")[0])
+    return names
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "expects_notebooks"),
+    [("copie_session_default", True), ("copie_session_minimal", False)],
+)
+def test_build_steps_import_no_mkdocs(request, fixture_name, expects_notebooks):
+    """The extracted build steps must not depend on the site generator.
+
+    They are already independent in fact -- ``on_pre_build`` ignored its ``config``
+    argument and ``on_post_build`` used it for two directory strings. Stating it as
+    an enforced rule is what stops the next edit from re-coupling them, and it is
+    the property that makes them runnable and testable without a docs build.
+
+    Checked on the import graph rather than by grepping for the word: two
+    docstrings legitimately describe mkdocs-material HTML as their input format,
+    and a substring guard fails on both.
+    """
+    docs = request.getfixturevalue(fixture_name).project_dir / "docs"
+    steps = ["_api_pages.py", "_markdown_export.py"] + (["_notebooks.py"] if expects_notebooks else [])
+    for step in steps:
+        path = docs / step
+        assert path.is_file(), f"{step} was not generated"
+        assert "mkdocs" not in _module_imports(path), f"{step} imports mkdocs"
+
+
+def test_notebooks_module_absent_without_examples(copie_session_minimal):
+    """A project without examples gets no notebook export module, and no dangling call."""
+    docs = copie_session_minimal.project_dir / "docs"
+    assert not (docs / "_notebooks.py").exists(), "the notebook export module shipped without examples"
+    hooks_source = (docs / "hooks.py").read_text(encoding="utf-8")
+    assert "_notebooks" not in hooks_source, "hooks.py references a module this project does not have"
+
+
+def test_hooks_delegate_rather_than_implement(copie_session_default):
+    """The build hooks stay adapters; the work stays in the modules that own it.
+
+    The hooks must survive -- ``mkdocs.yml`` watches ``src`` so that adding a class
+    appears without restarting ``mkdocs serve``, and that only works because
+    ``on_pre_build`` regenerates on every rebuild. What must not come back is the
+    logic: this fails if generation, export or conversion creeps into hooks.py.
+    """
+    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
+    assert "_api_pages.generate(" in source, "on_pre_build does not delegate API generation"
+    assert "_notebooks.export(" in source, "on_pre_build does not delegate the notebook export"
+    assert "_markdown_export.export(" in source, "on_post_build does not delegate the markdown export"
+    for moved in ("def _generate_api_pages", "def _html_to_markdown", "def _notebook_content_hash"):
+        assert moved not in source, f"{moved} came back into hooks.py"
+
+
+def test_api_pages_generate_runs_without_a_docs_build(copie_session_default, tmp_path):
+    """``_api_pages.generate`` writes the API pages on its own.
+
+    The point of the split: this needs no theme, no server and no markdown, so it
+    should not cost a site build to exercise. Runs against a copy so the fixture
+    project's own generated pages are not disturbed.
+    """
+    project = tmp_path / "proj"
+    shutil.copytree(copie_session_default.project_dir, project, dirs_exist_ok=True)
+    api_dir = project / "docs" / "pages" / "api"
+    if api_dir.exists():
+        shutil.rmtree(api_dir)
+
+    hooks = _load_hooks(project, "steps_generate")
+    hooks._api_pages.generate(project)
+
+    assert (api_dir / "hello.md").is_file(), "no submodule page was generated"
+    generated = {p.name for p in (api_dir / "generated").glob("*.md")}
+    # Membership, not equality: the session fixture is shared, and earlier tests
+    # add modules to it. Asserting an exact set makes this fail on test ordering
+    # rather than on anything about the generator.
+    assert {"test_project.hello.Greeter.md", "test_project.hello.hello.md"} <= generated, sorted(generated)
+    body = (api_dir / "generated" / "test_project.hello.Greeter.md").read_text(encoding="utf-8")
+    assert "::: test_project.hello.Greeter" in body, "the member page does not point mkdocstrings at the symbol"
+    assert "template: api-page.html" in body, "the member page lost its template declaration"
+
+
+def test_markdown_export_runs_against_a_prebuilt_site(copie_session_default, tmp_path):
+    """``_markdown_export.export`` works on any site directory, not just its own.
+
+    Taking the directories as arguments is what makes this reachable from a
+    fixture; deriving them from ``__file__`` would tie the step to the tree it
+    happens to sit in.
+    """
+    docs_dir = tmp_path / "docs"
+    site_dir = tmp_path / "site"
+    (docs_dir / "pages").mkdir(parents=True)
+    site_dir.mkdir()
+    (docs_dir / "index.md").write_text("# Home\n\nBody text.\n", encoding="utf-8")
+    (docs_dir / "pages" / "guide.md").write_text("# Guide\n\nStep one.\n", encoding="utf-8")
+    # A built page: the exporter should prefer the rendered article over the source.
+    (site_dir / "pages" / "guide").mkdir(parents=True)
+    (site_dir / "pages" / "guide" / "index.html").write_text(
+        '<html><body><article class="md-content__inner md-typeset">'
+        "<h1>Guide</h1><p>Rendered step one.</p></article></body></html>",
+        encoding="utf-8",
+    )
+
+    hooks = _load_hooks(copie_session_default.project_dir, "steps_mdexport")
+    hooks._markdown_export.export(site_dir, docs_dir)
+
+    rendered = (site_dir / "pages" / "guide.md").read_text(encoding="utf-8")
+    assert "Rendered step one." in rendered, "the built HTML was not converted"
+    fallback = (site_dir / "index.md").read_text(encoding="utf-8")
+    assert "Body text." in fallback, "a page with no built HTML was not copied as source"
 
 
 def test_no_phantom_cache_without_examples(copie_session_minimal):
@@ -2643,8 +2837,7 @@ def test_see_also_links_list_form_entries(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_list")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = (
         '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
@@ -2669,8 +2862,7 @@ def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_explicit")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     inner = '<li><autoref identifier="minimal_project.models.Beta"><code>Beta</code></autoref> : Explicit.</li>'
     html = (
@@ -2696,10 +2888,9 @@ def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "table_render")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
-    hooks._generate_api_pages(project_dir)
+    hooks._api_pages._generate_api_pages(project_dir)
     page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text(encoding="utf-8")
 
     assert "### Classes" in page, "members table missing its Classes heading"
@@ -2721,8 +2912,7 @@ def test_api_name_lookup_prefers_the_published_path(copie_session_minimal):
         encoding="utf-8",
     )
     hooks = _load_hooks(project_dir, "prefer_public")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     lookup = hooks._get_api_name_lookup(project_dir)
 
@@ -2743,8 +2933,7 @@ def test_api_name_lookup_refuses_a_genuine_collision(copie_session_minimal):
             f'"""{mod}."""\n\n\nclass Duplicated:\n    """From {mod}."""\n', encoding="utf-8"
         )
     hooks = _load_hooks(project_dir, "collision")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     lookup = hooks._get_api_name_lookup(project_dir)
 
@@ -2796,8 +2985,7 @@ def test_see_also_leaves_description_text_alone(copie_session_minimal):
         '"""Prose."""\n\n\nclass Note:\n    """Named Note."""\n', encoding="utf-8"
     )
     hooks = _load_hooks(project_dir, "seealso_desc")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = _see_also_page("minimal_project", "Alpha", "Beta : Note: a colon-terminated word in the description.")
     out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
@@ -2830,8 +3018,7 @@ def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minim
     project_dir = copie_session_minimal.project_dir
     _write_models_module(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "seealso_scope_name")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     html = (
         '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
@@ -2917,8 +3104,7 @@ def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "api_index")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     prefix = hooks._site_root_prefix(_FakePage("pages/reference/api.md", "pages/reference/api/index.html"))
     html = hooks._build_api_table_html(project_dir, prefix)
@@ -2960,8 +3146,7 @@ def test_api_index_links_resolve_wherever_the_index_lives(copie_session_minimal,
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, f"api_index_{src_path.count('/')}_{len(prefix)}")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     page = _FakePage(src_path, dest_path)
     assert hooks._site_root_prefix(page) == prefix
@@ -3003,10 +3188,10 @@ def test_module_toc_is_built_and_resolves_wherever_the_page_lives(
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, f"mtoc_{template_name}_{src_path.count('/')}")
-    hooks._SUBMODULE_CACHE = None
+    hooks._api_pages._SUBMODULE_CACHE = None
 
     # The submodule pages the TOC points at are generated, not committed.
-    hooks._generate_api_pages(project_dir)
+    hooks._api_pages._generate_api_pages(project_dir)
 
     page = _FakePage(src_path, dest_path)
     page.meta["template"] = template_name
@@ -3076,8 +3261,7 @@ def test_dependency_reexports_stay_in_the_api(copie_session_minimal):
     project_dir = copie_session_minimal.project_dir
     pkg = _write_dependency_shim(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "depshim")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     members = hooks._get_public_members(pkg / "shim.py", pkg)
 
@@ -3104,8 +3288,7 @@ def test_plain_module_imports_are_not_api_without_dunder_all(copie_session_minim
     project_dir = copie_session_minimal.project_dir
     pkg = _write_dependency_shim(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "depshim_internal")
-    hooks._API_NAME_LOOKUP_CACHE = None
-    hooks._SUBMODULE_CACHE = None
+    _reset_hook_caches(hooks)
 
     members = hooks._get_public_members(pkg / "internal.py", pkg)
     names = {e["name"] for e in members["classes"] + members["functions"]}
@@ -3867,8 +4050,8 @@ def test_api_table_module_links_point_at_pages_that_exist(copie_session_minimal)
         encoding="utf-8",
     )
     hooks = _load_hooks(project_dir, "api_module_links")
-    hooks._SUBMODULE_CACHE = None
-    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
 
     html = hooks._build_api_table_html(project_dir, "")
     assert "BaseThing" in html, "no root export rendered; this test would assert nothing"
@@ -3911,8 +4094,8 @@ def test_root_only_exports_reach_the_api(copie_session_minimal):
         encoding="utf-8",
     )
     hooks = _load_hooks(project_dir, "root_exports")
-    hooks._SUBMODULE_CACHE = None
-    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
 
     html = hooks._build_api_table_html(project_dir, "")
     assert "BaseThing" in html, "a symbol exported only from the package root is missing from the API table"
@@ -3925,8 +4108,8 @@ def test_root_only_exports_reach_the_api(copie_session_minimal):
         f"root adoption swallowed a symbol that has a module: {[c['name'] for c in roots['classes']]}"
     )
 
-    hooks._SUBMODULE_CACHE = None
-    hooks._API_NAME_LOOKUP_CACHE = None
+    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
     assert hooks._get_api_name_lookup(project_dir).get("BaseThing") == "minimal_project.BaseThing", (
         "See Also cannot resolve a root-exported symbol"
     )
