@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.28.2] - 2026-07-21
+
+This **patch release** includes 2 commits.
+
+
+### Documentation
+- Correct six fan-out claims and record the v0.28.1 lessons  ([#195](https://github.com/stateful-y/python-package-copier/pull/195)) by @gtauzin
+
+### Refactoring
+- Discover the API surface with Griffe  ([#197](https://github.com/stateful-y/python-package-copier/pull/197)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.28.1] - 2026-07-21
 
 This **patch release** includes 1 commit.
