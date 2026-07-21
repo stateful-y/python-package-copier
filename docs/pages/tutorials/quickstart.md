@@ -43,7 +43,7 @@ cd my-package
 uv sync --group dev
 
 # Set up the git hooks
-uv run prek install
+uv run prek install -f
 ```
 
 ## Verify Setup

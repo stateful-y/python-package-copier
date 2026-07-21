@@ -47,7 +47,7 @@ cd python-package-copier
 uv sync --group test --group docs
 
 # Install the git hooks (required)
-uv run prek install
+uv run prek install -f
 ```
 
 ## Test Template Changes
@@ -203,7 +203,7 @@ Maintainers: see [About the Release Process](../explanation/release-process.md) 
 : Install uv first: `curl -LsSf https://astral.sh/uv/install.sh | sh`. Nox is run via `uvx`, not installed globally.
 
 **Problem: Hooks fail on first run**
-: Run `uv sync --group test` first to install all dependencies, then `uv run prek install`.
+: Run `uv sync --group test` first to install all dependencies, then `uv run prek install -f`.
 
 **Problem: Tests pass locally but fail in CI**
 : Check the Python version matrix. CI tests across 3.11–3.14 and multiple operating systems. Your local Python may differ.
