@@ -51,7 +51,14 @@ a template bug: report it, do not accommodate it.
 2. **Diff the two pristine renders across the version pair, per `include_examples` value.**
    This tells you what each repo will actually receive, and it is the only thing that makes
    a later "untouched!" result meaningful. Do it before writing the briefs.
-3. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
+3. **Give agents the expected DELTA, not an expected absolute count.** An absolute
+   ("expect 56 symbols") goes stale the moment the repo merges anything: in one round a
+   package merged a PR adding a public class between the fan-out's measurement and the
+   agent's clone, so the brief said 56→57 and the agent correctly measured 57→58. Both
+   were right; only the delta was durable. State the delta, name the symbols expected to
+   appear or vanish, and tell the agent to re-derive its own baseline — an agent that
+   trusts a stale absolute either reports a phantom regression or, worse, "fixes" it.
+4. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
    §1 is the corrected record; your recollection of it is a stale copy. In the v0.28.1 round
    I briefed kedro-azureml to "preserve its local `inventories` list" — a claim §1 already
    carried as *retracted*, with a note that an agent went looking and found nothing. The
@@ -59,19 +66,19 @@ a template bug: report it, do not accommodate it.
    which I passed to an agent as an unfixed bug two releases after it was fixed. Both cost
    an agent real work, and both were one `grep` away. **A brief is a copy of this file's
    claims; copies drift.**
-4. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
+5. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
    it writes inside that directory.** A unique directory is necessary but not sufficient:
    agents have still collided at the shared scratchpad root. One had a sibling overwrite its
    script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
    empty lists. Another found a foreign script pointed at a different repo's clone and
    correctly refused to run it. Tell each agent to distrust any file it did not write.
-5. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
+6. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
    wiped between sessions — agents have found their previous clones intact, at the previous
    release's ref. That is the more dangerous direction: a stale clone updates from the wrong
    baseline and every later measurement is against a fiction. Have each agent clone fresh,
    and verify the ref it actually landed on rather than the ref it asked for. The work lives
    on GitHub, not on disk.
-6. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
+7. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
    carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
    release that created it; the content advances every release while `main` stays behind. The
    branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
@@ -132,6 +139,13 @@ Group a section index under `##` headings only when it is big enough to need it 
 - A **`.rej` holds the PROJECT's own changes** that could not be re-applied — not the
   template's. That is why local content goes missing and every conflicted file is
   partially applied.
+- **A conflict does not always arrive as a `.rej`.** copier 9.17 delivered the same
+  hazard as an inline git conflict — `pyproject.toml` in state `UU`, conflict markers in
+  the file, **zero `.rej` files anywhere**. Two repos hit it in one round, both where the
+  template appended a dependency onto the line a local entry already occupied. An agent
+  sweeping only for `*.rej` sees a clean run and commits the markers. **Check
+  `git status --porcelain` for `U` states as well as globbing for `.rej`**, and diff every
+  touched file whole-file regardless of what either check says.
 - **A `.rej` hunk that bundles a redundant change with load-bearing local work drops
   both, and the `.rej` count does not show it.** The unit of rejection is the hunk, not
   the line. yohou lost its `test_docstrings-${{ matrix.python-version }}` parametrization
