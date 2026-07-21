@@ -2916,14 +2916,23 @@ def test_no_rendered_file_ends_in_a_blank_line(request, fixture_name):
     # a blank line -- 29 of them in one measurement, which would bury the four
     # that matter. Scoping this keeps a failure readable and about our own files.
     ignored = {".git", ".venv", "site", "__pycache__", ".nox", "node_modules"}
-    offenders = sorted(
-        str(p.relative_to(project_dir))
-        for p in project_dir.rglob("*")
-        if p.is_file()
-        and p.suffix in suffixes
-        and not ignored & set(p.relative_to(project_dir).parts)
-        and p.read_bytes().endswith(b"\n\n")
-    )
+    offenders = []
+    for path in project_dir.rglob("*"):
+        if not path.is_file() or path.suffix not in suffixes:
+            continue
+        rel = path.relative_to(project_dir)
+        if ignored & set(rel.parts):
+            continue
+        # `docs/pages/api/` is generated at build time from `"\n\n".join(sections)`,
+        # so those pages legitimately end in a blank line -- and the generated project
+        # gitignores them, so its own `end-of-file-fixer` never sees them. Excluding
+        # them keeps this test about files the template ships, and stops it depending
+        # on whether some earlier test happened to run a docs build in this fixture.
+        if rel.as_posix().startswith("docs/pages/api/"):
+            continue
+        if path.read_bytes().endswith(b"\n\n"):
+            offenders.append(rel.as_posix())
+    offenders.sort()
     assert not offenders, f"rendered files ending in a blank line: {offenders}"
 
 

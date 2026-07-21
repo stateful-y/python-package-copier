@@ -30,9 +30,9 @@ would get a silent empty return from it, but none exists yet.
 | yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed, so `BaseNixtlaForecaster` reached the API only once `_get_root_members` landed (17→18 rows). Answers cap at `max_python_version: 3.13` — scipy ships no cp314 wheel. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race, `/en/stable/` 404 (no stable release yet). |
 | yohou-optuna | True | 5 notebooks, all flat. Carries **15 custom skills / 36 files** under `.claude/skills/` that must stay tracked. (`plot_model_comparison_bar` is **yohou's**, not this repo's — an earlier version of this table said otherwise.) |
 | sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`** and for **notebook execution during export**, but *not* for rendering: `check_docs` passes with pydantic absent because mkdocstrings uses griffe's static analysis. So `build_docs`/`build_steps` fail locally on `examples/yaml_config.py` while CI and RTD stay green — RTD's recipe passes the extra, the nox sessions never got it (`test_docstrings` already does, so the pattern exists locally). Pre-existing, verified identical on the prior tag. An earlier version of this table said the extra was "not for the docs build", full stop; that is wrong for the export leg. `test_docstrings` has **no matrix parametrization** here — a single ubuntu job on 3.11 — so do not go looking for one to preserve. Went RTD-red once from the v0.22.0 gallery bug. |
-| sklearn-optuna | True | 9 flat notebooks. Some See Also entries resolve into the `sklearn_optuna` dependency's own inventory — that is correct, not a defect. |
-| **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` nightly job (with its `needs:`) that copier has deleted before. |
-| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), not 24. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
+| sklearn-optuna | True | 9 flat notebooks. **See Also: 13 sections, 32 entries, 0 unlinked** — that is the whole useful fact. Do *not* re-add a breakdown of where those links point: this cell has carried three mutually contradictory versions (dependency-inventory resolution; 21 external to `docs.python.org`; 21 internal + 9 API + 2 external), each written confidently from a single agent's measurement, and a spot-check of a live page found 3 links all internal. Nothing in a fan-out turns on the answer. Carries `Sampler`/`Storage`, whose only member is `__init__` — filtered out — which makes it the fleet's test case for anything sensitive to *rendered* vs declared members. |
+| **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` job (with its `needs:`) that copier has deleted before — it lives in **`nightly.yml:45`** and a dedicated **`tests-versions.yml`**, *not* in `tests.yml`; an agent grepping `tests.yml` per this file's old phrasing found nothing and briefly thought it had hit that exact loss. Its curated `pages/reference/datasets.md` is the fleet's only multi-object `:::` page, which makes it the sole real test for anything about duplicate ids or per-object section stripping. |
+| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is recorded here as **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), but a v0.28.1-round agent counted **10 jobs actually running** (4 on 3.11, 4 on 3.12, 2 on 3.13) with the workflows byte-identical before and after. Unresolved; pre-existing either way. Measure before relying on either number. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
 
 **`include_examples: False` is real and load-bearing.** For those two repos the gallery,
 companion-notebook and `GALLERY:section` machinery is Jinja-gated *out of their
@@ -51,19 +51,27 @@ a template bug: report it, do not accommodate it.
 2. **Diff the two pristine renders across the version pair, per `include_examples` value.**
    This tells you what each repo will actually receive, and it is the only thing that makes
    a later "untouched!" result meaningful. Do it before writing the briefs.
-3. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
+3. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
+   §1 is the corrected record; your recollection of it is a stale copy. In the v0.28.1 round
+   I briefed kedro-azureml to "preserve its local `inventories` list" — a claim §1 already
+   carried as *retracted*, with a note that an agent went looking and found nothing. The
+   agent went looking again and found nothing again. Same for the root-export gap in §4,
+   which I passed to an agent as an unfixed bug two releases after it was fixed. Both cost
+   an agent real work, and both were one `grep` away. **A brief is a copy of this file's
+   claims; copies drift.**
+4. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
    it writes inside that directory.** A unique directory is necessary but not sufficient:
    agents have still collided at the shared scratchpad root. One had a sibling overwrite its
    script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
    empty lists. Another found a foreign script pointed at a different repo's clone and
    correctly refused to run it. Tell each agent to distrust any file it did not write.
-4. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
+5. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
    wiped between sessions — agents have found their previous clones intact, at the previous
    release's ref. That is the more dangerous direction: a stale clone updates from the wrong
    baseline and every later measurement is against a fiction. Have each agent clone fresh,
    and verify the ref it actually landed on rather than the ref it asked for. The work lives
    on GitHub, not on disk.
-5. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
+6. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
    carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
    release that created it; the content advances every release while `main` stays behind. The
    branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
@@ -159,9 +167,15 @@ Group a section index under `##` headings only when it is big enough to need it 
   it. The gallery overflow link 404'd into RTD-red this way; API-table `Name`/`Module` links
   have the same exposure. Only RTD's `post_build` linkchecker sees them, and CI does not run it.
   **`check_docs` can pass while RTD goes red.**
-- `_get_submodules` skips `_`-prefixed modules **and** never scans the top-level
-  `__init__.py`, so a public symbol exported only from there **never reaches the API table**
-  (yohou-nixtla: 17 rows vs 18 symbols). Unfixed template bug.
+- `_get_submodules` skips `_`-prefixed modules, which silently excludes `__init__.py` too,
+  so a public symbol exported only from the package root belongs to no submodule and once
+  reached no page (yohou-nixtla: 17 rows against 18 names in `__all__`). **FIXED** by
+  `_get_root_members` in `docs/_api_pages.py`, called at both generation sites and covered by
+  a test that asserts the fixture actually has a root export so it cannot pass vacuously.
+  This entry said "unfixed template bug" for two releases after the fix landed, while the
+  fleet table three sections up said the opposite — and I repeated the stale half into a PR
+  body and an agent brief before checking the code. **A recorded defect is a claim with a
+  date on it.** Re-measure before repeating one, especially from this file.
 - `__gallery__` assigned inside an `@app.cell` is invisible — `ast.iter_child_nodes` only
   sees module level. Both of yohou-nixtla's notebooks were in no gallery at all, silently.
 
@@ -169,10 +183,14 @@ Group a section index under `##` headings only when it is big enough to need it 
 - **`gh pr edit` silently fails here** (GraphQL Projects-classic deprecation). Use
   `gh api -X PATCH repos/OWNER/REPO/pulls/N -f title=... -F body=@file` and **read it back**.
 - **A CONFLICTING PR runs no Actions.** "0 failures" out of ~1 check is meaningless.
-- **`gh pr checks --json name,bucket` silently returns EMPTY here** while the plain text
-  form works. Two agents in one release built CI monitors on it and each watched an empty
-  result for ~10 minutes before re-querying directly. So "0 checks" has *two* causes now —
-  a conflicting PR, and this. Confirm with a second method before believing either.
+- **`gh pr checks` does not accept `--json` on this machine** — it exits with
+  `unknown flag: --json`. An earlier version of this file called it a *silent* empty return;
+  re-measured, it is a hard error, and the "empty result" agents watched for ~10 minutes was
+  their own script swallowing stderr. Use the plain text form. So "0 checks" has two real
+  causes — a conflicting PR runs no Actions, and a swallowed error — and neither is a pass.
+- **`gh pr checks` also exits NON-ZERO while checks are still pending.** A poll loop that
+  guards on exit status breaks out immediately and reports the partial state as final; mine
+  did, on this release. Guard on the *output* (`grep -q pending`), not the exit code.
 - **`Validate Commit Message` skips on a multi-commit PR** — it carries
   `if: github.event.pull_request.commits == 1`. Folding a second release into an open PR
   flips it from pass to skip, which is correct, not a regression: with two commits GitHub
@@ -186,6 +204,18 @@ Group a section index under `##` headings only when it is big enough to need it 
 - `git check-ignore` is silent for **tracked** files; use `--no-index` to test a rule.
 - zsh does not word-split unquoted expansions — several "all clean" sweeps were empty-set
   bugs. Prefer Python over shell for any sweep whose result you intend to trust.
+- **`grep -r --include=*.html` with the glob UNQUOTED returns 0 for everything.** zsh expands
+  it against the *current directory* before grep sees it, so the filter matches nothing and
+  every count comes back a confident zero. **Three separate agents hit this same line in the
+  v0.28.1 round**, each on a different repo, each initially reporting a clean pass. All three
+  caught it only from a stray "no matches found" on stderr. Quote the glob, or use Python.
+  This is the single most repeated checker bug in the fleet's history — if a sweep reports
+  zero, reproduce the zero against a deliberately injected instance before believing it.
+- **Other sweep scoping traps from the same round**, all producing false all-clears: walking
+  the whole repo and counting hits inside `.nox/` or `.venv/` site-packages (scope to
+  `git ls-files`); comparing heading text without stripping Material's appended `¶`
+  permalink; and an index-coverage check blind to a `<!-- SUBPAGES -->` marker the hook
+  expands at build time, which read 0/5 on a page that is 5/5 in rendered HTML.
 
 ## 5. Verification discipline
 
@@ -195,6 +225,28 @@ a See Also audit grepping `<h2>` when the markup is `<h3 id="see-also">`; a card
 matching `gallery-card` when Material emits `grid cards`; a `tee | head` that SIGPIPE'd and
 truncated the log *before the build ran*; a `pgrep` matching its own command line; a
 readback that diffed an empty file because `gh` errored outside the repo.
+
+**Measure the artifact that ships, not the one you edited.** A template defect lives in the
+*rendered* file; the source can be correct and the render still wrong. v0.28.0 shipped four
+overrides whose rendered form ended in a blank line, failing every generated project's
+`end-of-file-fixer` and turning all seven repos red on one commit. It passed a 347-test
+suite and my own pre-release verification, because every check read the source — which was
+correctly one newline the whole time. I then "verified the fix" the same way and reported it
+working when it was not in the tree at all.
+
+The rule that would have caught it: **whenever a fix is about how something renders, the
+check must open the rendered file.** And prefer a check that sweeps the whole rendered tree
+over one that names the files you already suspect — the next instance will be elsewhere.
+`tests/test_template.py::test_no_rendered_file_ends_in_a_blank_line` is that shape.
+
+**A selector, glob, or guard that matches nothing is silent.** Three separate v0.28.0 defects
+were of this kind: `h5.doc-section-heading` matched 0 elements after the class moved to an
+inner span, so Material's default styling reasserted on 40 headings; `exclude_docs` had no
+pattern for `.jinja`, so template source was served at 200; a `Methods` guard tested
+`obj.members`, the pre-filter set, so 12 of 25 class pages got a heading introducing nothing.
+None produced a warning and `--strict` saw none of them. **For anything expressed as a
+pattern, count the matches on both sides** — how many elements have the class, how many files
+the glob catches — and treat a zero as a failing measurement until proven otherwise.
 
 **Copier renders a local template repo at its latest *tag*, not your working tree.** So
 `copier copy /path/to/template` verifying an unreleased edit renders the *last release* and
@@ -235,22 +287,39 @@ firing skip from a blind check. What does:
 Binaries are the exception: copier rewrites them regardless of delta, so "the old version
 overwrote it, the new one didn't" *is* a valid A/B on identical inputs.
 
+**A deliberately narrow behaviour looks exactly like an incomplete fix.** Before reporting
+a residue as a defect, read the function's docstring — in this repo the narrowness is
+usually stated there. `_strip_redundant_section_titles` removes only the five section
+titles the dispatcher maps to headings; `Yields`, `Warns` and friends keep theirs *on
+purpose*, because that title is their only label. I briefed the v0.28.1 round with
+"0 leftover `doc-section-title` spans" as a pass criterion, which is wrong: yohou correctly
+keeps 10 and kedro-azureml keeps one (`Lifecycle`). Both agents refused to force the
+number to zero and said why — the right call, and it means **a brief's acceptance criteria
+are themselves claims to be checked**, not instructions to satisfy. Tell agents that
+explicitly.
+
 **Verify by rendering, not by reading.** Count in the built HTML, scoped to `<article>` —
 the ToC sidebar inflates counts ~3×.
 Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings emits
 multi-line `title=` attributes and the split cuts inside the tag, silently dropping entries.
-And do not key a See Also audit on `<details class="see-also">` in *final* HTML: on a
-**generated API page** there is none. Zero hits reads as a clean pass and is total
-blindness — two agents found this independently. The real markup is a heading with
-`id="see-also"`.
+**Never key a See Also audit on `<details class="see-also">`.** As of v0.28.0 there are
+**zero** of them anywhere in a built site: the `admonition.html.jinja` override emits
+`<div class="doc-section-item doc-admonition-see-also">` instead, and `hooks.py` matches on
+that class. Zero hits reads as a clean pass and is total blindness. The stable anchor is a
+heading with `id="see-also"`.
 
-**But "no `details.see-also` survives" is true of generated pages only, and an earlier
-version of this file stated it unconditionally.** A hand-written page that renders its own
-See Also keeps its container — kedro-dagster's curated `pages/reference/datasets.md` does.
-So there are **three** shapes in the fleet, not two: heading + `<ul><li>`, heading + `<p>`
-(single-entry sections), and a surviving container. A single-shape counter collapses each
-list to one entry or misses whole sections; three agents in one release each reported a
-confident false count (15, 17 and 15 "unlinked") before going shape-agnostic. **Write the
+This line has been wrong in both directions across three releases: first "no container
+survives" stated unconditionally (false — curated pages kept theirs); then "three shapes,
+one of them `details.see-also`" (true when written, falsified by v0.28.0 changing the
+markup out from under it). kedro-dagster's curated `pages/reference/datasets.md` was the
+example cited for the surviving container and is now the example of the new `div` form.
+**Do not encode the current markup here again.** Discover it: find the `id="see-also"`
+headings, then read whatever container follows, whatever it is.
+
+The shapes still differ in ways a single-shape counter gets wrong — `<ul><li>` lists,
+bare `<p>` for single-entry sections, and a wrapping `div` — so a naive counter collapses
+each list to one entry or misses whole sections. Three agents in one release each reported
+a confident false count (15, 17, 15 "unlinked") before going shape-agnostic. **Write the
 audit shape-agnostic and make it abort on zero rather than report all-clear.**
 
 One more vacuous-check trap, found four times independently in one release: **testing
@@ -301,3 +370,28 @@ verify, flagged rather than asserted.
 Tell them explicitly: **if a warning reveals a template bug rather than a repo bug, report
 it and do not work around it locally** — a local patch to a Tier 1 file drifts forever and
 undoes the fork elimination. Collect those, and cut a template release instead.
+
+That instruction works, and it costs something. In the v0.28.0 round it split the fleet:
+two repos left CI red and reported the bug; four normalised locally to go green and
+disclosed it; the honest red ones were the more useful signal, and every local fix then had
+to be reverted when v0.28.1 landed. **Say which you want.** Leaving it red is right when the
+defect is fleet-wide and a fix is coming in the same session; patching locally is only worth
+it when the repo would otherwise block on something unrelated.
+
+## 7. Git hygiene for agents
+
+- **`git add -A` FIRST, then run prek, then `git add -A` again.** prek only sees git-tracked
+  files, so running it before staging silently skips every new file a release introduces —
+  lint passes locally, and CI goes red on the exact files the release added. This fired in
+  the v0.28.0 round; one agent caught it only from `gh pr create`'s "uncommitted changes"
+  warning, after committing the pre-fix copies.
+- **Never amend a pushed commit and never force-push.** An agent in the v0.28.0 round
+  amended and `--force-with-lease`'d its own PR branch to correct the mistake above. The
+  result was fine and the reasoning was sound, but it rewrote history other people and other
+  agents may already have fetched, without anyone authorising it. Add a new commit instead;
+  a slightly messy branch is cheaper than rewritten shared history.
+- **Never `git stash` to park work.** `git stash --keep-index && git stash drop` destroyed a
+  set of edits in this repo — the drop is unrecoverable and there is no confirmation. Commit
+  to a scratch branch, or copy files aside.
+- **Push to the existing branch; do not open a second PR.** These are long-lived
+  `template-update/*` PRs that advance across releases.
