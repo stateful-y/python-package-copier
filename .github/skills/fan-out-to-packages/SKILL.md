@@ -32,7 +32,7 @@ would get a silent empty return from it, but none exists yet.
 | sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`** and for **notebook execution during export**, but *not* for rendering: `check_docs` passes with pydantic absent because mkdocstrings uses griffe's static analysis. So `build_docs`/`build_steps` fail locally on `examples/yaml_config.py` while CI and RTD stay green — RTD's recipe passes the extra, the nox sessions never got it (`test_docstrings` already does, so the pattern exists locally). Pre-existing, verified identical on the prior tag. An earlier version of this table said the extra was "not for the docs build", full stop; that is wrong for the export leg. `test_docstrings` has **no matrix parametrization** here — a single ubuntu job on 3.11 — so do not go looking for one to preserve. Went RTD-red once from the v0.22.0 gallery bug. |
 | sklearn-optuna | True | 9 flat notebooks. An earlier version of this table said some See Also entries resolve into a dependency's own inventory; **measured, they do not** — all 32 are plain links, and the 21 external ones go to `docs.python.org`. The inventory-resolved links live in signatures and type annotations, not See Also. Carries `Sampler`/`Storage`, whose only member is `__init__`, which makes it the fleet's test case for filter-sensitive member rendering. |
 | **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` nightly job (with its `needs:`) that copier has deleted before. |
-| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), not 24. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
+| **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is recorded here as **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), but a v0.28.1-round agent counted **10 jobs actually running** (4 on 3.11, 4 on 3.12, 2 on 3.13) with the workflows byte-identical before and after. Unresolved; pre-existing either way. Measure before relying on either number. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
 
 **`include_examples: False` is real and load-bearing.** For those two repos the gallery,
 companion-notebook and `GALLERY:section` machinery is Jinja-gated *out of their
@@ -51,19 +51,27 @@ a template bug: report it, do not accommodate it.
 2. **Diff the two pristine renders across the version pair, per `include_examples` value.**
    This tells you what each repo will actually receive, and it is the only thing that makes
    a later "untouched!" result meaningful. Do it before writing the briefs.
-3. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
+3. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
+   §1 is the corrected record; your recollection of it is a stale copy. In the v0.28.1 round
+   I briefed kedro-azureml to "preserve its local `inventories` list" — a claim §1 already
+   carried as *retracted*, with a note that an agent went looking and found nothing. The
+   agent went looking again and found nothing again. Same for the root-export gap in §4,
+   which I passed to an agent as an unfixed bug two releases after it was fixed. Both cost
+   an agent real work, and both were one `grep` away. **A brief is a copy of this file's
+   claims; copies drift.**
+4. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
    it writes inside that directory.** A unique directory is necessary but not sufficient:
    agents have still collided at the shared scratchpad root. One had a sibling overwrite its
    script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
    empty lists. Another found a foreign script pointed at a different repo's clone and
    correctly refused to run it. Tell each agent to distrust any file it did not write.
-4. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
+5. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
    wiped between sessions — agents have found their previous clones intact, at the previous
    release's ref. That is the more dangerous direction: a stale clone updates from the wrong
    baseline and every later measurement is against a fiction. Have each agent clone fresh,
    and verify the ref it actually landed on rather than the ref it asked for. The work lives
    on GitHub, not on disk.
-5. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
+6. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
    carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
    release that created it; the content advances every release while `main` stays behind. The
    branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
@@ -192,6 +200,18 @@ Group a section index under `##` headings only when it is big enough to need it 
 - `git check-ignore` is silent for **tracked** files; use `--no-index` to test a rule.
 - zsh does not word-split unquoted expansions — several "all clean" sweeps were empty-set
   bugs. Prefer Python over shell for any sweep whose result you intend to trust.
+- **`grep -r --include=*.html` with the glob UNQUOTED returns 0 for everything.** zsh expands
+  it against the *current directory* before grep sees it, so the filter matches nothing and
+  every count comes back a confident zero. **Three separate agents hit this same line in the
+  v0.28.1 round**, each on a different repo, each initially reporting a clean pass. All three
+  caught it only from a stray "no matches found" on stderr. Quote the glob, or use Python.
+  This is the single most repeated checker bug in the fleet's history — if a sweep reports
+  zero, reproduce the zero against a deliberately injected instance before believing it.
+- **Other sweep scoping traps from the same round**, all producing false all-clears: walking
+  the whole repo and counting hits inside `.nox/` or `.venv/` site-packages (scope to
+  `git ls-files`); comparing heading text without stripping Material's appended `¶`
+  permalink; and an index-coverage check blind to a `<!-- SUBPAGES -->` marker the hook
+  expands at build time, which read 0/5 on a page that is 5/5 in rendered HTML.
 
 ## 5. Verification discipline
 
