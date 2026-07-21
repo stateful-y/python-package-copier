@@ -287,6 +287,17 @@ firing skip from a blind check. What does:
 Binaries are the exception: copier rewrites them regardless of delta, so "the old version
 overwrote it, the new one didn't" *is* a valid A/B on identical inputs.
 
+**A deliberately narrow behaviour looks exactly like an incomplete fix.** Before reporting
+a residue as a defect, read the function's docstring — in this repo the narrowness is
+usually stated there. `_strip_redundant_section_titles` removes only the five section
+titles the dispatcher maps to headings; `Yields`, `Warns` and friends keep theirs *on
+purpose*, because that title is their only label. I briefed the v0.28.1 round with
+"0 leftover `doc-section-title` spans" as a pass criterion, which is wrong: yohou correctly
+keeps 10 and kedro-azureml keeps one (`Lifecycle`). Both agents refused to force the
+number to zero and said why — the right call, and it means **a brief's acceptance criteria
+are themselves claims to be checked**, not instructions to satisfy. Tell agents that
+explicitly.
+
 **Verify by rendering, not by reading.** Count in the built HTML, scoped to `<article>` —
 the ToC sidebar inflates counts ~3×.
 Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings emits
