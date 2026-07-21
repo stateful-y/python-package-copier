@@ -1656,10 +1656,10 @@ def _write_reexport_package(project_dir, package_name):
 def test_reexported_symbols_resolve(copie_session_minimal):
     """Re-exported symbols resolve, and the API page members table populates."""
     project_dir = copie_session_minimal.project_dir
-    pkg = _write_reexport_package(project_dir, "minimal_project")
+    _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "reexport")
 
-    members = hooks._get_public_members(pkg / "shapes" / "__init__.py", pkg)
+    members = hooks._get_public_members(project_dir, "shapes")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     # Re-exported classes and functions are found, despite the __init__ declaring none.
@@ -1686,10 +1686,10 @@ def test_reexports_guarded_by_try_resolve(copie_session_minimal):
     scan silently renders an empty API page for these packages.
     """
     project_dir = copie_session_minimal.project_dir
-    pkg = _write_reexport_package(project_dir, "minimal_project")
+    _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "tryblock")
 
-    members = hooks._get_public_members(pkg / "optional" / "__init__.py", pkg)
+    members = hooks._get_public_members(project_dir, "optional")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "Widget" in names, "re-export inside a try block was not resolved"
@@ -2664,7 +2664,7 @@ def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
     # The discovery caches moved to _api_pages with the functions that own them.
     # Naming them explicitly is what stops this test from silently narrowing to
     # "whatever stayed in hooks.py" if the scan is ever reduced to one module.
-    assert {"_SUBMODULE_CACHE", "_API_NAME_LOOKUP_CACHE"} <= flat, (
+    assert {"_SURFACE_CACHE", "_API_NAME_LOOKUP_CACHE"} <= flat, (
         f"the API discovery caches are not being scanned; found {sorted(flat)}"
     )
 
@@ -3376,7 +3376,7 @@ def test_module_toc_is_built_and_resolves_wherever_the_page_lives(
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, f"mtoc_{template_name}_{src_path.count('/')}")
-    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._SURFACE_CACHE = None
 
     # The submodule pages the TOC points at are generated, not committed.
     hooks._api_pages._generate_api_pages(project_dir)
@@ -3447,11 +3447,11 @@ def test_dependency_reexports_stay_in_the_api(copie_session_minimal):
     guessed, so a class stays a class and carries its real summary.
     """
     project_dir = copie_session_minimal.project_dir
-    pkg = _write_dependency_shim(project_dir, "minimal_project")
+    _write_dependency_shim(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "depshim")
     _reset_hook_caches(hooks)
 
-    members = hooks._get_public_members(pkg / "shim.py", pkg)
+    members = hooks._get_public_members(project_dir, "shim")
 
     assert {e["name"] for e in members["classes"]} == {"Fraction"}, "a re-exported dependency class was dropped"
     assert {e["name"] for e in members["functions"]} == {"dataclass"}, "a re-exported dependency function was dropped"
@@ -3474,11 +3474,11 @@ def test_plain_module_imports_are_not_api_without_dunder_all(copie_session_minim
     refuses to run without __all__.
     """
     project_dir = copie_session_minimal.project_dir
-    pkg = _write_dependency_shim(project_dir, "minimal_project")
+    _write_dependency_shim(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "depshim_internal")
     _reset_hook_caches(hooks)
 
-    members = hooks._get_public_members(pkg / "internal.py", pkg)
+    members = hooks._get_public_members(project_dir, "internal")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "ratio" in names, "the module's own function is missing"
@@ -3492,14 +3492,78 @@ def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
     the guard is consulted. This exercises the guard itself.
     """
     project_dir = copie_session_minimal.project_dir
-    pkg = _write_reexport_package(project_dir, "minimal_project")
+    _write_reexport_package(project_dir, "minimal_project")
     hooks = _load_hooks(project_dir, "noall")
 
-    members = hooks._get_public_members(pkg / "noall" / "__init__.py", pkg)
+    members = hooks._get_public_members(project_dir, "noall")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "Gadget" in names, "first-party re-export not resolved without __all__"
     assert "Path" not in names, "a stdlib import was resolved as package API"
+
+
+def test_discovery_imports_nothing(copie_session_minimal, tmp_path):
+    """A module whose body raises on import is still discovered.
+
+    Discovery is static, so a project's own dependencies may be absent when the
+    docs build runs -- which is the whole reason the previous implementation's
+    ``_resolve_external_module`` was a hazard: it called ``find_spec``, which
+    imports the parent package to locate a symbol.
+
+    The module below raises at import time. If anything in the discovery path
+    imports it, this test errors rather than fails, which is the signal wanted.
+    """
+    project_dir = copie_session_minimal.project_dir
+    pkg = project_dir / "src" / "minimal_project"
+    (pkg / "explodes.py").write_text(
+        '"""Explodes on import."""\n\nraise RuntimeError("importing this module is a bug")\n\n\n'
+        'class Survivor:\n    """Found by static analysis regardless."""\n',
+        encoding="utf-8",
+    )
+    try:
+        hooks = _load_hooks(project_dir, "noimport")
+        members = hooks._get_public_members(project_dir, "explodes")
+        names = {e["name"] for e in members["classes"] + members["functions"]}
+        assert "Survivor" in names, "a class in an unimportable module was not discovered"
+    finally:
+        (pkg / "explodes.py").unlink()
+
+
+def test_unresolvable_reexport_warns_rather_than_vanishing(copie_session_minimal, caplog):
+    """An unresolvable re-export is reported, not silently dropped.
+
+    The previous implementation returned None for anything it could not reach
+    and the symbol disappeared from the index with no error -- a green build and
+    a missing page, this fleet's signature failure. Griffe distinguishes
+    "resolved" from "unresolvable", and that distinction is only worth having if
+    something says so.
+
+    ``nox -s check_docs`` builds with warnings fatal, so this warning is a CI
+    failure there while an ordinary ``mkdocs serve`` keeps working.
+    """
+    import logging
+
+    project_dir = copie_session_minimal.project_dir
+    pkg = project_dir / "src" / "minimal_project"
+    shim = pkg / "ghost.py"
+    shim.write_text(
+        '"""Re-exports something that cannot be resolved."""\n\n'
+        "from definitely_not_installed_pkg import Ghost\n\n"
+        '__all__ = ["Ghost"]\n',
+        encoding="utf-8",
+    )
+    try:
+        hooks = _load_hooks(project_dir, "ghost")
+        with caplog.at_level(logging.WARNING, logger="mkdocs.hooks"):
+            members = hooks._get_public_members(project_dir, "ghost")
+        names = {e["name"] for e in members["classes"] + members["functions"]}
+        assert "Ghost" not in names, "an unresolvable symbol was published as if it had a page"
+        assert any("Ghost" in r.getMessage() for r in caplog.records), (
+            "the symbol vanished silently, which is the behaviour this replaced; "
+            f"warnings seen: {[r.getMessage() for r in caplog.records]}"
+        )
+    finally:
+        shim.unlink()
 
 
 def test_companion_placeholder_renders_no_dangling_heading(copie_session_default):
@@ -4242,7 +4306,7 @@ def test_api_table_module_links_point_at_pages_that_exist(copie_session_minimal)
         encoding="utf-8",
     )
     hooks = _load_hooks(project_dir, "api_module_links")
-    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._SURFACE_CACHE = None
     hooks._api_pages._API_NAME_LOOKUP_CACHE = None
 
     html = hooks._build_api_table_html(project_dir, "")
@@ -4286,7 +4350,7 @@ def test_root_only_exports_reach_the_api(copie_session_minimal):
         encoding="utf-8",
     )
     hooks = _load_hooks(project_dir, "root_exports")
-    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._SURFACE_CACHE = None
     hooks._api_pages._API_NAME_LOOKUP_CACHE = None
 
     html = hooks._build_api_table_html(project_dir, "")
@@ -4300,7 +4364,7 @@ def test_root_only_exports_reach_the_api(copie_session_minimal):
         f"root adoption swallowed a symbol that has a module: {[c['name'] for c in roots['classes']]}"
     )
 
-    hooks._api_pages._SUBMODULE_CACHE = None
+    hooks._api_pages._SURFACE_CACHE = None
     hooks._api_pages._API_NAME_LOOKUP_CACHE = None
     assert hooks._get_api_name_lookup(project_dir).get("BaseThing") == "minimal_project.BaseThing", (
         "See Also cannot resolve a root-exported symbol"
