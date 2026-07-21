@@ -312,6 +312,41 @@ number to zero and said why — the right call, and it means **a brief's accepta
 are themselves claims to be checked**, not instructions to satisfy. Tell agents that
 explicitly.
 
+**An anchored conflict-marker regex is a false-clean generator.**
+`^(<<<<<<<|>>>>>>>|=======)$` matches only a bare `=======` and **misses**
+`<<<<<<< HEAD` and `>>>>>>> theirs` — one of three injected markers caught. It fails in
+the direction that matters: real conflicts slip through while the check reports clean.
+Use `^(<<<<<<<|>>>>>>>|=======)( |$)`. This matters more since copier started delivering
+conflicts inline rather than as `.rej` files. And when a sweep does hit a marker, check
+whether the file is *documentation about* conflicts before reporting it — one repo's own
+`update-from-template` skill contains marker examples in a prose table.
+
+**Never falsify against a live working file.** An agent appended a synthetic conflict
+marker to a real `pyproject.toml` to test its detector, then ran `git checkout` to clean
+up — reverting the release's actual change along with the marker, and only noticing
+because it grepped for the new content afterwards. Falsify against a scratch copy.
+
+**`INFO -` is not a liveness probe for an mkdocs build log.** mkdocs emits nothing below
+WARNING at default verbosity, so "I found INFO lines, therefore my grep works" proves
+nothing about a WARNING pattern. Prove the format by injecting a real broken link and
+resting the result on the demonstrated non-zero exit.
+
+**A byte-identity comparison of built trees is coincidentally true before you commit.**
+Generated member pages embed the commit SHA in their "View on GitHub" permalink, so a
+tree diff taken pre-commit compares two builds at the same SHA and reads clean; after
+committing, every generated page differs. Two agents hit this independently in one round
+and both had to correct a "byte-identical" claim. Normalise every 40-hex SHA before
+diffing — and falsify the normaliser against an injected content change, so it is not
+just masking everything.
+
+**A correct measurement does not validate the remedy you inferred from it.** Two agents
+measured, accurately, that declaring `griffe` pulls two extra distributions, and both
+proposed `griffelib` instead. Neither checked what `griffelib` does in a project whose
+mkdocstrings still resolves to griffe 1.x: that distribution *owns* the `griffe/` import
+path which griffelib also provides, so the "fix" risks two distributions owning one path.
+The diagnosis was right and the prescription was worse than the disease. **Test the
+alternative's failure mode before recommending it**, and say which half you measured.
+
 **Verify by rendering, not by reading.** Count in the built HTML, scoped to `<article>` —
 the ToC sidebar inflates counts ~3×.
 Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings emits
