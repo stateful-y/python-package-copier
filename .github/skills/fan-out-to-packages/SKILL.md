@@ -30,7 +30,7 @@ would get a silent empty return from it, but none exists yet.
 | yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed, so `BaseNixtlaForecaster` reached the API only once `_get_root_members` landed (17→18 rows). Answers cap at `max_python_version: 3.13` — scipy ships no cp314 wheel. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race, `/en/stable/` 404 (no stable release yet). |
 | yohou-optuna | True | 5 notebooks, all flat. Carries **15 custom skills / 36 files** under `.claude/skills/` that must stay tracked. (`plot_model_comparison_bar` is **yohou's**, not this repo's — an earlier version of this table said otherwise.) |
 | sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`** and for **notebook execution during export**, but *not* for rendering: `check_docs` passes with pydantic absent because mkdocstrings uses griffe's static analysis. So `build_docs`/`build_steps` fail locally on `examples/yaml_config.py` while CI and RTD stay green — RTD's recipe passes the extra, the nox sessions never got it (`test_docstrings` already does, so the pattern exists locally). Pre-existing, verified identical on the prior tag. An earlier version of this table said the extra was "not for the docs build", full stop; that is wrong for the export leg. `test_docstrings` has **no matrix parametrization** here — a single ubuntu job on 3.11 — so do not go looking for one to preserve. Went RTD-red once from the v0.22.0 gallery bug. |
-| sklearn-optuna | True | 9 flat notebooks. Some See Also entries resolve into the `sklearn_optuna` dependency's own inventory — that is correct, not a defect. |
+| sklearn-optuna | True | 9 flat notebooks. An earlier version of this table said some See Also entries resolve into a dependency's own inventory; **measured, they do not** — all 32 are plain links, and the 21 external ones go to `docs.python.org`. The inventory-resolved links live in signatures and type annotations, not See Also. Carries `Sampler`/`Storage`, whose only member is `__init__`, which makes it the fleet's test case for filter-sensitive member rendering. |
 | **kedro-dagster** | **False** | No notebooks. Largest docstring surface (~126 See Also links). `docstring_options: {warn_unknown_params: false}` is **CI-critical** — flipping it emits 77 griffe warnings and now *fails* the build. Snippets `base_path` must stay `[docs, .]`: it includes repo-root-relative `src/kedro_dagster/templates/*`. `datasets/` re-export layout. Renamed its page to **`troubleshoot.md`**, and keeps a `test-versions` nightly job (with its `needs:`) that copier has deleted before. |
 | **kedro-azureml-pipeline** | **False** | No notebooks. `warn_unknown_params: false` is CI-critical — measured to the number: flipping it produces exactly **46** griffe warnings and fails `--strict`. Its `inventories` is **the template default** (`docs.python.org` only), *not* a local extension — an earlier version of this table said it kept a local list, and an agent that went looking for one to preserve found nothing. `distributed/` re-export layout. Best index coverage in the fleet. Renamed its page to **`troubleshoot.md`**. `test_versions` matrix is **12** sessions (3 py × 1 kedro × 2 azure-ai-ml × 2 mlflow), not 24. Answers cap at `max_python_version: 3.13`, but `requires-python` has **no upper bound** — see the interpreter note in §5. |
 
@@ -196,6 +196,28 @@ matching `gallery-card` when Material emits `grid cards`; a `tee | head` that SI
 truncated the log *before the build ran*; a `pgrep` matching its own command line; a
 readback that diffed an empty file because `gh` errored outside the repo.
 
+**Measure the artifact that ships, not the one you edited.** A template defect lives in the
+*rendered* file; the source can be correct and the render still wrong. v0.28.0 shipped four
+overrides whose rendered form ended in a blank line, failing every generated project's
+`end-of-file-fixer` and turning all seven repos red on one commit. It passed a 347-test
+suite and my own pre-release verification, because every check read the source — which was
+correctly one newline the whole time. I then "verified the fix" the same way and reported it
+working when it was not in the tree at all.
+
+The rule that would have caught it: **whenever a fix is about how something renders, the
+check must open the rendered file.** And prefer a check that sweeps the whole rendered tree
+over one that names the files you already suspect — the next instance will be elsewhere.
+`tests/test_template.py::test_no_rendered_file_ends_in_a_blank_line` is that shape.
+
+**A selector, glob, or guard that matches nothing is silent.** Three separate v0.28.0 defects
+were of this kind: `h5.doc-section-heading` matched 0 elements after the class moved to an
+inner span, so Material's default styling reasserted on 40 headings; `exclude_docs` had no
+pattern for `.jinja`, so template source was served at 200; a `Methods` guard tested
+`obj.members`, the pre-filter set, so 12 of 25 class pages got a heading introducing nothing.
+None produced a warning and `--strict` saw none of them. **For anything expressed as a
+pattern, count the matches on both sides** — how many elements have the class, how many files
+the glob catches — and treat a zero as a failing measurement until proven otherwise.
+
 **Copier renders a local template repo at its latest *tag*, not your working tree.** So
 `copier copy /path/to/template` verifying an unreleased edit renders the *last release* and
 reports, convincingly, that your change did nothing. This cost two wrong diagnoses in one
@@ -301,3 +323,28 @@ verify, flagged rather than asserted.
 Tell them explicitly: **if a warning reveals a template bug rather than a repo bug, report
 it and do not work around it locally** — a local patch to a Tier 1 file drifts forever and
 undoes the fork elimination. Collect those, and cut a template release instead.
+
+That instruction works, and it costs something. In the v0.28.0 round it split the fleet:
+two repos left CI red and reported the bug; four normalised locally to go green and
+disclosed it; the honest red ones were the more useful signal, and every local fix then had
+to be reverted when v0.28.1 landed. **Say which you want.** Leaving it red is right when the
+defect is fleet-wide and a fix is coming in the same session; patching locally is only worth
+it when the repo would otherwise block on something unrelated.
+
+## 7. Git hygiene for agents
+
+- **`git add -A` FIRST, then run prek, then `git add -A` again.** prek only sees git-tracked
+  files, so running it before staging silently skips every new file a release introduces —
+  lint passes locally, and CI goes red on the exact files the release added. This fired in
+  the v0.28.0 round; one agent caught it only from `gh pr create`'s "uncommitted changes"
+  warning, after committing the pre-fix copies.
+- **Never amend a pushed commit and never force-push.** An agent in the v0.28.0 round
+  amended and `--force-with-lease`'d its own PR branch to correct the mistake above. The
+  result was fine and the reasoning was sound, but it rewrote history other people and other
+  agents may already have fetched, without anyone authorising it. Add a new commit instead;
+  a slightly messy branch is cheaper than rewritten shared history.
+- **Never `git stash` to park work.** `git stash --keep-index && git stash drop` destroyed a
+  set of edits in this repo — the drop is unrecoverable and there is no confirmation. Commit
+  to a scratch branch, or copy files aside.
+- **Push to the existing branch; do not open a second PR.** These are long-lived
+  `template-update/*` PRs that advance across releases.
