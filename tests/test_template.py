@@ -2892,6 +2892,41 @@ def test_mkdocstrings_template_overrides_ship(request, fixture_name):
     )
 
 
+@pytest.mark.parametrize("fixture_name", ["copie_session_default", "copie_session_minimal"])
+def test_no_rendered_file_ends_in_a_blank_line(request, fixture_name):
+    """No generated text file ends in a blank line.
+
+    This is a lint rule the template imposes on generated projects and then
+    broke itself. v0.28.0 shipped four `.jinja.jinja` overrides whose bodies are
+    wrapped in `{% raw %}...{% endraw %}`; with copier's `keep_trailing_newline`
+    the newline after `{% endraw %}` was emitted on top of the body's own, so
+    every rendered override ended in a blank line and the generated project's
+    `end-of-file-fixer` failed. Seven repos went CI-red on the same commit.
+
+    It shipped through a green suite because every check looked at the SOURCE
+    file, which is correctly one newline -- the defect exists only after
+    rendering. So this test asserts on the rendered tree, and asserts it for
+    every text file rather than the four that happened to be wrong: the next
+    instance will not be in the same place.
+    """
+    project_dir = request.getfixturevalue(fixture_name).project_dir
+    suffixes = {".py", ".md", ".yml", ".yaml", ".toml", ".css", ".js", ".jinja", ".cfg", ".txt", ".html"}
+    # Only what the template renders. A fixture that has been built or synced
+    # carries `.venv/` and `site/`, and third-party packages ship files ending in
+    # a blank line -- 29 of them in one measurement, which would bury the four
+    # that matter. Scoping this keeps a failure readable and about our own files.
+    ignored = {".git", ".venv", "site", "__pycache__", ".nox", "node_modules"}
+    offenders = sorted(
+        str(p.relative_to(project_dir))
+        for p in project_dir.rglob("*")
+        if p.is_file()
+        and p.suffix in suffixes
+        and not ignored & set(p.relative_to(project_dir).parts)
+        and p.read_bytes().endswith(b"\n\n")
+    )
+    assert not offenders, f"rendered files ending in a blank line: {offenders}"
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize("include_examples", [True, False])
 def test_section_headings_reach_the_table_of_contents(copie, include_examples, tmp_path):
