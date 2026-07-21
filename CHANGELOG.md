@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.28.3] - 2026-07-21
+
+This **patch release** includes 1 commit.
+
+
+### Bug Fixes
+- Repair a D401 regression and three claims the fan-out disproved  ([#199](https://github.com/stateful-y/python-package-copier/pull/199)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.28.2] - 2026-07-21
 
 This **patch release** includes 2 commits.
