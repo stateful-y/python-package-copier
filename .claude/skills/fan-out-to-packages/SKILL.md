@@ -159,9 +159,15 @@ Group a section index under `##` headings only when it is big enough to need it 
   it. The gallery overflow link 404'd into RTD-red this way; API-table `Name`/`Module` links
   have the same exposure. Only RTD's `post_build` linkchecker sees them, and CI does not run it.
   **`check_docs` can pass while RTD goes red.**
-- `_get_submodules` skips `_`-prefixed modules **and** never scans the top-level
-  `__init__.py`, so a public symbol exported only from there **never reaches the API table**
-  (yohou-nixtla: 17 rows vs 18 symbols). Unfixed template bug.
+- `_get_submodules` skips `_`-prefixed modules, which silently excludes `__init__.py` too,
+  so a public symbol exported only from the package root belongs to no submodule and once
+  reached no page (yohou-nixtla: 17 rows against 18 names in `__all__`). **FIXED** by
+  `_get_root_members` in `docs/_api_pages.py`, called at both generation sites and covered by
+  a test that asserts the fixture actually has a root export so it cannot pass vacuously.
+  This entry said "unfixed template bug" for two releases after the fix landed, while the
+  fleet table three sections up said the opposite — and I repeated the stale half into a PR
+  body and an agent brief before checking the code. **A recorded defect is a claim with a
+  date on it.** Re-measure before repeating one, especially from this file.
 - `__gallery__` assigned inside an `@app.cell` is invisible — `ast.iter_child_nodes` only
   sees module level. Both of yohou-nixtla's notebooks were in no gallery at all, silently.
 
