@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.28.0] - 2026-07-21
+
+This **minor release** includes 1 commit.
+
+
+### Refactoring
+- Render API page structure from mkdocstrings templates  ([#189](https://github.com/stateful-y/python-package-copier/pull/189)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.27.3] - 2026-07-20
 
 This **patch release** includes 1 commit.
