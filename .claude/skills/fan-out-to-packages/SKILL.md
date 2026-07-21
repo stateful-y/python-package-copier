@@ -26,7 +26,7 @@ would get a silent empty return from it, but none exists yet.
 
 | repo | `include_examples` | what makes it different |
 |---|---|---|
-| **yohou** | True | The reference implementation and the biggest: ~79 notebooks in **7** groups (6 `examples/` subdirs plus top-level `quickstart.py`), 46 companion pages, 6 curated section pages, hand-written See Also bullets, a 35-link how-to index grouped under 8 headings. It **deleted the seed how-tos** (`contribute.md`, `troubleshooting.md`) for 36 curated ones, so any release touching those is inert here. The only repo that `select`s ruff's `D`, so it is the only one that sees a docstring defect in a template-owned file. Its docs are the quality bar — do not "normalise" them without a reason. |
+| **yohou** | True | The reference implementation and the biggest: ~79 notebooks in **7** groups (6 `examples/` subdirs plus top-level `quickstart.py`), 46 companion pages, 6 curated section pages, hand-written See Also bullets, a 35-link how-to index grouped under 8 headings. It **deleted the seed how-tos** (`contribute.md`, `troubleshooting.md`) for 36 curated ones, so any release touching those is inert here. The only repo that `select`s ruff's `D`, so it is the only one that sees a docstring defect in a template-owned file. Its docs are the quality bar — do not "normalise" them without a reason. Local drift measured 2026-07-21: `justfile` carries an `export-notebooks` recipe; `CONTRIBUTING.md` has 2 customised lines; `docs/pages/how-to/contribute.md` **does not exist** (deleted for the curated set, and confirmed NOT resurrected by update since it is not `_skip_if_exists`-listed). **Its curated how-tos still document `pre-commit`, not prek** — `contributing.md:38`, `installation.md:89`, `contributing.md:240` — and `pre-commit` is absent from its `uv.lock`, so those commands fail on a clean machine and steer contributors into exactly the stale-shim state v0.28.4 exists to clear. Template releases cannot reach those pages. Needs its own PR. |
 | yohou-nixtla | True | 2 notebooks. Its logos were destroyed by a past update and restored from `f166f46`; **never touch `docs/assets/`**. `_base.py` is `_`-prefixed, so `BaseNixtlaForecaster` reached the API only once `_get_root_members` landed (17→18 rows). Answers cap at `max_python_version: 3.13` — scipy ships no cp314 wheel. Known-flagged: inert `environments` key under `[tool.coverage.report]`, `lightning_logs` xdist race, `/en/stable/` 404 (no stable release yet). |
 | yohou-optuna | True | 5 notebooks, all flat. Carries **15 custom skills / 36 files** under `.claude/skills/` that must stay tracked. (`plot_model_comparison_bar` is **yohou's**, not this repo's — an earlier version of this table said otherwise.) |
 | sklearn-wrap | True | 9 flat notebooks. `--extra config` is needed for **`ty`** and for **notebook execution during export**, but *not* for rendering: `check_docs` passes with pydantic absent because mkdocstrings uses griffe's static analysis. So `build_docs`/`build_steps` fail locally on `examples/yaml_config.py` while CI and RTD stay green — RTD's recipe passes the extra, the nox sessions never got it (`test_docstrings` already does, so the pattern exists locally). Pre-existing, verified identical on the prior tag. An earlier version of this table said the extra was "not for the docs build", full stop; that is wrong for the export leg. `test_docstrings` has **no matrix parametrization** here — a single ubuntu job on 3.11 — so do not go looking for one to preserve. Went RTD-red once from the v0.22.0 gallery bug. |
@@ -58,7 +58,21 @@ a template bug: report it, do not accommodate it.
    were right; only the delta was durable. State the delta, name the symbols expected to
    appear or vanish, and tell the agent to re-derive its own baseline — an agent that
    trusts a stale absolute either reports a phantom regression or, worse, "fixes" it.
-4. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
+4. **Measure local drift in EVERY file the release touches, by CONTENT, before briefing.**
+   Not the one file you think is risky, and never by line count. In the v0.28.4 round I
+   compared `wc -l`, found three repos matching pristine exactly, and told their agents
+   "no local drift to preserve" — while all three had differing content at identical line
+   counts (two `justfile`s at 88 lines, a `CONTRIBUTING.md` at 29). Every repo in the fleet
+   had drift in at least one touched file. Three agents caught it independently; a fourth
+   then hit a real `UU` conflict in a file I had vouched for, which would have replaced a
+   502-line curated page with copier's stub. Render pristine at each repo's own answers and
+   diff — the same method §5 already prescribes for fork detection.
+
+    And do not quote a drift COUNT as if it were canonical: the same file pair gives 178
+    (git/Myers), 186 (git/histogram) and 272 (Python `difflib`) changed lines. Net line
+    change agrees; the +/- total is algorithm-dependent. Counting drift estimates **risk**.
+    Only a whole-file pre→post diff establishes **loss**.
+5. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
    §1 is the corrected record; your recollection of it is a stale copy. In the v0.28.1 round
    I briefed kedro-azureml to "preserve its local `inventories` list" — a claim §1 already
    carried as *retracted*, with a note that an agent went looking and found nothing. The
@@ -66,19 +80,19 @@ a template bug: report it, do not accommodate it.
    which I passed to an agent as an unfixed bug two releases after it was fixed. Both cost
    an agent real work, and both were one `grep` away. **A brief is a copy of this file's
    claims; copies drift.**
-5. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
+6. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
    it writes inside that directory.** A unique directory is necessary but not sufficient:
    agents have still collided at the shared scratchpad root. One had a sibling overwrite its
    script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
    empty lists. Another found a foreign script pointed at a different repo's clone and
    correctly refused to run it. Tell each agent to distrust any file it did not write.
-6. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
+7. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
    wiped between sessions — agents have found their previous clones intact, at the previous
    release's ref. That is the more dangerous direction: a stale clone updates from the wrong
    baseline and every later measurement is against a fiction. Have each agent clone fresh,
    and verify the ref it actually landed on rather than the ref it asked for. The work lives
    on GitHub, not on disk.
-7. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
+8. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
    carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
    release that created it; the content advances every release while `main` stays behind. The
    branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
@@ -311,6 +325,18 @@ keeps 10 and kedro-azureml keeps one (`Lifecycle`). Both agents refused to force
 number to zero and said why — the right call, and it means **a brief's acceptance criteria
 are themselves claims to be checked**, not instructions to satisfy. Tell agents that
 explicitly.
+
+**A raw grep for any multi-token command against rendered HTML returns zero, always.**
+Pygments wraps every space in `<span class="w"> </span>`, so `prek install -f` is never
+contiguous in the source of a page that displays it perfectly. **Four agents reproduced
+this independently in one round.** Strip tags or use `get_text()` before matching, and
+assert non-zero — a bare zero here reads as "the bad form is absent, pass".
+
+**Checking that N known patterns survived cannot detect loss of content you never
+catalogued.** An agent verified five specific local `justfile` lines and reported them
+intact; that proves nothing about a sixth it had not thought to list. The whole-file
+pre→post diff is strictly stronger, metric-independent, and cheaper: if the only hunk is
+the template's intended one, nothing local was lost regardless of how drift is counted.
 
 **An anchored conflict-marker regex is a false-clean generator.**
 `^(<<<<<<<|>>>>>>>|=======)$` matches only a bare `=======` and **misses**
