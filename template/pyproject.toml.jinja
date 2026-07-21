@@ -63,8 +63,14 @@ docs = [
     # mkdocstrings[python] pulls only `griffelib`, which is what actually provides
     # the `griffe` module. Declaring `griffe` therefore adds two packages the docs
     # build does not use -- the `griffe` metapackage and `griffecli` (~15 KB total).
-    # Kept anyway: `griffe` is the name that works across the 1.x/2.x split, and
-    # naming `griffelib` would pin generated projects to the 2.x layout.
+    # Kept anyway, and the reason is a file collision, not taste. `griffe` 1.x
+    # OWNS the `griffe/` module directory; `griffelib` 2.x provides that same
+    # path. Naming `griffelib` in a project whose mkdocstrings still resolves to
+    # the 1.x line would install two distributions owning one import path.
+    # Depending on `griffe` cannot do that: it resolves either to 1.x, which owns
+    # the module, or to the 2.x metapackage, which defers to griffelib. Exactly
+    # one distribution owns `griffe/` in both cases, and ~15 KB is a cheap price
+    # for that.
     #
     # Deliberately NOT pinned tighter than mkdocstrings pins it (`>=1.13`): two
     # floors on one package is a resolver conflict waiting for a release.
