@@ -167,11 +167,18 @@ class TestAPISubmodulePages:
         docs = result.project_dir / "docs"
         api_pages = (docs / "_api_pages.py").read_text()
         hooks = (docs / "hooks.py").read_text()
+        # These are the discovery layer's entry points, not its internals.
+        # `_extract_module_docstring` and `_get_module_members` used to be on
+        # this list and are gone: they were AST helpers that Griffe answers
+        # directly, and naming them here made this an implementation test that
+        # failed on a refactor it should not have noticed. What it is actually
+        # for -- one definition, never a second copy in hooks.py -- is unchanged.
         for name in (
             "_get_submodules",
+            "_get_public_members",
+            "_get_root_members",
+            "_get_api_name_lookup",
             "_generate_api_pages",
-            "_extract_module_docstring",
-            "_get_module_members",
             "_build_members_tables",
         ):
             assert f"def {name}" in api_pages, f"{name} missing from _api_pages.py"
