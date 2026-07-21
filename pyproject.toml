@@ -39,7 +39,7 @@ tests = [
 lint = [
     "interrogate>=1.7.0",
     "ruff>=0.15.22",
-    "rumdl>=0.1.33",
+    "rumdl>=0.2.38",
 ]
 docs = [
     "mkdocs>=1.6.0",
