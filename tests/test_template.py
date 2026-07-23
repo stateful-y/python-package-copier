@@ -1966,6 +1966,45 @@ def test_glossary_never_links_inside_code_or_headings(copie_session_minimal):
     assert "[memory buffer](glossary.md#memory-buffer)" in out, "prose occurrence was not linked"
 
 
+def test_glossary_never_links_inside_an_autodoc_directive(copie_session_minimal):
+    """A `:::` mkdocstrings directive is a machine identifier, never prose.
+
+    The glossary linker runs as a Preprocessor, *before* mkdocstrings collects the
+    `:::` autodoc blocks on the generated API pages. A project whose module name
+    matches an .autolink term -- e.g. a `stationarity` module and a `Stationarity`
+    term -- would see `::: pkg.stationarity.ASinhTransformer` rewritten into
+    `::: pkg.[stationarity](...).ASinhTransformer`, which mkdocstrings cannot
+    collect, failing the strict build. yohou (the only repo with both a matching
+    module and term) hit exactly this; the directive line must pass through
+    untouched, and because it is skipped rather than linked, the first-occurrence
+    link correctly falls on the following prose instead.
+    """
+    project_dir = copie_session_minimal.project_dir
+    # A term whose slug collides with a module path segment in the `:::` below.
+    _write_glossary(
+        project_dir,
+        extra="Stationarity { #stationarity .autolink }\n:   A stable statistical regime.\n",
+    )
+    glossary = _load_glossary(project_dir, "glossary_autodoc")
+
+    md = (
+        "::: pkg.stationarity.ASinhTransformer\n"
+        "    options:\n"
+        "      show_root_heading: true\n"
+        "\n"
+        "Stationarity is a real concept mentioned in this prose.\n"
+    )
+    lines = glossary._linkify(md.split("\n"), _glossary_page())
+    out = "\n".join(lines)
+
+    assert lines[0] == "::: pkg.stationarity.ASinhTransformer", (
+        f"the autodoc directive was corrupted -- mkdocstrings cannot collect it: {lines[0]!r}"
+    )
+    # The fix is scoped to the directive: prose still links, and the skipped
+    # directive means first-occurrence lands here rather than being consumed above.
+    assert "[Stationarity](glossary.md#stationarity)" in out, "prose occurrence was not linked"
+
+
 def test_glossary_page_does_not_link_itself(copie_session_minimal):
     """The glossary must not turn its own definitions into links to themselves."""
     project_dir = copie_session_minimal.project_dir
@@ -2870,19 +2909,22 @@ def test_mkdocstrings_template_overrides_ship(request, fixture_name):
 
 @pytest.mark.parametrize("fixture_name", ["copie_session_default", "copie_session_minimal"])
 def test_no_rendered_file_ends_in_a_blank_line(request, fixture_name):
-    """No generated text file ends in a blank line.
+    """Every generated text file ends in exactly one newline.
 
     This is a lint rule the template imposes on generated projects and then
-    broke itself. v0.28.0 shipped four `.jinja.jinja` overrides whose bodies are
-    wrapped in `{% raw %}...{% endraw %}`; with copier's `keep_trailing_newline`
-    the newline after `{% endraw %}` was emitted on top of the body's own, so
-    every rendered override ended in a blank line and the generated project's
-    `end-of-file-fixer` failed. Seven repos went CI-red on the same commit.
+    broke itself, in both directions. v0.28.0 shipped four `.jinja.jinja`
+    overrides whose bodies are wrapped in `{% raw %}...{% endraw %}`; with
+    copier's `keep_trailing_newline` the newline after `{% endraw %}` was emitted
+    on top of the body's own, so every rendered override ended in a blank line.
+    v0.29.0 then shipped the opposite: `mkdocs.yml` ended with a `{#- ... -#}`
+    comment whose leading dash stripped the final newline, so the rendered file
+    had NO trailing newline. Both fail the generated project's
+    `end-of-file-fixer`; seven repos go CI-red on the same commit either way.
 
     It shipped through a green suite because every check looked at the SOURCE
     file, which is correctly one newline -- the defect exists only after
     rendering. So this test asserts on the rendered tree, and asserts it for
-    every text file rather than the four that happened to be wrong: the next
+    every text file rather than the few that happened to be wrong: the next
     instance will not be in the same place.
     """
     project_dir = request.getfixturevalue(fixture_name).project_dir
@@ -2893,23 +2935,75 @@ def test_no_rendered_file_ends_in_a_blank_line(request, fixture_name):
     # that matter. Scoping this keeps a failure readable and about our own files.
     ignored = {".git", ".venv", "site", "__pycache__", ".nox", "node_modules"}
     offenders = []
+    missing_newline = []
     for path in project_dir.rglob("*"):
         if not path.is_file() or path.suffix not in suffixes:
             continue
         rel = path.relative_to(project_dir)
         if ignored & set(rel.parts):
             continue
-        # `docs/pages/api/` is generated at build time from `"\n\n".join(sections)`,
-        # so those pages legitimately end in a blank line -- and the generated project
-        # gitignores them, so its own `end-of-file-fixer` never sees them. Excluding
-        # them keeps this test about files the template ships, and stops it depending
-        # on whether some earlier test happened to run a docs build in this fixture.
-        if rel.as_posix().startswith("docs/pages/api/"):
+        # Skip build-time output under docs/: the generated API pages
+        # (`"\n\n".join(sections)`, legitimately blank-line-terminated) and marimo's
+        # exported example apps (`docs/examples/<name>/index.html`, an HTML file with
+        # no trailing newline). Both are gitignored in the generated project
+        # (`docs/pages/api/`, `docs/examples/*/`), so its own `end-of-file-fixer`
+        # never sees them; including them would make this test depend on whether an
+        # earlier test happened to run a docs build or notebook export in the shared
+        # session fixture.
+        posix = rel.as_posix()
+        if posix.startswith("docs/pages/api/") or posix.startswith("docs/examples/"):
             continue
-        if path.read_bytes().endswith(b"\n\n"):
+        data = path.read_bytes()
+        if data.endswith(b"\n\n"):
             offenders.append(rel.as_posix())
+        elif data and not data.endswith(b"\n"):
+            missing_newline.append(rel.as_posix())
     offenders.sort()
+    missing_newline.sort()
     assert not offenders, f"rendered files ending in a blank line: {offenders}"
+    assert not missing_newline, f"rendered files with no trailing newline: {missing_newline}"
+
+
+@pytest.mark.parametrize("fixture_name", ["copie_session_default", "copie_session_minimal"])
+def test_every_rendered_yaml_file_parses(request, fixture_name):
+    """Every generated .yml/.yaml file is syntactically valid YAML.
+
+    v0.29.0 shipped a `.readthedocs.yml` whose `build.jobs` list items began with
+    a quoted scalar carrying trailing content (`- "${VENV}/bin/python" build.py
+    prebuild`), which is invalid YAML. It passed the whole suite because every
+    check read the `.jinja` SOURCE; nothing parsed the RENDERED file. The
+    generated project's `check-yaml` hook and Read the Docs both rejected it, so
+    the fan-out went CI-red and RTD-red across the fleet at once. This parses the
+    rendered tree so the next malformed YAML is caught here, not downstream.
+    """
+    import yaml
+
+    # mkdocs.yml legitimately uses `!!python/name:` and `!ENV`; register both so a
+    # valid file is not misread as a parse failure -- the same handlers every real
+    # reader of that file installs. A syntax error still raises.
+    loader = type("L", (yaml.SafeLoader,), {})
+    loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda _l, suffix, _n: suffix)
+    loader.add_constructor("!ENV", lambda _l, _n: None)
+
+    project_dir = request.getfixturevalue(fixture_name).project_dir
+    ignored = {".git", ".venv", "site", "__pycache__", ".nox", "node_modules"}
+    errors = {}
+    checked = 0
+    for path in project_dir.rglob("*"):
+        if not path.is_file() or path.suffix not in {".yml", ".yaml"}:
+            continue
+        rel = path.relative_to(project_dir)
+        if ignored & set(rel.parts):
+            continue
+        checked += 1
+        try:
+            yaml.load(path.read_text(encoding="utf-8"), Loader=loader)
+        except yaml.YAMLError as exc:
+            errors[rel.as_posix()] = str(exc).splitlines()[0]
+    # A selector that matches nothing is a silent pass; this fleet's dominant bug
+    # shape. `.readthedocs.yml` and `mkdocs.yml` alone guarantee a non-zero count.
+    assert checked >= 2, f"expected to parse several rendered YAML files, checked {checked}"
+    assert not errors, f"rendered YAML files that do not parse: {errors}"
 
 
 @pytest.mark.slow
