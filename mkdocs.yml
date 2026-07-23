@@ -5,6 +5,15 @@ site_url: https://python-package-copier.readthedocs.io/
 repo_url: https://github.com/stateful-y/python-package-copier
 edit_uri: edit/main/docs/
 
+# The Material theme override in docs/material/overrides/ lives inside docs_dir,
+# so mkdocs would copy it into the built site as a static asset (main.html served
+# 200). It is a theme template, not a page. `exclude_docs` keeps it out. Under the
+# successor engine (Zensical) `exclude_docs` is ignored, but main.html is a
+# Material `base.html` override with no meaning there -- it rides with the theme
+# migration, which is out of scope for this change.
+exclude_docs: |
+  material/overrides/*.html
+
 theme:
   name: material
   custom_dir: docs/material/overrides
@@ -69,19 +78,27 @@ nav:
     - Update from Template: pages/how-to/update-template.md
     - Add Dependencies: pages/how-to/add-dependencies.md
     - Contribute to the Template: pages/how-to/contribute.md
+  - Explanation:
+    - Architecture Overview: pages/explanation/architecture.md
+    - Release Process: pages/explanation/release-process.md
+  # Reference is last on purpose: it is the section you arrive at knowing what
+  # you want, so it earns its place by being findable, not by being passed
+  # through -- learn, do, understand, then look things up. Same order the
+  # generated template's own nav uses.
   - Reference:
     - Template Variables: pages/reference/template-variables.md
     - Project Structure: pages/reference/project-structure.md
     - Commands: pages/reference/commands.md
     - GitHub Workflows: pages/reference/github-workflows.md
     - Configuration Files: pages/reference/configuration.md
-  - Explanation:
-    - Architecture Overview: pages/explanation/architecture.md
-    - Release Process: pages/explanation/release-process.md
 
 extra_javascript:
   - javascripts/readthedocs.js
 
 watch:
-  - mkdocs.yml
+  # Deliberately NOT mkdocs.yml: MkDocs already watches its own config file during
+  # `serve`, independent of this key, so listing it buys nothing -- and under the
+  # successor engine (Zensical) a config file that names itself in `watch:` makes
+  # the build emit ZERO html, silently, at exit 0, even under `--strict`. Re-adding
+  # it would publish an empty site from a green build.
   - docs
