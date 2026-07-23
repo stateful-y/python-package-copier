@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.1] - 2026-07-23
+
+This **patch release** includes 1 commit.
+
+
+### Bug Fixes
+- Correct three v0.29.0 rendering bugs the fan-out surfaced  ([#208](https://github.com/stateful-y/python-package-copier/pull/208)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.29.0] - 2026-07-23
 
 This **minor release** includes 3 commits.
