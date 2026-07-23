@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.0] - 2026-07-23
+
+This **minor release** includes 3 commits.
+
+
+### Features
+- Make the generated docs build engine-independent  ([#205](https://github.com/stateful-y/python-package-copier/pull/205)) by @gtauzin
+- Make this repository's own docs engine-independent  ([#206](https://github.com/stateful-y/python-package-copier/pull/206)) by @gtauzin
+
+### Documentation
+- Measure drift by content, in every file a release touches  ([#204](https://github.com/stateful-y/python-package-copier/pull/204)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.28.4] - 2026-07-21
 
 This **patch release** includes 2 commits.
