@@ -69,6 +69,16 @@ class NameOnly:
     Beta
     Gamma
     """
+
+
+class Bulleted:
+    """Bulleted.
+
+    See Also
+    --------
+    - [`Beta`][test_project.models.Beta] : Hand-written bullet with a link.
+    - [`Gamma`][test_project.models.Gamma] : Another.
+    """
 '''
 
 
@@ -163,6 +173,22 @@ def test_name_only_entries_each_become_a_linked_list_item(rewritten):
     assert "- [`Beta`][test_project.models.Beta]" in out
     assert "- [`Gamma`][test_project.models.Gamma]" in out
     assert "Beta Gamma" not in out  # not collapsed onto one flowed line
+
+
+def test_pre_bulleted_entries_render_as_a_flat_list(rewritten):
+    """Hand-written bullet-list See Also entries render as a flat list, not nested.
+
+    Some docstrings already write See Also as markdown bullets with author links
+    (``- [`X`][ref] : desc``). Re-wrapping ``- [X]`` into ``- - [X]`` renders a
+    nested, double-bulleted list once markdown converts it -- yohou (the fleet's
+    largest curated docs) does this in 169 blocks. The leading list marker is
+    stripped so each entry becomes a single clean list item, the author's link
+    preserved.
+    """
+    out = rewritten("models.Bulleted")
+    assert "- [`Beta`][test_project.models.Beta] : Hand-written bullet with a link." in out
+    assert "- [`Gamma`][test_project.models.Gamma] : Another." in out
+    assert "- -" not in out, "entries were double-bulleted -- markdown renders that as a nested list"
 
 
 def test_single_entry_stays_a_paragraph(rewritten):
