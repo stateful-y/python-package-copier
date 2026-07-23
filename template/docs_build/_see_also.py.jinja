@@ -25,14 +25,12 @@ from griffe import Extension
 # indent. numpydoc requires the underline to be at least as long as the title.
 _HEADING = re.compile(r"(?m)^(?P<indent>[ \t]*)See Also[ \t]*\n(?P=indent)-{3,}[ \t]*\n")
 
-# An entry opens a line with a name (backticked or bare, possibly dotted) and a
-# colon. A line that does not match is a continuation of the entry above -- a
-# wrapped description -- not a new entry. Anchored so a colon inside a
-# description ("Target : note: ...") does not start a spurious entry.
-_ENTRY_START = re.compile(r"^\s*(?:`[^`]+`|[A-Za-z_][\w.]*)\s*:")
-
-# A single entry: its name (backticked or bare) and the rest of the line.
-_ENTRY = re.compile(r"^\s*`?(?P<name>[A-Za-z_][\w.]*)`?\s*:\s*(?P<desc>.*)$")
+# A single entry: a name (backticked or bare, possibly dotted) and, optionally, a
+# description after a colon. numpydoc allows a See Also target with NO description
+# -- just the name -- so the ": desc" tail is optional. Requiring it once left
+# every name-only entry unlinked, and (via _split_entries) collapsed a block of
+# name-only targets onto one line.
+_ENTRY = re.compile(r"^\s*`?(?P<name>[A-Za-z_][\w.]*)`?\s*(?::\s*(?P<desc>.*))?$")
 
 
 class SeeAlsoExtension(Extension):
@@ -105,16 +103,28 @@ class SeeAlsoExtension(Extension):
         return text[:body_start] + block + text[body_start + consumed :]
 
     def _split_entries(self, lines: list[str]) -> list[str]:
-        """Group lines into entries; a continuation line joins the entry above."""
+        """Group lines into entries by indentation.
+
+        numpydoc puts each See Also target at the section's base indent and
+        indents any wrapped description beneath it. A target often has NO
+        description (just a name), so the presence of a colon cannot mark a new
+        entry: keying on it collapsed every name-only block onto a single line and
+        left it unlinked. Indentation is the real signal -- a line at (or below)
+        the first entry's indent starts a new entry; a more-indented line
+        continues the one above.
+        """
         entries: list[list[str]] = []
+        base_indent: int | None = None
         for line in lines:
-            stripped = line.strip()
-            if not stripped:
+            if not line.strip():
                 continue
-            if _ENTRY_START.match(line) or not entries:
-                entries.append([stripped])
+            indent = len(line) - len(line.lstrip())
+            if base_indent is None:
+                base_indent = indent
+            if not entries or indent <= base_indent:
+                entries.append([line.strip()])
             else:
-                entries[-1].append(stripped)
+                entries[-1].append(line.strip())
         return [" ".join(parts) for parts in entries]
 
     def _render_entry(self, entry: str) -> str:

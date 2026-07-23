@@ -1930,6 +1930,35 @@ def test_see_also_leaves_foreign_package_names_plain(copie_session_minimal):
     assert "[`Alpha`][minimal_project.models.Alpha]" in known, known
 
 
+def test_see_also_name_only_entries_each_become_a_linked_list_item(copie_session_minimal):
+    """Name-only See Also targets (no description) each get their own list item.
+
+    numpydoc allows a See Also target with no ``: description``, one per line. The
+    splitter keyed on a colon, so a block of name-only targets was joined into a
+    SINGLE entry -- rendering on one line, and unlinked. yohou's See Also (written
+    name-only) showed exactly this. Entries split by INDENTATION now: each
+    base-indent line is its own entry; a more-indented line continues the one
+    above (a wrapped description).
+    """
+    project_dir = copie_session_minimal.project_dir
+    see_also = _load_see_also(project_dir, "name_only")
+    ext = see_also.SeeAlsoExtension()
+    ext._package = "minimal_project"
+    ext._paths = {"Alpha": "minimal_project.models.Alpha", "Beta": "minimal_project.models.Beta"}
+
+    out = ext._rewrite("Summary.\n\nSee Also\n--------\nAlpha\nBeta\n")
+    body = out.split("--------\n", 1)[1]
+    # Two SEPARATE list items, each LINKED -- not one collapsed, unlinked line.
+    assert body == ("- [`Alpha`][minimal_project.models.Alpha]\n- [`Beta`][minimal_project.models.Beta]\n"), body
+
+    # A wrapped description (indented) stays attached to its target, while a
+    # following name-only target is still its own entry.
+    assert ext._split_entries(["Alpha : a desc that", "    wraps here", "Beta"]) == [
+        "Alpha : a desc that wraps here",
+        "Beta",
+    ]
+
+
 def _write_glossary(project_dir, extra=""):
     """A glossary page in the shape the linker reads: def-list terms with anchors.
 
