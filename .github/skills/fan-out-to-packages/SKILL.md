@@ -110,7 +110,15 @@ a template bug: report it, do not accommodate it.
 - **`git diff --stat -- docs/assets` is empty.** The only sanctioned exception in this
   fleet's history is yohou-nixtla's 2-file logo restore.
 - `nox -s check_docs` passes with **0 warnings** (it builds `--strict`, notebooks skipped).
-- See Also: **0 unlinked**. The absolute count is a measurement artifact — see §5.
+- See Also: **0 BROKEN references** — not "0 unlinked". As of v0.29.2 a See Also target in
+  a *dependency* package renders as plain code by design (`_see_also.py` cannot know at
+  collection time whether an inventory will resolve it, and an unresolved autoref is fatal
+  under `--strict`), so a green build legitimately shows a nonzero "unlinked" count — those
+  are intentional foreign-package plain-code entries, not a regression (yohou-optuna trades
+  ~2 such links). Audit for a `[text][target]` autoref that did NOT resolve, not for the
+  absence of a link, and expect each block to render as a **flat single-level list**
+  (v0.29.3 flattened hand-written `- [X] : desc` bullet See Also that used to nest). The
+  absolute count is a measurement artifact — see §5.
 - Every index links every one of its sibling pages.
 - CI: report **how many checks RAN**, not just how many failed.
 
