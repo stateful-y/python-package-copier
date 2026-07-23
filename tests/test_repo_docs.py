@@ -94,6 +94,8 @@ def test_repo_docs_build_ships_content_not_an_empty_site(tmp_path):
     assert build.returncode == 0, build.stderr[-2000:]
 
     index = site / "index.html"
-    assert index.is_file() and index.stat().st_size > 500, "the home page is missing or empty -- the build shipped nothing"
+    assert index.is_file() and index.stat().st_size > 500, (
+        "the home page is missing or empty -- the build shipped nothing"
+    )
     assert not list(site.glob("material/overrides/*.html")), "the Material theme override leaked into the built site"
     assert len(list(site.rglob("index.html"))) > 5, "the site has too few pages; content collapsed"
