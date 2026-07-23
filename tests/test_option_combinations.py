@@ -1,6 +1,7 @@
 """Tests for template option combinations and integration scenarios."""
 
 import pytest
+from _build_layout import BUILD_DIR
 
 
 @pytest.mark.parametrize(
@@ -39,17 +40,18 @@ def test_option_combinations(copie, include_examples, include_actions):
     else:
         assert not workflows_dir.exists(), ".github/workflows/ should not exist when include_actions=False"
 
-    # Test hooks.py content
-    hooks_file = result.project_dir / "docs" / "hooks.py"
-    assert hooks_file.is_file(), "docs/hooks.py should always exist"
-    hooks_content = hooks_file.read_text(encoding="utf-8")
+    # Test build.py content (hooks.py was replaced by explicit build steps)
+    build_file = result.project_dir / BUILD_DIR / "build.py"
+    assert build_file.is_file(), "docs_build/build.py should always exist"
+    assert not (result.project_dir / BUILD_DIR / "hooks.py").exists(), "hooks.py should be gone"
+    build_content = build_file.read_text(encoding="utf-8")
 
     if include_examples:
-        assert "on_pre_build" in hooks_content, "on_pre_build should exist when include_examples=True"
-        assert "marimo" in hooks_content, "marimo logic should exist when include_examples=True"
+        assert "def prebuild(" in build_content, "prebuild should exist when include_examples=True"
+        assert "_notebooks" in build_content, "notebook export should be wired when include_examples=True"
     else:
-        assert "on_pre_build" in hooks_content, "on_pre_build should always exist for API page generation"
-        assert "marimo" not in hooks_content, "marimo logic should not exist when include_examples=False"
+        assert "def prebuild(" in build_content, "prebuild should always exist for API page generation"
+        assert "_notebooks" not in build_content, "notebook export should not be wired when include_examples=False"
 
     # Test pyproject.toml dependencies
     pyproject_content = (result.project_dir / "pyproject.toml").read_text(encoding="utf-8")

@@ -214,7 +214,7 @@ class TestAPIReferencePage:
         api_reference = result.project_dir / "docs" / "pages" / "reference" / "api.md"
         content = api_reference.read_text(encoding="utf-8")
 
-        # Should have API_TABLE placeholder (resolved at build time by hooks)
+        # Should have API_TABLE placeholder (resolved at build time by the marker extension)
         assert "<!-- API_TABLE -->" in content
 
 
@@ -548,35 +548,69 @@ class TestMkdocsConfiguration:
         assert "marimo" not in plugins_str
 
     def test_mkdocs_yml_has_hooks_configured(self, copie):
-        """Test that mkdocs.yml has hooks configured."""
+        """The marker extension is registered in mkdocs.yml; the hooks: key is gone."""
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
         mkdocs_file = result.project_dir / "mkdocs.yml"
         mkdocs_data = yaml.load(mkdocs_file.read_text(encoding="utf-8"), Loader=SafeMkdocsLoader)
 
-        # Should have hooks section
-        assert "hooks" in mkdocs_data
-        hooks = mkdocs_data["hooks"]
+        # The `hooks:` key is gone -- the successor engine does not execute it, so
+        # markers resolve through a markdown extension registered here instead.
+        assert "hooks" not in mkdocs_data, "the hooks: key should be gone from mkdocs.yml"
+        extensions = [e for e in mkdocs_data["markdown_extensions"] if isinstance(e, str)]
+        assert "docs_build._markers" in extensions, "the marker extension is not registered in mkdocs.yml"
+        assert "docs_build._glossary" in extensions, "the glossary extension is not registered in mkdocs.yml"
 
-        # Should reference docs/hooks.py
-        assert "docs/hooks.py" in hooks
+    def test_mkdocs_yml_emoji_uses_a_live_index(self, copie):
+        """Emoji must name an index explicitly, because the default one is dead.
 
-    def test_mkdocs_yml_has_emoji_extension_configured(self, copie):
-        """Test that mkdocs.yml has emoji extension configured."""
+        A bare ``pymdownx.emoji`` falls back to the EmojiOne index, whose asset
+        URLs point at an ``emojione/2.2.7`` CDN path that has been offline since
+        2017. Every emoji rendered as a broken image, in every engine, with no
+        warning -- the declaration looked deliberate and did the wrong thing.
+
+        This test previously asserted the opposite (that no ``!!python/name:``
+        tag appears) which is what allowed the bare declaration to stand. The
+        tag is required: ``emoji_index`` takes a callable and YAML cannot name
+        one otherwise. Every reader of this file registers a constructor for it.
+        """
         result = copie.copy(extra_answers={})
         assert result.exit_code == 0
 
         mkdocs_file = result.project_dir / "mkdocs.yml"
         assert mkdocs_file.is_file()
-
-        # Read as text to check for the emoji extension
         content = mkdocs_file.read_text(encoding="utf-8")
 
-        # Check that pymdownx.emoji is configured (simplified config without Python name resolution)
         assert "pymdownx.emoji" in content
-        # Should NOT have !!python/name tags (these cause issues with some YAML parsers)
-        assert "!!python/name:" not in content
+        assert "emoji_index: !!python/name:pymdownx.emoji.twemoji" in content
+        assert "emoji_generator: !!python/name:pymdownx.emoji.to_svg" in content
+
+        # The index is deliberately pymdownx's, not Material's: the template
+        # uses no `:material-*:` shortcodes, and naming the theme package here
+        # would bind the markdown config to the theme. Assert on the *value*,
+        # not the string -- the config comment names the rejected alternative,
+        # so a bare substring check would fail on the explanation.
+        assert "emoji_index: !!python/name:material.extensions.emoji" not in content
+        assert "!!python/name:pymdownx.emoji.emojione" not in content
+
+    def test_mkdocs_yml_magiclink_enables_repo_shorthand(self, copie):
+        """Magiclink must enable the shorthand, or only bare URLs autolink.
+
+        Declared bare, ``pymdownx.magiclink`` autolinks full URLs but renders
+        ``#12`` and ``@octocat`` as literal text -- the issue, pull request and
+        user shorthand is the reason to enable it on a project hosted on GitHub.
+        The shorthand also needs ``user`` and ``repo`` to resolve a bare ``#12``.
+        """
+        result = copie.copy(extra_answers={"github_username": "acme", "project_slug": "widget"})
+        assert result.exit_code == 0
+
+        content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
+
+        assert "repo_url_shorthand: true" in content
+        assert "social_url_shorthand: true" in content
+        assert "user: acme" in content
+        assert "repo: widget" in content
 
 
 class TestDocumentationVariableSubstitution:

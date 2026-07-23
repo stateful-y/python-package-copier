@@ -4,6 +4,8 @@ Validates: MathJax, stylesheets, rumdl, autorefs, hypothesis,
 API auto-gen, gallery system, justfile recipes, lfs, and bug fixes.
 """
 
+from _build_layout import BUILD_DIR
+
 
 class TestPyprojectNewDeps:
     """Test new dependencies in pyproject.toml."""
@@ -45,12 +47,17 @@ class TestPyprojectNewDeps:
         content = (result.project_dir / "pyproject.toml").read_text()
         ignores = tomllib.loads(content)["tool"]["ruff"]["lint"]["per-file-ignores"]
 
-        # Every script under docs/ prints build progress and may hold per-build caches.
+        # The build scripts live in docs_build/ and print progress / hold caches.
+        assert "T201" in ignores[f"{BUILD_DIR}/*.py"]
+        assert "PLW0603" in ignores[f"{BUILD_DIR}/*.py"]
+        # hooks.py is gone, and the successor build scripts implement no mkdocs event
+        # signatures, so the per-hooks.py SIM105/ARG001 exemptions are gone with it.
+        assert f"{BUILD_DIR}/hooks.py" not in ignores, "hooks.py is gone; its per-file-ignores should be too"
+        assert not any("ARG001" in v for v in ignores.values()), (
+            "no build script needs an unused-argument exemption now"
+        )
+        # `docs/*.py` is kept too, for a project's own scripts under docs/.
         assert "T201" in ignores["docs/*.py"]
-        assert "PLW0603" in ignores["docs/*.py"]
-        # The hooks additionally implement mkdocs' imposed event signatures.
-        assert "SIM105" in ignores["docs/hooks.py"]
-        assert "ARG001" in ignores["docs/hooks.py"]
         # SIM108 is deliberately absent: nothing under docs/ trips it since the
         # build steps moved out, and an ignore for a rule that no longer fires
         # reads as "this file needs an exemption" long after it stopped being true.
@@ -159,20 +166,20 @@ class TestAPISubmodulePages:
     def test_hooks_has_api_discovery_functions(self, copie_session_default):
         """The API discovery layer ships, and has exactly one definition.
 
-        Discovery lives in ``docs/_api_pages.py``; ``hooks.py`` imports what the
-        page hooks need. Asserting each name against the module that owns it is
-        what keeps a second, drifting copy from passing this test.
+        Discovery lives in ``docs_build/_api_pages.py``; ``_markers.py`` imports what
+        the marker builders need. Asserting each name against the module that owns it
+        is what keeps a second, drifting copy from passing this test.
         """
         result = copie_session_default
-        docs = result.project_dir / "docs"
-        api_pages = (docs / "_api_pages.py").read_text()
-        hooks = (docs / "hooks.py").read_text()
+        build = result.project_dir / BUILD_DIR
+        api_pages = (build / "_api_pages.py").read_text()
+        markers = (build / "_markers.py").read_text()
         # These are the discovery layer's entry points, not its internals.
         # `_extract_module_docstring` and `_get_module_members` used to be on
         # this list and are gone: they were AST helpers that Griffe answers
         # directly, and naming them here made this an implementation test that
         # failed on a refactor it should not have noticed. What it is actually
-        # for -- one definition, never a second copy in hooks.py -- is unchanged.
+        # for -- one definition, never a second copy in _markers.py -- is unchanged.
         for name in (
             "_get_submodules",
             "_get_public_members",
@@ -182,20 +189,20 @@ class TestAPISubmodulePages:
             "_build_members_tables",
         ):
             assert f"def {name}" in api_pages, f"{name} missing from _api_pages.py"
-            assert f"def {name}" not in hooks, f"{name} was redeclared in hooks.py instead of imported"
-        # Built while rendering a page, so it stays with the page hooks.
-        assert "_build_api_table_html" in hooks
+            assert f"def {name}" not in markers, f"{name} was redeclared in _markers.py instead of imported"
+        # Built while rendering a page, so it stays with the marker extension.
+        assert "_build_api_table_html" in markers
 
     def test_hooks_on_pre_build_generates_api_pages(self, copie_session_default):
-        """on_pre_build still triggers API generation, by delegating to the step.
+        """prebuild still triggers API generation, by delegating to the step.
 
-        The hook must survive the split: ``mkdocs.yml`` watches ``src`` so that
+        The step must survive the split: ``mkdocs.yml`` watches ``src`` so that
         adding a class shows up without restarting ``mkdocs serve``, and that only
-        works because this hook regenerates on every rebuild.
+        works because prebuild regenerates on every rebuild.
         """
         result = copie_session_default
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
-        assert "on_pre_build" in content
+        content = (result.project_dir / BUILD_DIR / "build.py").read_text()
+        assert "def prebuild(" in content
         assert "_api_pages.generate(" in content
 
     def test_gitignore_excludes_generated_api_pages(self, copie_session_default):
@@ -260,26 +267,26 @@ class TestGallerySystem:
         assert '"category"' in content
 
     def test_hooks_has_gallery_functions_when_examples(self, copie):
-        """Test that hooks.py includes gallery functions when examples enabled."""
+        """The marker extension includes gallery functions when examples enabled."""
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
+        content = (result.project_dir / BUILD_DIR / "_markers.py").read_text()
         assert "_get_gallery_items" in content
         assert "_build_gallery_html" in content
         assert "_build_gallery_cards" in content
 
     def test_hooks_gallery_groups_by_category(self, copie):
-        """Test that hooks.py gallery groups items by tutorial/how-to category."""
+        """The marker extension's gallery groups items by tutorial/how-to category."""
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
+        content = (result.project_dir / BUILD_DIR / "_markers.py").read_text()
         assert '"tutorial"' in content
         assert '"how-to"' in content
         assert "Tutorials" in content
         assert "How-to Guides" in content
 
     def test_hooks_no_gallery_when_no_examples(self, copie):
-        """Test that hooks.py omits gallery functions when examples disabled."""
+        """The marker extension omits gallery functions when examples disabled."""
         result = copie.copy(extra_answers={"include_examples": False})
-        content = (result.project_dir / "docs" / "hooks.py").read_text()
+        content = (result.project_dir / BUILD_DIR / "_markers.py").read_text()
         assert "_get_gallery_items" not in content
         assert "_build_gallery_html" not in content
 
@@ -408,9 +415,9 @@ class TestHooksSkipNotebooks:
     def test_hooks_supports_skip_notebooks(self, copie):
         """The notebook export honours MKDOCS_SKIP_NOTEBOOKS.
 
-        The check moved with the export loop into ``docs/_notebooks.py``; it is
+        The check moved with the export loop into ``docs_build/_notebooks.py``; it is
         what lets ``check_docs`` build without executing every notebook.
         """
         result = copie.copy(extra_answers={"include_examples": True})
-        content = (result.project_dir / "docs" / "_notebooks.py").read_text()
+        content = (result.project_dir / BUILD_DIR / "_notebooks.py").read_text()
         assert "MKDOCS_SKIP_NOTEBOOKS" in content

@@ -1,0 +1,185 @@
+"""Tests for the See Also Griffe extension (`docs_build/_see_also.py`).
+
+The extension rewrites numpydoc "See Also" blocks into markdown cross-references
+at Griffe collection time, before mkdocstrings renders the docstring. It replaces
+the HTML post-processing the docs hooks used to do (`_linkify_see_also`), which
+reached into rendered HTML and was fragile against changes in mkdocstrings'
+output shape. These tests drive the extension through a real Griffe load and
+assert on the rewritten docstring; one test builds the docs and checks that
+autorefs resolves the references into links.
+"""
+
+import importlib.util
+import sys
+
+import pytest
+from _build_layout import BUILD_DIR
+
+_MODELS = '''\
+"""Models."""
+
+
+class Beta:
+    """Beta."""
+
+
+class Gamma:
+    """Gamma."""
+
+    def fit(self):
+        """Fit."""
+
+
+class Alpha:
+    """Alpha.
+
+    See Also
+    --------
+    Beta : A sibling class.
+    Gamma.fit : A method entry.
+    numpy.ndarray : An external type.
+    NotAThing : An unknown bare name.
+    """
+
+
+class Solo:
+    """Solo.
+
+    See Also
+    --------
+    Beta : The only entry.
+    """
+
+
+class Wrapped:
+    """Wrapped.
+
+    See Also
+    --------
+    Beta : A description that wraps onto
+        a second indented line.
+    """
+'''
+
+
+def _load_extension(project_dir, suffix):
+    """Load the generated `_see_also` extension under a unique module name."""
+    sys.modules.pop("_see_also", None)
+    spec = importlib.util.spec_from_file_location(
+        f"generated_see_also_{suffix}", project_dir / BUILD_DIR / "_see_also.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _rewritten(project_dir, extension_module, package_name, obj_path):
+    """Load the package through Griffe with the extension; return obj's docstring."""
+    import griffe
+
+    extensions = griffe.load_extensions(extension_module.SeeAlsoExtension())
+    loader = griffe.GriffeLoader(search_paths=[str(project_dir / "src")], extensions=extensions)
+    package = loader.load(package_name)
+    return package[obj_path].docstring.value
+
+
+@pytest.fixture
+def rewritten(copie):
+    """Render a project, drop in a models module, return a per-object rewriter."""
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+    project_dir = result.project_dir
+    (project_dir / "src" / "test_project" / "models.py").write_text(_MODELS, encoding="utf-8")
+    ext = _load_extension(project_dir, "seealso")
+
+    def _get(obj_path):
+        return _rewritten(project_dir, ext, "test_project", obj_path)
+
+    return _get
+
+
+def test_project_symbol_becomes_a_cross_reference(rewritten):
+    """A See Also entry naming a project class links to that class's page."""
+    assert "[`Beta`][test_project.models.Beta]" in rewritten("models.Alpha")
+
+
+def test_member_entry_resolves_through_its_class(rewritten):
+    """`Class.member` links to the member's anchor on the class page."""
+    assert "[`Gamma.fit`][test_project.models.Gamma.fit]" in rewritten("models.Alpha")
+
+
+def test_external_dotted_name_is_handed_to_autorefs(rewritten):
+    """An external dotted name becomes a reference for autorefs to resolve later.
+
+    autorefs leaves it as text if no inventory resolves it, so a docstring naming
+    an undocumented external type does not fail a strict build.
+    """
+    assert "[`numpy.ndarray`][numpy.ndarray]" in rewritten("models.Alpha")
+
+
+def test_bare_unresolvable_name_is_left_unlinked(rewritten):
+    """A bare name that is not a project symbol is not linked.
+
+    A wrong link to an unrelated same-named symbol is worse than no link.
+    """
+    out = rewritten("models.Alpha")
+    assert "`NotAThing`" in out
+    assert "[`NotAThing`]" not in out
+
+
+def test_multiple_entries_become_a_markdown_list(rewritten):
+    """More than one entry renders as a list, one entry per line."""
+    out = rewritten("models.Alpha")
+    assert "- [`Beta`][test_project.models.Beta]" in out
+    assert out.count("\n- ") >= 3
+
+
+def test_single_entry_stays_a_paragraph(rewritten):
+    """A lone entry is not turned into a list."""
+    out = rewritten("models.Solo")
+    assert "[`Beta`][test_project.models.Beta]" in out
+    assert "- [`Beta`]" not in out
+
+
+def test_wrapped_description_stays_one_entry(rewritten):
+    """A description wrapping onto an indented line does not become a new entry."""
+    out = rewritten("models.Wrapped")
+    # One linked entry, and the continuation text is kept with it.
+    assert out.count("[`Beta`][test_project.models.Beta]") == 1
+    assert "a second indented line" in out
+
+
+def test_description_text_is_preserved(rewritten):
+    """The prose after the colon is carried through unchanged."""
+    assert "A sibling class." in rewritten("models.Alpha")
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_see_also_renders_as_a_resolved_link_end_to_end(copie):
+    """A full build resolves a See Also reference into an autorefs link.
+
+    The unit tests above prove the rewrite; this proves the rewrite reaches the
+    rendered page and autorefs resolves it -- the property that matters to a reader.
+    """
+    import subprocess
+
+    result = copie.copy(extra_answers={"include_examples": False})
+    assert result.exit_code == 0
+    project_dir = result.project_dir
+
+    build = subprocess.run(
+        ["uvx", "nox", "-s", "build_docs"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    assert build.returncode == 0, f"build failed:\n{build.stdout}\n{build.stderr}"
+
+    # hello()'s See Also names Greeter (the sample package ships this).
+    page = project_dir / "site" / "pages" / "api" / "generated" / "test_project.hello.hello" / "index.html"
+    assert page.is_file(), "generated page for hello() not found"
+    html = page.read_text(encoding="utf-8")
+    assert 'class="autorefs' in html and "Greeter" in html, "See Also reference did not resolve to an autorefs link"

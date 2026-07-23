@@ -1,6 +1,8 @@
-"""Tests for mkdocs hooks functionality."""
+"""Tests for the docs build steps and the git-ref helper."""
 
 import pytest
+from _build_layout import BUILD_DIR
+from test_template import _load_build, _load_git_ref
 
 
 @pytest.fixture
@@ -28,69 +30,59 @@ def copie_without_examples(copie):
 
 
 def test_hooks_file_created_with_examples(copie_with_examples):
-    """Test that hooks.py is created when examples are enabled."""
-    hooks_file = copie_with_examples.project_dir / "docs" / "hooks.py"
-    assert hooks_file.is_file(), "docs/hooks.py not created"
+    """The build steps ship in build.py when examples are enabled; hooks.py is gone."""
+    build_file = copie_with_examples.project_dir / BUILD_DIR / "build.py"
+    assert build_file.is_file(), "docs_build/build.py not created"
+    assert not (copie_with_examples.project_dir / BUILD_DIR / "hooks.py").exists(), "hooks.py should be gone"
 
-    # Verify hooks content
-    hooks_content = hooks_file.read_text(encoding="utf-8")
-    assert "on_pre_build" in hooks_content, "on_pre_build hook not found"
-    assert "on_post_build" in hooks_content, "on_post_build hook not found"
+    # Verify build content
+    build_content = build_file.read_text(encoding="utf-8")
+    assert "def prebuild(" in build_content, "prebuild step not found"
+    assert "def postbuild(" in build_content, "postbuild step not found"
 
-    # The playground link is built while rendering a page, so it stays in the hooks.
-    assert "marimo.app" in hooks_content, "marimo.app playground link not found"
-    # The export itself moved to _notebooks.py; assert against the module that owns it
+    # The playground link is built at markdown level now -- by the marker
+    # extension, not a hook -- so it lives in _markers.py, which imports the
+    # single git-ref definition rather than deriving its own.
+    markers_content = (copie_with_examples.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
+    assert "marimo.app" in markers_content, "marimo.app playground link not found in the marker extension"
+    # The export itself lives in _notebooks.py; assert against the module that owns it
     # so this keeps failing if the export disappears, rather than passing because
-    # hooks.py still happens to mention marimo.
-    assert "_notebooks.export" in hooks_content, "on_pre_build does not delegate the notebook export"
-    notebooks_content = (copie_with_examples.project_dir / "docs" / "_notebooks.py").read_text(encoding="utf-8")
+    # build.py still happens to mention marimo.
+    assert "_notebooks.export" in build_content, "prebuild does not delegate the notebook export"
+    notebooks_content = (copie_with_examples.project_dir / BUILD_DIR / "_notebooks.py").read_text(encoding="utf-8")
     assert "marimo" in notebooks_content, "marimo export logic not found"
     assert "--no-sandbox" in notebooks_content, "--no-sandbox flag not found"
 
 
 def test_hooks_file_created_without_examples(copie_without_examples):
-    """Test that hooks.py is created even when examples are disabled."""
-    hooks_file = copie_without_examples.project_dir / "docs" / "hooks.py"
-    assert hooks_file.is_file(), "docs/hooks.py not created"
+    """The build steps ship in build.py even when examples are disabled; hooks.py is gone."""
+    build_file = copie_without_examples.project_dir / BUILD_DIR / "build.py"
+    assert build_file.is_file(), "docs_build/build.py not created"
+    assert not (copie_without_examples.project_dir / BUILD_DIR / "hooks.py").exists(), "hooks.py should be gone"
 
-    # Verify hooks content has minimal implementation
-    hooks_content = hooks_file.read_text(encoding="utf-8")
-    assert "on_post_build" in hooks_content, "on_post_build hook not found"
+    # Verify build content has both steps
+    build_content = build_file.read_text(encoding="utf-8")
+    assert "def postbuild(" in build_content, "postbuild step not found"
 
-    # on_pre_build should always exist (for API page generation)
-    assert "on_pre_build" in hooks_content, "on_pre_build should exist for API page generation"
+    # prebuild should always exist (for API page generation)
+    assert "def prebuild(" in build_content, "prebuild should exist for API page generation"
 
 
 def test_on_post_build_copies_markdown(copie_with_examples, tmp_path):
-    """Test that on_post_build hook copies markdown files."""
-    import sys
+    """The postbuild step copies markdown files into the built site."""
+    build = _load_build(copie_with_examples.project_dir, "post_md")
 
-    # Add project to path so we can import hooks
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
 
-    try:
-        import hooks
+    # postbuild reads the docs dir from build.py's own location; site_dir is where
+    # the cleaned markdown lands.
+    build.postbuild(str(site_dir))
 
-        # Create mock config
-        site_dir = tmp_path / "site"
-        site_dir.mkdir()
-        docs_dir = copie_with_examples.project_dir / "docs"
-
-        config = {
-            "site_dir": str(site_dir),
-            "docs_dir": str(docs_dir),
-        }
-
-        # Call on_post_build
-        hooks.on_post_build(config)
-
-        # Verify markdown files were copied
-        assert (site_dir / "index.md").is_file(), "index.md not copied"
-        assert (site_dir / "pages" / "tutorials" / "getting-started.md").is_file(), "getting-started.md not copied"
-        assert (site_dir / "pages" / "how-to" / "contribute.md").is_file(), "contribute.md not copied"
-
-    finally:
-        sys.path.pop(0)
+    # Verify markdown files were copied
+    assert (site_dir / "index.md").is_file(), "index.md not copied"
+    assert (site_dir / "pages" / "tutorials" / "getting-started.md").is_file(), "getting-started.md not copied"
+    assert (site_dir / "pages" / "how-to" / "contribute.md").is_file(), "contribute.md not copied"
 
 
 @pytest.mark.integration
@@ -152,45 +144,36 @@ def test_on_pre_build_exports_notebooks(copie_with_examples):
 
 
 def test_on_post_build_handles_missing_examples_dir(copie_with_examples, tmp_path):
-    """Test that on_post_build gracefully handles missing examples directory."""
-    import sys
+    """postbuild gracefully handles a missing examples directory."""
+    build = _load_build(copie_with_examples.project_dir, "post_missing")
 
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
 
-    try:
-        import hooks
+    # Remove examples directory if it exists
+    docs_examples = copie_with_examples.project_dir / "docs" / "examples"
+    if docs_examples.exists():
+        import shutil
 
-        # Create mock config with non-existent examples
-        site_dir = tmp_path / "site"
-        site_dir.mkdir()
-        docs_dir = copie_with_examples.project_dir / "docs"
+        shutil.rmtree(docs_examples)
 
-        config = {
-            "site_dir": str(site_dir),
-            "docs_dir": str(docs_dir),
-        }
-
-        # Remove examples directory if it exists
-        docs_examples = copie_with_examples.project_dir / "docs" / "examples"
-        if docs_examples.exists():
-            import shutil
-
-            shutil.rmtree(docs_examples)
-
-        # Call on_post_build - should not raise
-        hooks.on_post_build(config)
-
-    finally:
-        sys.path.pop(0)
+    # Should not raise
+    build.postbuild(str(site_dir))
 
 
 def test_hooks_integrated_in_mkdocs_yml(copie_with_examples):
-    """Test that hooks are properly configured in mkdocs.yml."""
+    """The marker extension is wired in mkdocs.yml; the hooks: key is gone."""
+    import re
+
     mkdocs_yml = copie_with_examples.project_dir / "mkdocs.yml"
     content = mkdocs_yml.read_text(encoding="utf-8")
 
-    assert "hooks:" in content, "hooks section not found in mkdocs.yml"
-    assert "docs/hooks.py" in content, "hooks.py not referenced in mkdocs.yml"
+    # The `hooks:` config key is gone -- the successor engine does not execute it.
+    # Match it at the start of a line so the explanatory comment that mentions
+    # `hooks:` in backticks does not count as the key.
+    assert not re.search(r"^hooks:", content, re.MULTILINE), "the hooks: key should be gone from mkdocs.yml"
+    assert "docs_build._markers" in content, "the marker extension is not registered in mkdocs.yml"
+    assert "docs_build._glossary" in content, "the glossary extension is not registered in mkdocs.yml"
 
 
 @pytest.mark.integration
@@ -224,140 +207,94 @@ def test_on_post_build_converts_html_to_markdown(copie_with_examples, tmp_path):
 
 
 def test_on_post_build_copies_llms_txt_if_exists(copie_with_examples, tmp_path):
-    """Test that on_post_build copies llms.txt if it exists."""
-    import sys
+    """postbuild copies llms.txt if it exists."""
+    build = _load_build(copie_with_examples.project_dir, "post_llms")
 
-    # Add project to path
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
+    # Create llms.txt in docs
+    docs_dir = copie_with_examples.project_dir / "docs"
+    llms_txt = docs_dir / "llms.txt"
+    llms_txt.write_text("# LLM Context\nProject documentation", encoding="utf-8")
 
-    try:
-        import hooks
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
 
-        # Create llms.txt in docs
-        docs_dir = copie_with_examples.project_dir / "docs"
-        llms_txt = docs_dir / "llms.txt"
-        llms_txt.write_text("# LLM Context\nProject documentation", encoding="utf-8")
+    build.postbuild(str(site_dir))
 
-        site_dir = tmp_path / "site"
-        site_dir.mkdir()
-
-        config = {
-            "site_dir": str(site_dir),
-            "docs_dir": str(docs_dir),
-        }
-
-        # Call on_post_build
-        hooks.on_post_build(config)
-
-        # Verify llms.txt was copied
-        assert (site_dir / "llms.txt").is_file(), "llms.txt not copied to site"
-        content = (site_dir / "llms.txt").read_text(encoding="utf-8")
-        assert "LLM Context" in content, "llms.txt content not preserved"
-
-    finally:
-        sys.path.pop(0)
+    # Verify llms.txt was copied
+    assert (site_dir / "llms.txt").is_file(), "llms.txt not copied to site"
+    content = (site_dir / "llms.txt").read_text(encoding="utf-8")
+    assert "LLM Context" in content, "llms.txt content not preserved"
 
 
 def test_on_post_build_removes_legacy_llm_directory(copie_with_examples, tmp_path):
-    """Test that on_post_build removes legacy llm/ directory."""
-    import sys
+    """postbuild removes a legacy llm/ directory."""
+    build = _load_build(copie_with_examples.project_dir, "post_legacy")
 
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
 
-    try:
-        import hooks
+    # Create legacy llm directory
+    legacy_dir = site_dir / "llm"
+    legacy_dir.mkdir()
+    (legacy_dir / "old_file.md").write_text("old content", encoding="utf-8")
 
-        docs_dir = copie_with_examples.project_dir / "docs"
-        site_dir = tmp_path / "site"
-        site_dir.mkdir()
+    build.postbuild(str(site_dir))
 
-        # Create legacy llm directory
-        legacy_dir = site_dir / "llm"
-        legacy_dir.mkdir()
-        (legacy_dir / "old_file.md").write_text("old content", encoding="utf-8")
-
-        config = {
-            "site_dir": str(site_dir),
-            "docs_dir": str(docs_dir),
-        }
-
-        # Call on_post_build
-        hooks.on_post_build(config)
-
-        # Verify legacy directory was removed
-        assert not legacy_dir.exists(), "Legacy llm/ directory not removed"
-
-    finally:
-        sys.path.pop(0)
+    # Verify legacy directory was removed
+    assert not legacy_dir.exists(), "Legacy llm/ directory not removed"
 
 
 def test_html_to_markdown_conversion_preserves_structure(copie_with_examples):
-    """Test that HTML to markdown conversion preserves document structure."""
-    import sys
+    """HTML to markdown conversion preserves document structure."""
+    build = _load_build(copie_with_examples.project_dir, "h2m_struct")
 
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
-
-    try:
-        import hooks
-
-        # Test HTML with various elements
-        test_html = """
-        <h1>Main Title</h1>
-        <p>This is a paragraph with <strong>bold</strong> and <em>italic</em> text.</p>
-        <pre><code class="language-python">def example():
+    # Test HTML with various elements
+    test_html = """
+    <h1>Main Title</h1>
+    <p>This is a paragraph with <strong>bold</strong> and <em>italic</em> text.</p>
+    <pre><code class="language-python">def example():
     return "hello"</code></pre>
-        <ul>
-            <li>First item</li>
-            <li>Second item</li>
-        </ul>
-        """
+    <ul>
+        <li>First item</li>
+        <li>Second item</li>
+    </ul>
+    """
 
-        markdown = hooks._markdown_export._html_to_markdown(test_html)
+    markdown = build._markdown_export._html_to_markdown(test_html)
 
-        # Verify structure is preserved
-        assert "# Main Title" in markdown, "H1 not converted"
-        assert "**bold**" in markdown, "Bold not converted"
-        assert "*italic*" in markdown, "Italic not converted"
-        assert "```python" in markdown, "Code fence not created"
-        assert "def example():" in markdown, "Code content not preserved"
-        assert "- First item" in markdown or "- First item" in markdown, "List not converted"
-
-    finally:
-        sys.path.pop(0)
+    # Verify structure is preserved
+    assert "# Main Title" in markdown, "H1 not converted"
+    assert "**bold**" in markdown, "Bold not converted"
+    assert "*italic*" in markdown, "Italic not converted"
+    assert "```python" in markdown, "Code fence not created"
+    assert "def example():" in markdown, "Code content not preserved"
+    assert "- First item" in markdown or "- First item" in markdown, "List not converted"
 
 
 def test_html_to_markdown_handles_tables(copie_with_examples):
-    """Test that HTML to markdown conversion handles tables correctly."""
-    import sys
+    """HTML to markdown conversion handles tables correctly."""
+    build = _load_build(copie_with_examples.project_dir, "h2m_tables")
 
-    sys.path.insert(0, str(copie_with_examples.project_dir / "docs"))
+    test_html = """
+    <table>
+        <tr>
+            <th>Header 1</th>
+            <th>Header 2</th>
+        </tr>
+        <tr>
+            <td>Cell 1</td>
+            <td>Cell 2</td>
+        </tr>
+    </table>
+    """
 
-    try:
-        import hooks
+    markdown = build._markdown_export._html_to_markdown(test_html)
 
-        test_html = """
-        <table>
-            <tr>
-                <th>Header 1</th>
-                <th>Header 2</th>
-            </tr>
-            <tr>
-                <td>Cell 1</td>
-                <td>Cell 2</td>
-            </tr>
-        </table>
-        """
-
-        markdown = hooks._markdown_export._html_to_markdown(test_html)
-
-        # Verify table structure
-        assert "|" in markdown, "Table pipes not found"
-        assert "---" in markdown, "Table separator not found"
-        assert "Header 1" in markdown, "Table headers not preserved"
-        assert "Cell 1" in markdown, "Table cells not preserved"
-
-    finally:
-        sys.path.pop(0)
+    # Verify table structure
+    assert "|" in markdown, "Table pipes not found"
+    assert "---" in markdown, "Table separator not found"
+    assert "Header 1" in markdown, "Table headers not preserved"
+    assert "Cell 1" in markdown, "Table cells not preserved"
 
 
 @pytest.mark.integration
@@ -403,3 +340,71 @@ def test_markdown_accessible_after_docs_build(copie_with_examples):
         # Verify markdown is not empty
         md_content = md_path.read_text(encoding="utf-8")
         assert len(md_content) > 50, f"Markdown too short for {page}"
+
+
+def test_git_ref_has_exactly_one_definition(copie_with_examples):
+    """The build must not carry two notions of "which commit is this".
+
+    There used to be two: a git-ref helper shelled out to ``git rev-parse``, and
+    the marimo playground link read ``READTHEDOCS_*`` on its own. They disagree
+    whenever git is unavailable but Read the Docs is not, and the page then
+    published "View on GitHub" at ``main`` next to "Open in marimo" at a real
+    commit. The ref now has a single home, ``_git_ref.py``; asserting on the
+    source, not just behaviour, is what stops a second lookup from being
+    reintroduced.
+    """
+    build_dir = copie_with_examples.project_dir / BUILD_DIR
+    git_ref_content = (build_dir / "_git_ref.py").read_text(encoding="utf-8")
+    markers_content = (build_dir / "_markers.py").read_text(encoding="utf-8")
+    source_links_content = (build_dir / "_source_links.py").read_text(encoding="utf-8")
+
+    # The environment reads and the git shell-out live once, in _git_ref.py. Count
+    # the reads, not the string: the docstring names the variables to explain the
+    # precedence order, and matching prose would pass on a second lookup written
+    # slightly differently -- an assertion over the wrong set.
+    assert git_ref_content.count('os.environ.get("READTHEDOCS_GIT_COMMIT_HASH")') == 1, (
+        "READTHEDOCS_GIT_COMMIT_HASH is not read exactly once in _git_ref.py"
+    )
+    assert git_ref_content.count('os.environ.get("READTHEDOCS_GIT_IDENTIFIER"') == 1
+    assert "rev-parse" in git_ref_content, "the git rev-parse fallback left _git_ref.py"
+
+    # No consumer reads the ref a second way: the marker extension and the
+    # Source Code links both resolve it through the single definition, so the
+    # GitHub and marimo links cannot point at different commits.
+    for name, content in (("_markers.py", markers_content), ("_source_links.py", source_links_content)):
+        assert "READTHEDOCS_GIT_COMMIT_HASH" not in content, f"{name} reads the git ref itself instead of importing it"
+        assert "rev-parse" not in content, f"{name} shells out for the git ref itself instead of importing it"
+        assert "from _git_ref import git_ref" in content, f"{name} does not import the single git-ref definition"
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({"READTHEDOCS_GIT_COMMIT_HASH": "deadbeefcafe"}, "deadbeefcafe"),
+        ({"READTHEDOCS_GIT_IDENTIFIER": "v1.2.3"}, "v1.2.3"),
+        ({}, "main"),
+    ],
+    ids=["commit-hash-wins", "identifier-fallback", "last-resort"],
+)
+def test_get_git_ref_prefers_readthedocs_over_missing_git(copie_with_examples, monkeypatch, tmp_path, env, expected):
+    """Read the Docs' commit is authoritative when git cannot answer.
+
+    The checkout there can be shallow or detached, and some builds have no
+    usable ``.git`` at all -- which is exactly when the old implementation
+    reported ``main`` for a build that was really at a known commit.
+    """
+    git_ref = _load_git_ref(copie_with_examples.project_dir, f"gitref_{expected.replace('.', '_')}")
+
+    for var in ("READTHEDOCS_GIT_COMMIT_HASH", "READTHEDOCS_GIT_IDENTIFIER"):
+        monkeypatch.delenv(var, raising=False)
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+
+    # Run where `git rev-parse` cannot answer, so the fallback chain is what is
+    # under test rather than whatever repo the suite happens to run in.
+    monkeypatch.chdir(tmp_path)
+    git_ref._CACHE = None
+    try:
+        assert git_ref.git_ref() == expected
+    finally:
+        git_ref._CACHE = None

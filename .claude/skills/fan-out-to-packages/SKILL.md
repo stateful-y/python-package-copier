@@ -36,7 +36,8 @@ would get a silent empty return from it, but none exists yet.
 
 **`include_examples: False` is real and load-bearing.** For those two repos the gallery,
 companion-notebook and `GALLERY:section` machinery is Jinja-gated *out of their
-`hooks.py` entirely*. Any release that only touches example machinery is genuinely inert
+`docs_build/_markers.py` entirely*, and `docs_build/_notebooks.py` is not emitted at all.
+Any release that only touches example machinery is genuinely inert
 for them — verify by diffing the two pristine renders rather than assuming either way.
 If an update tries to introduce example content or an `Examples` nav entry there, that is
 a template bug: report it, do not accommodate it.
@@ -100,9 +101,12 @@ a template bug: report it, do not accommodate it.
 
 ## 3. What every repo must satisfy (the invariants)
 
-- `docs/hooks.py` is **Tier 1** — take the clean render, never a merge. Verify it is
-  byte-identical to a fresh `copier copy` at the same ref. All six historical forks were
-  eliminated by v0.20.0 and must not come back.
+- The `docs_build/*.py` files are **Tier 1** — the `_markers.py`/`_glossary.py` markdown
+  extensions, the `_see_also.py`/`_source_links.py` Griffe extensions, the shared
+  `_git_ref.py`, and the `build.py`/`_api_pages.py`/`_notebooks.py`/`_markdown_export.py`
+  build steps. Take the clean render, never a merge. Verify each is byte-identical to a
+  fresh `copier copy` at the same ref. All six historical forks (of the former single
+  `docs/hooks.py`) were eliminated by v0.20.0 and must not come back.
 - **`git diff --stat -- docs/assets` is empty.** The only sanctioned exception in this
   fleet's history is yohou-nixtla's 2-file logo restore.
 - `nox -s check_docs` passes with **0 warnings** (it builds `--strict`, notebooks skipped).
@@ -379,8 +383,9 @@ Do not derive See Also counts by splitting final HTML on newlines: mkdocstrings 
 multi-line `title=` attributes and the split cuts inside the tag, silently dropping entries.
 **Never key a See Also audit on `<details class="see-also">`.** As of v0.28.0 there are
 **zero** of them anywhere in a built site: the `admonition.html.jinja` override emits
-`<div class="doc-section-item doc-admonition-see-also">` instead, and `hooks.py` matches on
-that class. Zero hits reads as a clean pass and is total blindness. The stable anchor is a
+`<div class="doc-section-item doc-admonition-see-also">` instead, and the See Also
+cross-refs are now linked by the `_see_also.py` Griffe extension. Zero hits reads as a
+clean pass and is total blindness. The stable anchor is a
 heading with `id="see-also"`.
 
 This line has been wrong in both directions across three releases: first "no container
@@ -398,16 +403,18 @@ a confident false count (15, 17, 15 "unlinked") before going shape-agnostic. **W
 audit shape-agnostic and make it abort on zero rather than report all-clear.**
 
 One more vacuous-check trap, found four times independently in one release: **testing
-`T201` against `docs/hooks.py` proves nothing** — since the build steps moved out, that
-file contains zero `print()` calls, so the rule cannot fire and every configuration looks
-clean. Test a rule that actually fires in the file you are checking, and confirm with
-`--isolated` that the ignore suppresses a real finding.
+`T201` against a `docs_build` module that holds no `print()` proves nothing** — the ignore
+is scoped `docs_build/*.py`, but only the build-step modules (`_api_pages.py`,
+`_markdown_export.py`, and the example-gated `_notebooks.py`) actually call `print()`; the
+extensions like `_markers.py` contain zero, so against them the rule cannot fire and every
+configuration looks clean. Test a rule that actually fires in the file you are checking, and
+confirm with `--isolated` that the ignore suppresses a real finding.
 
 **Do NOT drive a headless browser for the DataTables filter.** An earlier version of this
 file said to, and every agent that read it dutifully installed one — seven browsers per
 release, to re-verify the same code. DataTables is **pinned at 2.2.2** and jQuery at 3.7.1
-in `mkdocs.yml`, the init script is emitted by `hooks.py`, and `hooks.py` is Tier 1 and
-already verified byte-identical everywhere. So the JS is pinned, template-owned and
+in `mkdocs.yml`, the init script is emitted by `docs_build/_markers.py`, and `_markers.py`
+is Tier 1 and already verified byte-identical everywhere. So the JS is pinned, template-owned and
 identical in all seven repos. The `.dt-search` vs 1.x `#api-table_filter` incident that
 produced that advice was agents using **1.x selectors against a 2.x pin** — a checker bug,
 not a drift risk; the pin is the guard. Check it statically instead: `<table id="api-table">`

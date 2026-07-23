@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _build_layout import BUILD_DIR
 
 
 def test_template_creates_project(copie_session_default):
@@ -188,7 +189,9 @@ def test_pyproject_has_interrogate_config(copie_session_default):
     assert "[tool.interrogate]" in content
     assert "ignore-init-method = true" in content
     assert "fail-under = 75" in content
-    assert '"setup.py", "docs", "build", "tests", "*_version.py"' in content
+    # docs_build joins the exclude: the build modules moved there, and they were
+    # excluded from docstring coverage before (via "docs") -- the move keeps that.
+    assert '"setup.py", "docs", "docs_build", "build", "tests", "*_version.py"' in content
 
 
 def test_pyproject_ruff_ignores_docs_directory(copie):
@@ -202,16 +205,23 @@ def test_pyproject_ruff_ignores_docs_directory(copie):
 
     # Should have per-file-ignores covering both docs/ populations
     assert "[tool.ruff.lint.per-file-ignores]" in content
-    # The hooks implement mkdocs' event signatures, so they need the unused-argument
-    # exemptions. Everything else under docs/ implements no imposed signature and
-    # deliberately does NOT get them -- an unused parameter there is a real defect,
-    # and this test would pass on a single broad "docs/**/*" glob that hid it.
-    assert '"docs/hooks.py"' in content
+    # The build tooling lives in docs_build/ and every script there prints build
+    # progress (T201) and may hold per-build cache globals (PLW0603). The mkdocs
+    # event-signature hooks that once needed an unused-argument (ARG001) exemption
+    # are gone -- the successor tooling implements no imposed signatures -- so the
+    # glob carries only the exemptions the scripts still need.
+    assert '"docs_build/*.py"' in content
     assert "T201" in content  # Print statement
-    assert "ARG001" in content  # Unused function argument
-    hooks_ignores = content.split('"docs/hooks.py"')[1].split("\n")[0]
+    build_ignores = content.split('"docs_build/*.py"')[1].split("\n")[0]
+    assert "T201" in build_ignores, "the build scripts lost their print exemption"
+    assert "PLW0603" in build_ignores, "the build scripts lost their cache-global exemption"
+    assert "ARG001" not in build_ignores, (
+        "no build script needs an unused-argument exemption now that the hooks are gone"
+    )
+    # `docs/*.py` is the project-scripts glob, kept for scripts a project adds; it
+    # must not carry the unused-argument exemption.
     docs_ignores = content.split('"docs/*.py"')[1].split("\n")[0]
-    assert "ARG001" in hooks_ignores, "hooks lost its event-signature exemption"
+    assert "T201" in docs_ignores, "a project's own docs/ scripts lost their print exemption"
     assert "ARG001" not in docs_ignores, "docs scripts must not get a blanket unused-argument exemption"
 
     # The glob must match a PROJECT-OWNED script, not just the ones the template
@@ -785,36 +795,42 @@ def test_markdown_docs_script_configuration(copie):
 
     assert result.exit_code == 0
 
-    # Verify mkdocs hooks.py exists
-    hooks_file = result.project_dir / "docs" / "hooks.py"
-    assert hooks_file.is_file(), "docs/hooks.py not created"
+    # The explicit pre/post-build steps replaced the mkdocs build hooks; they live
+    # in docs_build/build.py now, and hooks.py is gone.
+    build_file = result.project_dir / BUILD_DIR / "build.py"
+    assert build_file.is_file(), "docs_build/build.py not created"
+    assert not (result.project_dir / BUILD_DIR / "hooks.py").exists(), "hooks.py should be gone; build.py replaced it"
 
-    # Verify hooks.py has all required hooks
-    hooks_content = hooks_file.read_text(encoding="utf-8")
-    assert "on_pre_build" in hooks_content, "on_pre_build hook not found"
-    assert "on_post_build" in hooks_content, "on_post_build hook not found"
+    # Verify build.py has both build steps
+    build_content = build_file.read_text(encoding="utf-8")
+    assert "def prebuild(" in build_content, "prebuild step not found"
+    assert "def postbuild(" in build_content, "postbuild step not found"
 
-    # The work itself lives in the build-step modules now; the hooks only delegate.
+    # The work itself lives in the build-step modules; build.py only delegates.
     # Assert against the module that owns each behaviour, so this test keeps failing
-    # if a step disappears rather than passing because hooks.py happens to name it.
-    assert "_notebooks.export" in hooks_content, "on_pre_build doesn't delegate the notebook export"
-    assert "_markdown_export.export" in hooks_content, "on_post_build doesn't delegate the markdown export"
+    # if a step disappears rather than passing because build.py happens to name it.
+    assert "_notebooks.export" in build_content, "prebuild doesn't delegate the notebook export"
+    assert "_markdown_export.export" in build_content, "postbuild doesn't delegate the markdown export"
 
-    notebooks_content = (result.project_dir / "docs" / "_notebooks.py").read_text(encoding="utf-8")
+    notebooks_content = (result.project_dir / BUILD_DIR / "_notebooks.py").read_text(encoding="utf-8")
     assert "marimo" in notebooks_content.lower(), "_notebooks.py doesn't handle marimo export"
     assert "index.html" in notebooks_content, "_notebooks.py doesn't write the exported page"
 
-    export_content = (result.project_dir / "docs" / "_markdown_export.py").read_text(encoding="utf-8")
+    export_content = (result.project_dir / BUILD_DIR / "_markdown_export.py").read_text(encoding="utf-8")
     assert "shutil.copy2" in export_content, "_markdown_export.py doesn't copy files"
     assert "markdown" in export_content.lower(), "_markdown_export.py doesn't handle markdown files"
 
-    # Verify mkdocs.yml configures hooks
-    mkdocs_content = (result.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "hooks:" in mkdocs_content, "mkdocs.yml doesn't configure hooks"
-    assert "docs/hooks.py" in mkdocs_content, "mkdocs.yml doesn't reference hooks.py"
+    # Verify mkdocs.yml wires the marker extension. The `hooks:` key is gone --
+    # the successor engine does not execute it, so markers resolve through a
+    # markdown extension registered in markdown_extensions instead.
+    mkdocs_config = _mkdocs_config(result.project_dir)
+    assert "hooks" not in mkdocs_config, "the hooks: key should be gone; the successor engine does not run it"
+    extensions = [e for e in mkdocs_config["markdown_extensions"] if isinstance(e, str)]
+    assert "docs_build._markers" in extensions, "mkdocs.yml doesn't register the marker extension"
+    assert "docs_build._glossary" in extensions, "mkdocs.yml doesn't register the glossary extension"
 
     # Scripts directory may exist for other utilities
-    # export_marimo_examples.py and prepare_site.py are no longer needed (replaced by hooks)
+    # export_marimo_examples.py and prepare_site.py are no longer needed (replaced by build.py)
 
 
 @pytest.mark.integration
@@ -1551,53 +1567,127 @@ def test_claude_skills_not_gitignored(copie_session_default):
     )
 
 
-# The build steps hooks.py imports as siblings. They are plain top-level module
-# names, so `sys.modules` caches them globally and a second project would silently
-# reuse the first project's copies -- see _load_hooks.
+# The build steps the docs tooling imports as siblings. They are plain top-level
+# module names, so `sys.modules` caches them globally and a second project would
+# silently reuse the first project's copies -- see _load_markers.
 _BUILD_STEP_MODULES = ("_api_pages", "_notebooks", "_markdown_export")
 
 
-def _load_hooks(project_dir, unique_suffix):
-    """Import a generated docs/hooks.py under a unique module name.
+def _load_markers(project_dir, unique_suffix):
+    """Import a generated docs_build/_markers.py under a unique module name.
 
     The module name must be unique per project: importing two differently
-    generated hooks modules under one name makes ``sys.modules`` return the
-    first, so the second variant is never actually exercised and the test
-    passes while asserting nothing.
+    generated marker modules under one name makes ``sys.modules`` return the
+    first, so the second variant is never actually exercised and the test passes
+    while asserting nothing.
 
-    The same trap is wider than it looks. ``hooks.py`` puts its own directory on
-    ``sys.path`` and imports ``_api_pages``, ``_notebooks`` and
-    ``_markdown_export`` as plain top-level names, which ``sys.modules`` caches
-    globally -- so the *second* project loaded in a session would get the first
-    project's build steps, pointed at the first project's source tree, while its
-    own hooks module looked correctly isolated. Purging those names before each
-    load is what keeps the isolation real; ``sys.path.insert(0, ...)`` inside
-    hooks.py then resolves them against this project.
+    The same trap is wider than it looks. ``_markers.py`` puts its own directory
+    on ``sys.path`` and imports ``_api_pages`` and the shared ``_git_ref`` helper
+    as plain top-level names, which ``sys.modules`` caches globally -- so the
+    *second* project loaded in a session would get the first project's build
+    steps, pointed at the first project's source tree, while its own markers
+    module looked correctly isolated. Purging those names before each load is
+    what keeps the isolation real; ``sys.path.insert(0, ...)`` inside
+    ``_markers.py`` then resolves them against this project.
 
-    Reach the build steps through the returned module (``hooks._api_pages``),
+    Reach the build steps through the returned module (``markers._api_pages``),
     not by importing them directly -- that is the copy bound to this project.
+    Reset caches through the returned module (``markers.reset_caches()``) so the
+    reset lands on the very caches the marker builders read.
     """
     import importlib.util
 
-    for name in _BUILD_STEP_MODULES:
+    for name in (*_BUILD_STEP_MODULES, "_git_ref", "_markers"):
         sys.modules.pop(name, None)
 
-    spec = importlib.util.spec_from_file_location(f"generated_hooks_{unique_suffix}", project_dir / "docs" / "hooks.py")
+    spec = importlib.util.spec_from_file_location(
+        f"generated_markers_{unique_suffix}", project_dir / BUILD_DIR / "_markers.py"
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _reset_hook_caches(hooks):
-    """Clear every per-build cache the hooks reach, across all modules.
+def _load_build(project_dir, unique_suffix):
+    """Import a generated docs_build/build.py under a unique module name.
 
-    Tests used to do ``hooks._SUBMODULE_CACHE = None``. After the build steps were
-    split out that assignment still *succeeds* -- it simply creates a new, unread
-    attribute on the hooks module -- while the real cache in ``_api_pages`` stays
-    populated and leaks into the next test. Calling the production reset is the
-    only version that cannot drift from what a build actually does.
+    ``build.py`` hosts the explicit pre/post-build steps (``prebuild`` /
+    ``postbuild``) that replaced the mkdocs ``on_pre_build`` / ``on_post_build``
+    hooks, and imports ``_api_pages``, ``_markdown_export`` and (with examples)
+    ``_notebooks`` as plain top-level names. Same isolation trap as
+    ``_load_markers``: purge the build steps before each load, or a second
+    project binds the first project's steps. Reach the steps through the returned
+    module (``build._notebooks`` / ``build._markdown_export`` / ``build._api_pages``).
     """
-    hooks.on_config({})
+    import importlib.util
+
+    for name in (*_BUILD_STEP_MODULES, "_git_ref"):
+        sys.modules.pop(name, None)
+
+    spec = importlib.util.spec_from_file_location(
+        f"generated_build_{unique_suffix}", project_dir / BUILD_DIR / "build.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_git_ref(project_dir, unique_suffix):
+    """Import a generated docs_build/_git_ref.py under a unique module name.
+
+    ``_git_ref.py`` is the single definition of "which commit is this build",
+    shared by the marker and source-link extensions. It imports no build steps,
+    but a unique module name per load matches the isolation discipline the other
+    loaders use and keeps its module cache (``_CACHE``) from bleeding between
+    projects.
+    """
+    import importlib.util
+
+    for name in (*_BUILD_STEP_MODULES, "_git_ref"):
+        sys.modules.pop(name, None)
+
+    spec = importlib.util.spec_from_file_location(
+        f"generated_git_ref_{unique_suffix}", project_dir / BUILD_DIR / "_git_ref.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_glossary(project_dir, unique_suffix):
+    """Import a generated docs_build/_glossary.py under a unique module name.
+
+    The glossary extension imports ``_current_page`` from ``_markers`` as a plain
+    top-level name, which pulls in ``_markers``, ``_git_ref`` and the build steps
+    -- all cached globally by ``sys.modules``. Purge them (``_markers`` included)
+    before each load, or a second project's glossary binds the first project's
+    modules and reads the wrong glossary file. The linker keeps no cache, so
+    nothing else needs resetting between calls.
+    """
+    import importlib.util
+
+    for name in (*_BUILD_STEP_MODULES, "_git_ref", "_markers"):
+        sys.modules.pop(name, None)
+
+    spec = importlib.util.spec_from_file_location(
+        f"generated_glossary_{unique_suffix}", project_dir / BUILD_DIR / "_glossary.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _reset_hook_caches(markers):
+    """Clear every per-build cache the docs tooling reaches, across all modules.
+
+    Tests used to do ``markers._SUBMODULE_CACHE = None``. After the build steps
+    were split out that assignment still *succeeds* -- it simply creates a new,
+    unread attribute on the markers module -- while the real cache in
+    ``_api_pages`` stays populated and leaks into the next test. Calling the
+    production reset is the only version that cannot drift from what a build
+    actually does.
+    """
+    markers.reset_caches()
 
 
 def _write_reexport_package(project_dir, package_name):
@@ -1657,9 +1747,9 @@ def test_reexported_symbols_resolve(copie_session_minimal):
     """Re-exported symbols resolve, and the API page members table populates."""
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "reexport")
+    markers = _load_markers(project_dir, "reexport")
 
-    members = hooks._get_public_members(project_dir, "shapes")
+    members = markers._get_public_members(project_dir, "shapes")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     # Re-exported classes and functions are found, despite the __init__ declaring none.
@@ -1687,9 +1777,9 @@ def test_reexports_guarded_by_try_resolve(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "tryblock")
+    markers = _load_markers(project_dir, "tryblock")
 
-    members = hooks._get_public_members(project_dir, "optional")
+    members = markers._get_public_members(project_dir, "optional")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "Widget" in names, "re-export inside a try block was not resolved"
@@ -1702,27 +1792,27 @@ def test_api_name_lookup_without_importing_package(copie_session_minimal):
 
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "noimport")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "noimport")
+    _reset_hook_caches(markers)
 
-    lookup = hooks._get_api_name_lookup(project_dir)
+    lookup = markers._api_pages._get_api_name_lookup(project_dir)
 
     assert lookup.get("Circle") == "minimal_project.shapes.Circle", (
         f"re-exported symbol not in lookup: {sorted(lookup)}"
     )
-    assert "minimal_project" not in sys.modules, "hooks imported the generated package"
+    assert "minimal_project" not in sys.modules, "the markers module imported the generated package"
 
 
 def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
     """Interlock: every resolvable name has a generated page to link to."""
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "interlock")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "interlock")
+    _reset_hook_caches(markers)
 
-    hooks._api_pages._generate_api_pages(project_dir)
+    markers._api_pages._generate_api_pages(project_dir)
     generated = {p.stem for p in (project_dir / "docs" / "pages" / "api" / "generated").glob("*.md")}
-    lookup = hooks._get_api_name_lookup(project_dir)
+    lookup = markers._api_pages._get_api_name_lookup(project_dir)
 
     # Guard against a vacuous pass: the re-exported symbols must actually be under test.
     assert "Circle" in lookup, f"re-export package not picked up; lookup={sorted(lookup)}"
@@ -1732,25 +1822,25 @@ def test_api_name_lookup_every_name_has_a_page(copie_session_minimal):
 
 def test_api_name_lookup_available_without_examples(copie_session_minimal):
     """The lookup is not gated behind include_examples."""
-    docs = copie_session_minimal.project_dir / "docs"
-    api_pages_source = (docs / "_api_pages.py").read_text(encoding="utf-8")
-    hooks_source = (docs / "hooks.py").read_text(encoding="utf-8")
+    build = copie_session_minimal.project_dir / BUILD_DIR
+    api_pages_source = (build / "_api_pages.py").read_text(encoding="utf-8")
+    markers_source = (build / "_markers.py").read_text(encoding="utf-8")
     assert "def _get_api_name_lookup" in api_pages_source, "lookup missing when examples are disabled"
     assert "_API_NAME_LOOKUP_CACHE" in api_pages_source, "lookup cache missing when examples are disabled"
-    assert "def _get_notebook_api_usage" not in hooks_source, "gallery code leaked into a no-examples project"
-    assert not (docs / "_notebooks.py").exists(), "the notebook export module leaked into a no-examples project"
+    assert "def _get_notebook_api_usage" not in markers_source, "gallery code leaked into a no-examples project"
+    assert not (build / "_notebooks.py").exists(), "the notebook export module leaked into a no-examples project"
 
 
 def test_api_name_lookup_shared_with_notebook_usage(copie_session_default):
     """The gallery consumes the shared lookup instead of building its own map."""
-    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    api_pages_source = (copie_session_default.project_dir / "docs" / "_api_pages.py").read_text(encoding="utf-8")
+    markers_source = (copie_session_default.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
+    api_pages_source = (copie_session_default.project_dir / BUILD_DIR / "_api_pages.py").read_text(encoding="utf-8")
     # Declared once, in the module that owns discovery; imported by name here so
     # the gallery and the generator cannot disagree about what a symbol is called.
     assert "def _get_api_name_lookup" in api_pages_source
-    assert "def _get_api_name_lookup" not in hooks_source, "the lookup was redeclared instead of imported"
-    assert "_get_api_name_lookup," in hooks_source, "hooks.py does not import the shared lookup"
-    assert "name_to_qualified = _get_api_name_lookup(project_root)" in hooks_source, (
+    assert "def _get_api_name_lookup" not in markers_source, "the lookup was redeclared instead of imported"
+    assert "_get_api_name_lookup," in markers_source, "_markers.py does not import the shared lookup"
+    assert "name_to_qualified = _get_api_name_lookup(project_root)" in markers_source, (
         "_get_notebook_api_usage must consume the shared lookup, not derive a second map"
     )
 
@@ -1765,41 +1855,12 @@ class _FakeFile:
 
 
 class _FakePage:
-    """The subset of mkdocs' Page that on_page_content actually touches."""
+    """The subset of mkdocs' Page the marker Preprocessor and its tests touch."""
 
     def __init__(self, src_path, dest_path):
         self.file = _FakeFile(src_path, dest_path)
         self.meta = {}
         self.toc = []
-
-
-def _see_also_page(package_name, class_name, entries, *, method_entries=""):
-    """Build a page shaped like real mkdocstrings output, as the templates emit it.
-
-    The container is `<div class="doc-section-item doc-admonition-see-also">`,
-    written by the `admonition.html.jinja` override, with its heading emitted
-    separately by the `docstring.html.jinja` dispatcher. It used to be
-    `<details class="see-also">` -- the shipped markup -- which a restructuring
-    pass dissolved partway through `on_page_content`, forcing the linkifier to
-    run first. Both the pass and that ordering constraint are gone; this fixture
-    tracks the markup that actually ships, because a fixture describing markup
-    nobody emits tests nothing.
-    """
-
-    def _section(body):
-        return (
-            '<h3 id="see-also" class="doc-section-heading">See Also</h3>'
-            f'<div class="doc-section-item doc-admonition-see-also"><p>{body}</p></div>'
-        )
-
-    method_block = ""
-    if method_entries:
-        method_block = f'<h4 id="{package_name}.{class_name}.fit">fit</h4>{_section(method_entries)}'
-    return (
-        f'<h2 id="{package_name}.{class_name}">{class_name}</h2>'
-        f'<div class="doc doc-contents">{_section(entries)}</div>'
-        f'<div class="doc doc-children">{method_block}</div>'
-    )
 
 
 def _generated_page(package_name, class_name):
@@ -1815,60 +1876,19 @@ def _write_models_module(project_dir, package_name):
     )
 
 
-def test_see_also_links_class_level_entries(copie_session_minimal):
-    """Class-level See Also entries link — the case a post-restructure hook misses.
-
-    Driven through on_page_content, not the linkifier alone: the container this
-    feature depends on is destroyed partway through that function, so testing
-    the linkifier in isolation proves nothing about the real pipeline.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_class")
-    _reset_hook_caches(hooks)
-
-    # One entry per line, as mkdocstrings actually renders them. Running them
-    # together on one line hides whether the linkifier respects entry boundaries.
-    html = _see_also_page(
-        "minimal_project",
-        "Alpha",
-        "Beta : Plain numpydoc.\n<code>Gamma</code> : Backticked.\nNotARealThing : Unknown.",
-    )
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
-        "plain entry not linked"
-    )
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/"><code>Gamma</code></a>' in out, (
-        "code-span entry not linked"
-    )
-    assert "Plain numpydoc." in out, "description text was altered"
-    assert not re.search(r"<a[^>]*>NotARealThing", out), "unresolvable entry was linked"
-    # The container survives now -- nothing dissolves it. What matters is that
-    # its entries were linked, which the assertions above already establish.
-    assert "doc-admonition-see-also" in out, "the See Also container was consumed by something"
-
-
-def test_see_also_links_method_level_entries(copie_session_minimal):
-    """Method-level See Also entries link too (they sit outside class_region)."""
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_method")
-    _reset_hook_caches(hooks)
-
-    html = _see_also_page("minimal_project", "Alpha", "Beta : Class level.", method_entries="Gamma : Method level.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/">Gamma</a>' in out, (
-        "method-level entry not linked"
-    )
-
-
 def _write_glossary(project_dir, extra=""):
-    """A glossary page in the shape the linker reads: def-list terms with anchors."""
+    """A glossary page in the shape the linker reads: def-list terms with anchors.
+
+    This writes into ``copie_session_minimal``, a session-scoped project shared
+    across tests, so it must leave the file satisfying the same "no trailing
+    blank line" invariant the rendered template obeys -- otherwise
+    ``test_no_rendered_file_ends_in_a_blank_line`` fails whenever it happens to
+    run after this on the same xdist worker. The final ``rstrip`` guarantees
+    exactly one trailing newline whether or not ``extra`` is passed.
+    """
     page = project_dir / "docs" / "pages" / "explanation" / "glossary.md"
     page.parent.mkdir(parents=True, exist_ok=True)
-    page.write_text(
+    body = (
         "# Glossary\n\n"
         "## Core\n\n"
         "Memory buffer { #memory-buffer .autolink }\n"
@@ -1877,9 +1897,9 @@ def _write_glossary(project_dir, extra=""):
         ":   How far ahead to predict.\n\n"
         # Defined but NOT opted in: a short common word that would over-link.
         "Step { #step }\n"
-        ":   One timestep.\n\n" + extra,
-        encoding="utf-8",
+        ":   One timestep.\n\n" + extra
     )
+    page.write_text(body.rstrip("\n") + "\n", encoding="utf-8")
     return page
 
 
@@ -1891,20 +1911,19 @@ def test_glossary_terms_link_on_other_pages(copie_session_minimal):
     """A term marked .autolink links to the glossary, once, from prose only.
 
     The glossary page is the single source of truth: a second list of terms in
-    hooks.py would drift from the definitions it points at.
+    the build tooling would drift from the definitions it points at.
     """
     project_dir = copie_session_minimal.project_dir
     _write_glossary(project_dir)
-    hooks = _load_hooks(project_dir, "glossary_link")
-    hooks._GLOSSARY_TERMS_CACHE = None
+    glossary = _load_glossary(project_dir, "glossary_link")
 
-    html = "<p>The memory buffer holds rows. A second memory buffer mention.</p><p>The forecasting horizon matters.</p>"
-    out = hooks.on_page_content(html, _glossary_page(), {}, None)
+    md = "The memory buffer holds rows. A second memory buffer mention.\n\nThe forecasting horizon matters."
+    out = "\n".join(glossary._linkify(md.split("\n"), _glossary_page()))
 
-    assert '<a href="../glossary/#memory-buffer">memory buffer</a>' in out, "term was not linked"
-    assert '<a href="../glossary/#forecasting-horizon">forecasting horizon</a>' in out
+    assert "[memory buffer](glossary.md#memory-buffer)" in out, "term was not linked"
+    assert "[forecasting horizon](glossary.md#forecasting-horizon)" in out
     # First occurrence only -- linking every mention is noise, not navigation.
-    assert out.count('href="../glossary/#memory-buffer"') == 1, "linked more than the first occurrence"
+    assert out.count("glossary.md#memory-buffer") == 1, "linked more than the first occurrence"
 
 
 def test_glossary_skips_terms_not_opted_in(copie_session_minimal):
@@ -1916,10 +1935,9 @@ def test_glossary_skips_terms_not_opted_in(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_glossary(project_dir)
-    hooks = _load_hooks(project_dir, "glossary_optin")
-    hooks._GLOSSARY_TERMS_CACHE = None
+    glossary = _load_glossary(project_dir, "glossary_optin")
 
-    out = hooks.on_page_content("<p>Each step is a step.</p>", _glossary_page(), {}, None)
+    out = "\n".join(glossary._linkify(["Each step is a step."], _glossary_page()))
 
     assert "#step" not in out, "a term that did not opt in was linked"
     assert "Each step is a step." in out, "text was altered"
@@ -1929,186 +1947,85 @@ def test_glossary_never_links_inside_code_or_headings(copie_session_minimal):
     """Code is not prose, and a link inside a heading or another link is broken markup."""
     project_dir = copie_session_minimal.project_dir
     _write_glossary(project_dir)
-    hooks = _load_hooks(project_dir, "glossary_skip")
-    hooks._GLOSSARY_TERMS_CACHE = None
+    glossary = _load_glossary(project_dir, "glossary_skip")
 
-    html = (
-        "<h2>The memory buffer heading</h2>"
-        "<pre><code>memory buffer = 1</code></pre>"
-        '<p>See <a href="x">the memory buffer docs</a>.</p>'
-        "<p>A real memory buffer in prose.</p>"
+    md = (
+        "## The memory buffer heading\n"
+        "\n"
+        "An inline `memory buffer` code span.\n"
+        "\n"
+        "See [the memory buffer docs](x).\n"
+        "\n"
+        "A real memory buffer in prose.\n"
     )
-    out = hooks.on_page_content(html, _glossary_page(), {}, None)
+    out = "\n".join(glossary._linkify(md.split("\n"), _glossary_page()))
 
-    assert "<h2>The memory buffer heading</h2>" in out, "linked inside a heading"
-    assert "<code>memory buffer = 1</code>" in out, "linked inside code"
-    assert '<a href="x">the memory buffer docs</a>' in out, "nested a link inside a link"
-    assert '<a href="../glossary/#memory-buffer">memory buffer</a>' in out, "prose occurrence was not linked"
+    assert "## The memory buffer heading" in out, "linked inside a heading"
+    assert "`memory buffer`" in out, "linked inside an inline code span"
+    assert "[the memory buffer docs](x)" in out, "nested a link inside an existing link"
+    assert "[memory buffer](glossary.md#memory-buffer)" in out, "prose occurrence was not linked"
 
 
 def test_glossary_page_does_not_link_itself(copie_session_minimal):
     """The glossary must not turn its own definitions into links to themselves."""
     project_dir = copie_session_minimal.project_dir
     _write_glossary(project_dir)
-    hooks = _load_hooks(project_dir, "glossary_self")
-    hooks._GLOSSARY_TERMS_CACHE = None
+    glossary = _load_glossary(project_dir, "glossary_self")
 
     page = _glossary_page("pages/explanation/glossary.md")
-    out = hooks.on_page_content("<p>A memory buffer is defined here.</p>", page, {}, None)
+    out = "\n".join(glossary._linkify(["A memory buffer is defined here."], page))
 
-    assert "<a href=" not in out, "the glossary linked its own terms"
+    assert out == "A memory buffer is defined here.", "the glossary linked its own terms"
 
 
 def test_glossary_absent_is_not_an_error(copie_session_minimal):
     """Most projects ship no glossary; the feature must simply do nothing."""
     project_dir = copie_session_minimal.project_dir
-    glossary = project_dir / "docs" / "pages" / "explanation" / "glossary.md"
-    if glossary.exists():
-        glossary.unlink()
-    hooks = _load_hooks(project_dir, "glossary_absent")
-    hooks._GLOSSARY_TERMS_CACHE = None
+    glossary_file = project_dir / "docs" / "pages" / "explanation" / "glossary.md"
+    if glossary_file.exists():
+        glossary_file.unlink()
+    glossary = _load_glossary(project_dir, "glossary_absent")
 
-    html = "<p>A memory buffer here.</p>"
-    assert hooks.on_page_content(html, _glossary_page(), {}, None) == html
+    lines = ["A memory buffer here."]
+    assert glossary._linkify(lines, _glossary_page()) == lines
 
 
-def test_see_also_links_member_path_entries(copie_session_minimal):
-    """A ``Class.member`` See Also entry qualifies to a full autoref identifier.
+def test_glossary_skips_fenced_code_blocks(copie_session_minimal):
+    """A term inside a fenced code block is code, not prose, and is not linked.
 
-    A member -- a method or attribute -- has no page of its own; it is an anchor
-    on its class page, so it cannot resolve to a direct URL the way a class can.
-    Its short leading segment (``Beta``) is a project symbol, so the entry is
-    qualified to ``minimal_project.models.Beta.build`` and deferred to autorefs,
-    which knows the anchor. The pre-fix path treated any dotted entry whose head
-    was not the package as external and emitted the bare ``Beta.build`` as the
-    identifier, which never matches the registered qualified name and degraded
-    silently to plain text under the ``optional`` attribute.
+    The first prototype skipped fences and this pins it: a fenced example that
+    happens to name a glossary term is exactly where an accidental link is worst,
+    and the term must still link in the prose that follows the fence.
     """
     project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_member")
-    _reset_hook_caches(hooks)
+    _write_glossary(project_dir)
+    glossary = _load_glossary(project_dir, "glossary_fence")
 
-    html = _see_also_page("minimal_project", "Alpha", "Beta.build : Instantiate from a config.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
+    md = "```python\nmemory buffer = 1\n```\n\nThen a real memory buffer in prose.\n"
+    out = "\n".join(glossary._linkify(md.split("\n"), _glossary_page()))
 
-    assert '<autoref optional identifier="minimal_project.models.Beta.build">Beta.build</autoref>' in out, (
-        "a Class.member entry was not qualified to its full autoref identifier"
-    )
-    assert 'identifier="Beta.build"' not in out, "member path was deferred to autorefs unqualified (never resolves)"
+    assert "```python\nmemory buffer = 1\n```" in out, "linked a term inside a fenced code block"
+    assert "[memory buffer](glossary.md#memory-buffer)" in out, "the prose occurrence after the fence was not linked"
+    assert out.count("glossary.md#memory-buffer") == 1, "linked something other than the single prose occurrence"
 
 
-def test_see_also_has_no_ordering_constraint(copie_session_minimal):
-    """The linkifier no longer depends on running before anything else.
+def test_glossary_state_does_not_leak_between_pages(copie_session_minimal):
+    """First-occurrence state is per page: a term linked on A still links on B.
 
-    There used to be an order-lock here: a restructuring pass dissolved the
-    `<details class="see-also">` container the linkifier matched, so linkifying
-    afterwards silently produced nothing for class-level sections while still
-    working for method-level ones -- a regression a method-only test would miss.
-
-    The container is now emitted by a template override and nothing consumes it,
-    so the constraint is gone. This asserts the *absence*: no dissolving pass may
-    come back, because reintroducing one would re-create the hazard without
-    reintroducing the test that caught it.
-    """
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "_process_api_page_content" not in hooks_source, (
-        "the restructuring pass is back; it dissolves the See Also container and re-creates the order-lock"
-    )
-    assert "ORDER IS LOAD-BEARING" not in hooks_source, "the ordering hazard comment is back"
-    body = hooks_source[hooks_source.index("def on_page_content") :]
-    assert "_linkify_see_also(" in body, "the linkifier must still run"
-
-
-def test_see_also_links_on_any_page_that_renders_a_docstring(copie_session_minimal):
-    """A See Also block is linkified wherever it renders, not only under pages/api/generated/.
-
-    mkdocstrings emits the block wherever a docstring is rendered, and a project is
-    free to put ::: directives on a curated reference page. This was gated on the
-    src_path, so those blocks stayed raw: kedro-dagster's datasets page rendered
-    three entries as plain text while the same names linked correctly on the
-    generated pages -- the exact shape of "it works everywhere we looked". Nothing
-    catches it, because the block is our own HTML and --strict does not check it.
-
-    The URL must come from the page's own depth. `../` is right from exactly one
-    place, so ungating without that would have turned unlinked text into 404s.
+    The `linked` set is page-global but only within a page. Sharing it across
+    pages would link a term once for the whole site, leaving every later page's
+    first mention bare -- the failure a Postprocessor could not avoid and the
+    reason this is a Preprocessor.
     """
     project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_any_page")
-    _reset_hook_caches(hooks)
+    _write_glossary(project_dir)
+    glossary = _load_glossary(project_dir, "glossary_leak")
 
-    html = '<div class="doc-section-item doc-admonition-see-also"><p>Beta : Nope.</p></div>'
+    first = "\n".join(glossary._linkify(["The memory buffer on page one."], _glossary_page("pages/explanation/a.md")))
+    second = "\n".join(glossary._linkify(["The memory buffer on page two."], _glossary_page("pages/explanation/b.md")))
 
-    # A curated reference page, two deep -- kedro-dagster's shape.
-    page = _FakePage("pages/reference/datasets.md", "pages/reference/datasets/index.html")
-    out = hooks.on_page_content(html, page, {}, None)
-    assert '<a href="../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
-        "a See Also block on a curated page was left raw, so its entries render as plain text"
-    )
-
-    # The same block, rendered deeper, must resolve to the same page from its own depth.
-    deep = _FakePage("pages/api/generated/minimal_project.models.Alpha.md", "pages/api/generated/x/index.html")
-    out_deep = hooks.on_page_content(html, deep, {}, None)
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out_deep, (
-        "the See Also URL is not built from the page's own depth, so it 404s once the page moves"
-    )
-
-
-def test_see_also_external_name_defers_to_autorefs(copie_session_minimal):
-    """An external dotted name is handed to autorefs, not resolved eagerly.
-
-    Inventories are registered into the autorefs URL map but applied in its
-    on_env hook, which runs after on_page_content -- asking for the URL here
-    raises KeyError even when the inventory is configured. The `optional`
-    attribute keeps an unresolvable name quiet rather than failing --strict.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_external")
-    _reset_hook_caches(hooks)
-
-    html = _see_also_page("minimal_project", "Alpha", "sklearn.linear_model.Ridge : External.\nBeta : Project.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<autoref optional identifier="sklearn.linear_model.Ridge">sklearn.linear_model.Ridge</autoref>' in out, (
-        "external name was not deferred to autorefs"
-    )
-    # The project symbol is still resolved here, against the page set we own.
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out
-
-
-def test_see_also_bare_unresolvable_name_is_left_alone(copie_session_minimal):
-    """A bare name that misses the project lookup is not offered to autorefs.
-
-    It could resolve to an unrelated symbol sharing the name in some configured
-    inventory, and a wrong link is worse than no link.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_bare")
-    _reset_hook_caches(hooks)
-
-    html = _see_also_page("minimal_project", "Alpha", "NotAThing : Unknown bare name.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert "<autoref" not in out, "a bare name was offered to autorefs"
-    assert "NotAThing : Unknown bare name." in out, "bare unresolvable entry was altered"
-
-
-def test_see_also_qualified_name_matches_bare_form(copie_session_minimal):
-    """A fully qualified project entry links to the same page as the bare form."""
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_qualified")
-    _reset_hook_caches(hooks)
-
-    html = _see_also_page("minimal_project", "Alpha", "minimal_project.models.Beta : Qualified.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert (
-        '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">minimal_project.models.Beta</a>' in out
-    ), "qualified project name did not resolve to the same page as the bare form"
+    assert "glossary.md#memory-buffer" in first, "the term did not link on the first page"
+    assert "glossary.md#memory-buffer" in second, "state leaked across pages: the term stopped linking on a later page"
 
 
 def _write_notebook(project_dir, stem, gallery_body, imports=""):
@@ -2126,7 +2043,7 @@ def test_notebook_export_is_cached_by_source_hash(copie_session_default):
     `mkdocs serve`.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "nbcache")
+    build = _load_build(project_dir, "nbcache")
 
     notebook = project_dir / "examples" / "cache_probe.py"
     notebook.parent.mkdir(parents=True, exist_ok=True)
@@ -2134,39 +2051,44 @@ def test_notebook_export_is_cached_by_source_hash(copie_session_default):
     output_dir = project_dir / "docs" / "examples" / "cache_probe"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    digest = hooks._notebooks._notebook_content_hash(notebook)
+    digest = build._notebooks._notebook_content_hash(notebook)
 
     # Nothing exported yet.
-    assert not hooks._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no exported page"
+    assert not build._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no exported page"
 
     # A hash with no rendered page must not count: the export may have died
     # before writing the html, and reusing that ships a missing page.
-    (output_dir / hooks._notebooks._SOURCE_HASH_FILE).write_text(digest, encoding="utf-8")
-    assert not hooks._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no index.html"
+    (output_dir / build._notebooks._SOURCE_HASH_FILE).write_text(digest, encoding="utf-8")
+    assert not build._notebooks._is_cached(output_dir, digest), "claimed a cache hit with no index.html"
 
     (output_dir / "index.html").write_text("<html></html>", encoding="utf-8")
-    assert hooks._notebooks._is_cached(output_dir, digest), "did not reuse an unchanged export"
+    assert build._notebooks._is_cached(output_dir, digest), "did not reuse an unchanged export"
 
     # Editing the notebook must invalidate it, or the site serves a stale render.
     notebook.write_text("x = 2\n", encoding="utf-8")
-    assert not hooks._notebooks._is_cached(output_dir, hooks._notebooks._notebook_content_hash(notebook)), (
+    assert not build._notebooks._is_cached(output_dir, build._notebooks._notebook_content_hash(notebook)), (
         "reused the export of an edited notebook"
     )
 
 
 def test_notebook_cache_is_absent_without_examples(copie_session_minimal):
-    """The caching code ships only where notebooks do."""
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "_notebook_content_hash" not in hooks_source, "notebook caching leaked into a no-examples project"
-    assert "import hashlib" not in hooks_source, "hashlib imported with nothing to hash"
+    """The caching code ships only where notebooks do.
+
+    The notebook-content hashing lives in `_notebooks.py`, which a no-examples
+    project does not ship at all -- so no build module carries it. Scanning every
+    build script (not just one file) keeps this honest against wherever the code
+    might reappear.
+    """
+    build = copie_session_minimal.project_dir / BUILD_DIR
+    sources = "\n".join(p.read_text(encoding="utf-8") for p in sorted(build.glob("*.py")))
+    assert "_notebook_content_hash" not in sources, "notebook caching leaked into a no-examples project"
+    assert "import hashlib" not in sources, "hashlib imported with nothing to hash"
 
 
-def _reset_gallery_caches(hooks):
-    hooks._GALLERY_CACHE = None
-    hooks._NOTEBOOK_API_USAGE_CACHE = None
-    hooks._COMPANION_INDEX_CACHE = None
-    _reset_hook_caches(hooks)
-    hooks._GALLERY_PAGE_CACHE = None
+def _reset_gallery_caches(markers):
+    # markers.reset_caches() nulls every gallery cache and resets _api_pages, so
+    # this is the whole reset -- no need to null each cache by name here.
+    markers.reset_caches()
 
 
 def test_declared_api_references_override_imports(copie_session_default):
@@ -2179,10 +2101,10 @@ def test_declared_api_references_override_imports(copie_session_default):
         '"title": "Declared", "description": "d", "category": "tutorial", "api_references": ["Beta"]',
         imports="from test_project.models import Alpha, Gamma\n",
     )
-    hooks = _load_hooks(project_dir, "egl_declared")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_declared")
+    _reset_gallery_caches(markers)
 
-    usage = hooks._get_notebook_api_usage(project_dir)
+    usage = markers._get_notebook_api_usage(project_dir)
     stems = {q: {i["stem"] for i in items} for q, items in usage.items()}
 
     assert "declared_nb" in stems.get("test_project.models.Beta", set()), "declared reference not used"
@@ -2204,10 +2126,10 @@ def test_absent_api_references_falls_back_to_imports(copie_session_default):
         '"title": "Fallback", "description": "d", "category": "tutorial"',
         imports="from test_project.models import Alpha\n",
     )
-    hooks = _load_hooks(project_dir, "egl_fallback")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_fallback")
+    _reset_gallery_caches(markers)
 
-    usage = hooks._get_notebook_api_usage(project_dir)
+    usage = markers._get_notebook_api_usage(project_dir)
     stems = {i["stem"] for i in usage.get("test_project.models.Alpha", [])}
 
     assert "fallback_nb" in stems, "notebook without api_references was not inferred from imports"
@@ -2223,10 +2145,10 @@ def test_empty_api_references_means_no_pages(copie_session_default):
         '"title": "Optout", "description": "d", "category": "tutorial", "api_references": []',
         imports="from test_project.models import Alpha\n",
     )
-    hooks = _load_hooks(project_dir, "egl_empty")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_empty")
+    _reset_gallery_caches(markers)
 
-    usage = hooks._get_notebook_api_usage(project_dir)
+    usage = markers._get_notebook_api_usage(project_dir)
     appearances = {q for q, items in usage.items() if any(i["stem"] == "optout_nb" for i in items)}
 
     assert not appearances, f"api_references: [] still produced cards on {appearances}"
@@ -2241,10 +2163,10 @@ def test_unresolvable_api_reference_is_ignored(copie_session_default):
         "bogus_nb",
         '"title": "Bogus", "description": "d", "category": "tutorial", "api_references": ["NotAThing", "Beta"]',
     )
-    hooks = _load_hooks(project_dir, "egl_bogus")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_bogus")
+    _reset_gallery_caches(markers)
 
-    usage = hooks._get_notebook_api_usage(project_dir)
+    usage = markers._get_notebook_api_usage(project_dir)
 
     assert not [q for q in usage if "NotAThing" in q], "unresolvable name produced an entry"
     assert any(i["stem"] == "bogus_nb" for i in usage.get("test_project.models.Beta", [])), "valid name was dropped too"
@@ -2265,19 +2187,19 @@ def test_api_example_cards_are_capped(copie_session_default):
             f"capped_{i:02d}",
             f'"title": "Capped {i:02d}", "description": "d", "category": "tutorial", "api_references": ["Capstone"]',
         )
-    hooks = _load_hooks(project_dir, "egl_cap")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_cap")
+    _reset_gallery_caches(markers)
 
-    html = hooks._build_api_examples_html(project_dir, "test_project.capped.Capstone")
+    html = markers._build_api_examples_html(project_dir, "test_project.capped.Capstone")
 
-    assert notebook_count > hooks._API_EXAMPLES_CAP, "test does not actually exceed the cap"
-    assert html.count("**Capped") == hooks._API_EXAMPLES_CAP, "card list was not capped"
+    assert notebook_count > markers._API_EXAMPLES_CAP, "test does not actually exceed the cap"
+    assert html.count("**Capped") == markers._API_EXAMPLES_CAP, "card list was not capped"
     assert "See all" in html and "in the gallery" in html, "no overflow link past the cap"
     # Stable order: same input, same cards, so builds are reproducible. The
     # caches must be cleared between calls -- re-reading a warm cache returns
     # the same object and the assertion cannot fail.
-    _reset_gallery_caches(hooks)
-    assert hooks._build_api_examples_html(project_dir, "test_project.capped.Capstone") == html
+    _reset_gallery_caches(markers)
+    assert markers._build_api_examples_html(project_dir, "test_project.capped.Capstone") == html
 
 
 def test_api_example_cards_under_cap_have_no_gallery_link(copie_session_default):
@@ -2289,10 +2211,10 @@ def test_api_example_cards_under_cap_have_no_gallery_link(copie_session_default)
         "solo_nb",
         '"title": "Solo", "description": "d", "category": "tutorial", "api_references": ["Gamma"]',
     )
-    hooks = _load_hooks(project_dir, "egl_undercap")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_undercap")
+    _reset_gallery_caches(markers)
 
-    html = hooks._build_api_examples_html(project_dir, "test_project.models.Gamma")
+    html = markers._build_api_examples_html(project_dir, "test_project.models.Gamma")
 
     assert "**Solo**" in html
     assert "See all" not in html, "overflow link shown when nothing was hidden"
@@ -2300,24 +2222,24 @@ def test_api_example_cards_under_cap_have_no_gallery_link(copie_session_default)
 
 def test_companion_path_variants_match_same_page(copie_session_default):
     """companion is hand-written, so authored spellings must all match."""
-    hooks = _load_hooks(copie_session_default.project_dir, "egl_norm")
+    markers = _load_markers(copie_session_default.project_dir, "egl_norm")
     variants = [
         "/pages/how-to/x/",
         "pages/how-to/x",
         "pages/how-to/x.md",
         "/pages/how-to/x",
     ]
-    normalized = {hooks._normalize_companion_path(v) for v in variants}
+    normalized = {markers._normalize_companion_path(v) for v in variants}
     assert len(normalized) == 1, f"companion path variants did not normalize together: {normalized}"
 
 
 def test_companion_placeholder_renders_nothing_when_unmatched(copie_session_default):
     """A page with the placeholder and no companion notebooks renders empty."""
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "egl_nocompanion")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "egl_nocompanion")
+    _reset_gallery_caches(markers)
 
-    html = hooks._build_companion_cards_html(project_dir, "pages/how-to/nobody-references-me.md")
+    html = markers._build_companion_cards_html(project_dir, "pages/how-to/nobody-references-me.md")
 
     assert html == "", "unmatched placeholder produced output"
 
@@ -2329,15 +2251,15 @@ def test_companion_cache_is_registered_by_name(copie_session_default):
     a cache named otherwise (the natural `_COMPANION_INDEX`) is invisible to it
     and the stale-read bug returns silently.
     """
-    hooks_source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "_COMPANION_INDEX_CACHE" in hooks_source, "companion cache does not follow the *_CACHE convention"
+    markers_source = (copie_session_default.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
+    assert "_COMPANION_INDEX_CACHE" in markers_source, "companion cache does not follow the *_CACHE convention"
 
 
 def test_gallery_features_absent_without_examples(copie_session_minimal):
     """The whole feature is gated behind include_examples."""
-    hooks_source = (copie_session_minimal.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
+    markers_source = (copie_session_minimal.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
     for symbol in ("_COMPANION_INDEX_CACHE", "_API_EXAMPLES_CAP", "_build_companion_cards_html"):
-        assert symbol not in hooks_source, f"{symbol} leaked into a project generated without examples"
+        assert symbol not in markers_source, f"{symbol} leaked into a project generated without examples"
 
 
 def _mkdocs_config(project_dir):
@@ -2362,6 +2284,45 @@ def test_snippets_resolve_docs_and_repo_root(copie_session_default):
 
     assert snippets["base_path"] == ["docs", "."], "base_path must search docs first, then the repo root"
     assert snippets["check_paths"] is True, "a missing include must fail the build, not vanish"
+
+
+@pytest.mark.parametrize("include_examples", [True, False])
+def test_docs_markers_and_glossary_extensions_are_registered(copie, include_examples):
+    """The marker and glossary Preprocessors must appear in `markdown_extensions`.
+
+    They resolve the `<!-- API_TABLE -->` / `<!-- SUBPAGES -->` / gallery markers
+    and the glossary links. Loaded by module name at config time; if the
+    registration line is dropped, the extension never loads and every marker ships
+    as a blank HTML comment -- the fleet's dominant bug shape, invisible to a green
+    `--strict` build. Both variants, because the extensions are examples-independent
+    and must load in either -- including the no-examples one that has no gallery.
+    """
+    result = copie.copy(extra_answers={"include_examples": include_examples})
+    names = [e for e in _mkdocs_config(result.project_dir)["markdown_extensions"] if isinstance(e, str)]
+
+    assert "docs_build._markers" in names, (
+        "the marker Preprocessor is not registered; markers would ship as blank space"
+    )
+    assert "docs_build._glossary" in names, "the glossary Preprocessor is not registered; glossary links would vanish"
+
+
+def test_markers_strip_examples_placeholder_without_examples(copie_session_minimal):
+    """In a no-examples project, an `<!-- EXAMPLES_FOR -->` marker is stripped, not shipped.
+
+    GALLERY / EXAMPLES_FOR / COMPANION are gated out of the no-examples
+    `_markers.py`; its else-branch removes any stray `EXAMPLES_FOR` so it does not
+    reach the page as blank space. This is the variant that once hid a gated
+    import behind an ungated caller, so the gated `_inject` path gets its own test.
+    """
+    project_dir = copie_session_minimal.project_dir
+    markers = _load_markers(project_dir, "min_examples_for")
+
+    page = _FakePage("pages/reference/api.md", "pages/reference/api/index.html")
+    out = markers._inject("# API\n\n<!-- EXAMPLES_FOR:foo.Bar -->\n", page, config={})
+
+    assert "EXAMPLES_FOR" not in out, "the examples marker was not stripped in a no-examples project"
+    assert "foo.Bar" not in out, "the stripped marker left its argument behind"
+    assert "# API" in out, "unrelated content was altered"
 
 
 def test_changelog_include_resolves(copie_session_default):
@@ -2612,28 +2573,28 @@ def test_branding_is_documented_as_local_owned(copie_session_default):
     assert "docs/assets/made_by_stateful-y.png" in tier1, "the made-by mark should stay template-managed"
 
 
-def _cache_modules(hooks_module):
-    """The hooks module and every build step it loads.
+def _cache_modules(markers_module):
+    """The markers module and every build step it loads.
 
-    The build steps are reached through the hooks module rather than imported
+    The build steps are reached through the markers module rather than imported
     directly, so these are the instances bound to *this* generated project.
     """
-    modules = [hooks_module]
-    modules += [m for m in (getattr(hooks_module, n, None) for n in _BUILD_STEP_MODULES) if m is not None]
+    modules = [markers_module]
+    modules += [m for m in (getattr(markers_module, n, None) for n in _BUILD_STEP_MODULES) if m is not None]
     return modules
 
 
-def _cache_names(hooks_module):
-    """Every ``*_CACHE`` global across every module the hooks load, as (module, name).
+def _cache_names(markers_module):
+    """Every ``*_CACHE`` global across every module the markers load, as (module, name).
 
-    Scanning only ``hooks`` was correct until the build steps were split out of it.
-    Two of the caches now live in ``_api_pages``, and a scan of ``hooks`` alone
+    Scanning only ``_markers`` was correct until the build steps were split out.
+    Two of the caches now live in ``_api_pages``, and a scan of ``_markers`` alone
     would keep passing while quietly covering less -- the guarantee is "every
     ``*_CACHE`` global is cleared", not "every one that stayed behind".
     """
     return [
         (module, name)
-        for module in _cache_modules(hooks_module)
+        for module in _cache_modules(markers_module)
         for name in vars(module)
         if name.endswith("_CACHE") and not name.startswith("__")
     ]
@@ -2647,15 +2608,15 @@ def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
     """Sentinel round-trip: populate every cache, reset, assert all cleared.
 
     Deliberately not a presence check on the source. Asserting that the cache
-    names appear in on_config's body passes even against an empty function, so
+    names appear in reset_caches's body passes even against an empty function, so
     it would verify nothing. Each variant is loaded under a unique module name:
     importing both under one name makes sys.modules return the first, and the
     second variant is never actually exercised.
     """
     project_dir = request.getfixturevalue(fixture_name).project_dir
-    hooks = _load_hooks(project_dir, f"reset_{fixture_name}")
+    markers = _load_markers(project_dir, f"reset_{fixture_name}")
 
-    found = _cache_names(hooks)
+    found = _cache_names(markers)
     assert found, "no *_CACHE globals discovered"
     flat = {name for _, name in found}
     assert ("_GALLERY_CACHE" in flat) is expects_gallery, (
@@ -2663,7 +2624,7 @@ def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
     )
     # The discovery caches moved to _api_pages with the functions that own them.
     # Naming them explicitly is what stops this test from silently narrowing to
-    # "whatever stayed in hooks.py" if the scan is ever reduced to one module.
+    # "whatever stayed in _markers.py" if the scan is ever reduced to one module.
     assert {"_SURFACE_CACHE", "_API_NAME_LOOKUP_CACHE"} <= flat, (
         f"the API discovery caches are not being scanned; found {sorted(flat)}"
     )
@@ -2672,27 +2633,35 @@ def test_on_config_resets_every_cache(request, fixture_name, expects_gallery):
     for module, name in found:
         setattr(module, name, sentinel)
 
-    hooks.on_config({})
+    markers.reset_caches()
 
     still_set = [f"{module.__name__}.{name}" for module, name in found if getattr(module, name) is sentinel]
-    assert not still_set, f"on_config did not clear: {still_set}"
+    assert not still_set, f"reset_caches did not clear: {still_set}"
 
 
-def test_on_config_returns_config(copie_session_default):
-    """The mkdocs contract allows returning None, but the config is clearer."""
-    hooks = _load_hooks(copie_session_default.project_dir, "reset_returns")
-    config = {"marker": True}
-    assert hooks.on_config(config) is config
+def test_reset_caches_returns_none(copie_session_default):
+    """The reset is a plain procedure now, not a hook: it clears caches, returns None.
 
-
-def test_hooks_define_on_config_not_on_startup(copie_session_default):
-    """on_startup runs once per invocation, so a reset there never fires again.
-
-    That is the bug this change exists to fix; defining it would reintroduce it.
+    ``on_config`` returned the config to satisfy the mkdocs hook contract;
+    ``reset_caches`` has no config to hand back and no hook contract to meet, so
+    it simply returns None.
     """
-    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "def on_config(" in source, "no per-build reset"
+    markers = _load_markers(copie_session_default.project_dir, "reset_returns")
+    assert markers.reset_caches() is None
+
+
+def test_reset_is_a_function_not_a_fire_once_hook(copie_session_default):
+    """The cache reset must be re-runnable per build, not a fire-once startup hook.
+
+    ``on_startup`` ran once per ``mkdocs`` invocation, so a reset there never fired
+    again on a rebuild -- the bug this change exists to fix. The reset is now an
+    explicit ``reset_caches()`` the build steps and serve.py call on every rebuild;
+    there is no on_config/on_startup hook left to regress into.
+    """
+    source = (copie_session_default.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
+    assert "def reset_caches(" in source, "no per-build reset"
     assert "def on_startup(" not in source, "on_startup fires once per invocation, not per build"
+    assert "def on_config(" not in source, "the mkdocs hooks are gone; the reset is a plain function"
 
 
 def _module_imports(path):
@@ -2725,36 +2694,36 @@ def test_build_steps_import_no_mkdocs(request, fixture_name, expects_notebooks):
     docstrings legitimately describe mkdocs-material HTML as their input format,
     and a substring guard fails on both.
     """
-    docs = request.getfixturevalue(fixture_name).project_dir / "docs"
+    build = request.getfixturevalue(fixture_name).project_dir / BUILD_DIR
     steps = ["_api_pages.py", "_markdown_export.py"] + (["_notebooks.py"] if expects_notebooks else [])
     for step in steps:
-        path = docs / step
+        path = build / step
         assert path.is_file(), f"{step} was not generated"
         assert "mkdocs" not in _module_imports(path), f"{step} imports mkdocs"
 
 
 def test_notebooks_module_absent_without_examples(copie_session_minimal):
     """A project without examples gets no notebook export module, and no dangling call."""
-    docs = copie_session_minimal.project_dir / "docs"
-    assert not (docs / "_notebooks.py").exists(), "the notebook export module shipped without examples"
-    hooks_source = (docs / "hooks.py").read_text(encoding="utf-8")
-    assert "_notebooks" not in hooks_source, "hooks.py references a module this project does not have"
+    build = copie_session_minimal.project_dir / BUILD_DIR
+    assert not (build / "_notebooks.py").exists(), "the notebook export module shipped without examples"
+    build_source = (build / "build.py").read_text(encoding="utf-8")
+    assert "_notebooks" not in build_source, "build.py references a module this project does not have"
 
 
 def test_hooks_delegate_rather_than_implement(copie_session_default):
-    """The build hooks stay adapters; the work stays in the modules that own it.
+    """The build steps stay adapters; the work stays in the modules that own it.
 
-    The hooks must survive -- ``mkdocs.yml`` watches ``src`` so that adding a class
-    appears without restarting ``mkdocs serve``, and that only works because
-    ``on_pre_build`` regenerates on every rebuild. What must not come back is the
-    logic: this fails if generation, export or conversion creeps into hooks.py.
+    ``build.py`` must survive -- ``mkdocs.yml`` watches ``src`` so that adding a
+    class appears without restarting ``mkdocs serve``, and that only works because
+    ``prebuild`` regenerates on every rebuild. What must not come back is the
+    logic: this fails if generation, export or conversion creeps into build.py.
     """
-    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "_api_pages.generate(" in source, "on_pre_build does not delegate API generation"
-    assert "_notebooks.export(" in source, "on_pre_build does not delegate the notebook export"
-    assert "_markdown_export.export(" in source, "on_post_build does not delegate the markdown export"
+    source = (copie_session_default.project_dir / BUILD_DIR / "build.py").read_text(encoding="utf-8")
+    assert "_api_pages.generate(" in source, "prebuild does not delegate API generation"
+    assert "_notebooks.export(" in source, "prebuild does not delegate the notebook export"
+    assert "_markdown_export.export(" in source, "postbuild does not delegate the markdown export"
     for moved in ("def _generate_api_pages", "def _html_to_markdown", "def _notebook_content_hash"):
-        assert moved not in source, f"{moved} came back into hooks.py"
+        assert moved not in source, f"{moved} came back into build.py"
 
 
 def test_api_pages_generate_runs_without_a_docs_build(copie_session_default, tmp_path):
@@ -2770,8 +2739,8 @@ def test_api_pages_generate_runs_without_a_docs_build(copie_session_default, tmp
     if api_dir.exists():
         shutil.rmtree(api_dir)
 
-    hooks = _load_hooks(project, "steps_generate")
-    hooks._api_pages.generate(project)
+    build = _load_build(project, "steps_generate")
+    build._api_pages.generate(project)
 
     assert (api_dir / "hello.md").is_file(), "no submodule page was generated"
     generated = {p.name for p in (api_dir / "generated").glob("*.md")}
@@ -2805,8 +2774,8 @@ def test_markdown_export_runs_against_a_prebuilt_site(copie_session_default, tmp
         encoding="utf-8",
     )
 
-    hooks = _load_hooks(copie_session_default.project_dir, "steps_mdexport")
-    hooks._markdown_export.export(site_dir, docs_dir)
+    build = _load_build(copie_session_default.project_dir, "steps_mdexport")
+    build._markdown_export.export(site_dir, docs_dir)
 
     rendered = (site_dir / "pages" / "guide.md").read_text(encoding="utf-8")
     assert "Rendered step one." in rendered, "the built HTML was not converted"
@@ -2851,18 +2820,18 @@ def _toc_hrefs(html):
 
 
 def test_hooks_do_not_touch_the_table_of_contents(copie_session_default):
-    """The hooks build no table-of-contents entries and import no ToC machinery.
+    """The marker extension builds no table-of-contents entries and imports no ToC machinery.
 
     mkdocstrings registers every heading a template emits, so `page.toc` needs no
-    help. The hooks used to rebuild it by hand with `AnchorLink` objects, purely
-    because a regex invented those headings *after* the `toc` extension had run.
-    That is the one part of this file measured to have no path onto any other
-    renderer, and it is gone.
+    help. The docs tooling used to rebuild it by hand with `AnchorLink` objects,
+    purely because a regex invented those headings *after* the `toc` extension had
+    run. That part was measured to have no path onto any other renderer, and it is
+    gone -- what stayed (the module_toc sidebar) writes only `page.meta`.
     """
-    source = (copie_session_default.project_dir / "docs" / "hooks.py").read_text(encoding="utf-8")
-    assert "mkdocs.structure.toc" not in source, "the hooks import ToC machinery again"
-    assert "AnchorLink" not in source, "the hooks construct ToC entries again"
-    assert "page.toc" not in source, "the hooks mutate page.toc again"
+    source = (copie_session_default.project_dir / BUILD_DIR / "_markers.py").read_text(encoding="utf-8")
+    assert "mkdocs.structure.toc" not in source, "the marker extension imports ToC machinery again"
+    assert "AnchorLink" not in source, "the marker extension constructs ToC entries again"
+    assert "page.toc" not in source, "the marker extension mutates page.toc again"
 
 
 @pytest.mark.parametrize("fixture_name", ["copie_session_default", "copie_session_minimal"])
@@ -2882,7 +2851,14 @@ def test_mkdocstrings_template_overrides_ship(request, fixture_name):
         assert (templates / rel).is_file(), f"missing override: {rel}"
 
     raw = (project_dir / "mkdocs.yml").read_text(encoding="utf-8")
-    config = yaml.load(raw, Loader=type("L", (yaml.SafeLoader,), {}))
+    # `!!python/name:` is registered, not banned: `pymdownx.emoji` needs a
+    # callable index and YAML has no other way to name one. A bare SafeLoader
+    # raises ConstructorError on it, which is a parser problem, not a config
+    # problem -- every other reader of this file registers the same handler.
+    _loader = type("L", (yaml.SafeLoader,), {})
+    _loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda _l, suffix, _n: suffix)
+    _loader.add_constructor("!ENV", lambda _l, _n: None)
+    config = yaml.load(raw, Loader=_loader)
     plugin = next(p["mkdocstrings"] for p in config["plugins"] if isinstance(p, dict) and "mkdocstrings" in p)
     assert plugin.get("custom_templates") == "docs/material/templates", (
         "custom_templates must sit at plugin level, not under handlers.python.options"
@@ -2953,6 +2929,19 @@ def test_section_headings_reach_the_table_of_contents(copie, include_examples, t
     if (project_dir / "examples").exists():
         sync += ["--group", "examples"]
     assert subprocess.run(sync, cwd=project_dir, env=env, capture_output=True, check=False).returncode == 0
+    # Generate the API pages before the build. mkdocs no longer does this itself:
+    # the on_pre_build hook that generated them is gone, replaced by an explicit
+    # `build.py prebuild` step. MKDOCS_SKIP_NOTEBOOKS (in env) skips the slow
+    # notebook export while still generating the pages this test reads.
+    prebuild = subprocess.run(
+        ["uv", "run", "--no-sync", "python", "docs_build/build.py", "prebuild"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert prebuild.returncode == 0, prebuild.stderr[-2000:]
     build = subprocess.run(
         ["uv", "run", "--no-sync", "mkdocs", "build", "--clean", "--strict"],
         cwd=project_dir,
@@ -2968,15 +2957,30 @@ def test_section_headings_reach_the_table_of_contents(copie, include_examples, t
     toc = _toc_hrefs(html)
     assert toc, "no table of contents was parsed -- the assertions below would be vacuous"
 
-    for anchor in ("#parameters", "#see-also", "#source-code", "#methods"):
+    # Section ids are qualified by the object's path, so two `:::` on one page do
+    # not collide -- see the dispatcher override. The class's own sections carry
+    # its path; a member's carry the member's.
+    cls = "test_project.hello.Greeter"
+    for section in ("parameters", "see-also", "source-code", "methods"):
+        anchor = f"#{cls}-{section}"
         assert anchor in toc, f"{anchor} is missing from the rendered table of contents ({sorted(toc)})"
     # Control: a heading that exists on the page but is deeper than toc_depth
     # must NOT be listed. Without this the assertions above would also pass on a
     # sidebar that simply listed every heading.
-    assert 'id="greet-parameters"' in html, "the method-level anchor should still exist on the page"
-    assert "#greet-parameters" not in toc, (
+    assert f'id="{cls}.greet-parameters"' in html, "the method-level anchor should still exist on the page"
+    assert f"#{cls}.greet-parameters" not in toc, (
         "method-level sections must stay out of the ToC (toc_depth), or a class page's sidebar becomes a wall"
     )
+
+    # The dispatcher emits each section's heading; the shipped section template's
+    # own `<p><span class="doc-section-title">` title would duplicate it, and the
+    # five section-template overrides strip it. Assert the heading is present and
+    # the shipped title is gone -- for every mapped section, not just one.
+    for label in ("Parameters", "Returns", "Examples"):
+        assert f'<span class="doc-section-heading">{label}</span>' in html, f"{label} heading missing"
+        assert f'<span class="doc-section-title">{label}:</span>' not in html, (
+            f"the shipped {label} title was not stripped; the page shows it twice"
+        )
 
 
 def test_no_phantom_cache_without_examples(copie_session_minimal):
@@ -2986,11 +2990,11 @@ def test_no_phantom_cache_without_examples(copie_session_minimal):
     ungated reset silently grows module attributes nothing reads -- and the
     discovery test would then dutifully confirm they are cleared.
     """
-    hooks = _load_hooks(copie_session_minimal.project_dir, "reset_phantom")
-    hooks.on_config({})
+    markers = _load_markers(copie_session_minimal.project_dir, "reset_phantom")
+    markers.reset_caches()
 
     for gallery_cache in ("_GALLERY_CACHE", "_COMPANION_INDEX_CACHE", "_NOTEBOOK_API_USAGE_CACHE"):
-        assert not hasattr(hooks, gallery_cache), f"{gallery_cache} phantom-created in a no-examples project"
+        assert not hasattr(markers, gallery_cache), f"{gallery_cache} phantom-created in a no-examples project"
 
 
 def test_shipped_skill_mirrors_are_byte_identical(copie_session_default):
@@ -3015,55 +3019,6 @@ def test_shipped_skill_mirrors_are_byte_identical(copie_session_default):
     assert not drifted, f"shipped skill copies have drifted: {drifted}"
 
 
-def test_see_also_links_list_form_entries(copie_session_minimal):
-    """Entries written as a markdown list link too.
-
-    numpydoc renders See Also as a paragraph, but authors also write the
-    entries as a list, which renders as <li> rather than <p>. Handling only
-    paragraphs silently drops links for every list-style docstring.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_list")
-    _reset_hook_caches(hooks)
-
-    html = (
-        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
-        '<div class="doc-section-item doc-admonition-see-also">'
-        "<ul><li>Beta : A list entry.</li></ul></details></div>"
-        '<div class="doc doc-children"></div>'
-    )
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
-        "list-form entry was not linked"
-    )
-
-
-def test_see_also_leaves_explicit_cross_references_alone(copie_session_minimal):
-    """An author's explicit [Name][target] reference is not rewritten.
-
-    autorefs turns explicit references into <autoref>/<a> before this hook runs
-    and resolves them later. Rewriting them would double-link, and the author
-    has already said exactly what they mean.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_explicit")
-    _reset_hook_caches(hooks)
-
-    inner = '<li><autoref identifier="minimal_project.models.Beta"><code>Beta</code></autoref> : Explicit.</li>'
-    html = (
-        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
-        f'<div class="doc-section-item doc-admonition-see-also"><ul>{inner}</ul></div></div>'
-        '<div class="doc doc-children"></div>'
-    )
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert inner in out, "an explicit cross-reference was rewritten"
-    assert out.count("minimal_project.models.Beta") == 1, "explicit reference was double-linked"
-
-
 def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
     """The change's observable fix: the members TABLE is non-empty.
 
@@ -3075,10 +3030,10 @@ def test_reexported_members_render_in_the_api_page_table(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "table_render")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "table_render")
+    _reset_hook_caches(markers)
 
-    hooks._api_pages._generate_api_pages(project_dir)
+    markers._api_pages._generate_api_pages(project_dir)
     page = (project_dir / "docs" / "pages" / "api" / "shapes.md").read_text(encoding="utf-8")
 
     assert "### Classes" in page, "members table missing its Classes heading"
@@ -3099,10 +3054,10 @@ def test_api_name_lookup_prefers_the_published_path(copie_session_minimal):
         '"""Point."""\n\nfrom minimal_project.naive import SeasonalNaive\n\n__all__ = ["SeasonalNaive"]\n',
         encoding="utf-8",
     )
-    hooks = _load_hooks(project_dir, "prefer_public")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "prefer_public")
+    _reset_hook_caches(markers)
 
-    lookup = hooks._get_api_name_lookup(project_dir)
+    lookup = markers._api_pages._get_api_name_lookup(project_dir)
 
     assert lookup.get("SeasonalNaive") == "minimal_project.point.SeasonalNaive", (
         f"published path not preferred; got {lookup.get('SeasonalNaive')!r}"
@@ -3120,10 +3075,10 @@ def test_api_name_lookup_refuses_a_genuine_collision(copie_session_minimal):
         (project_dir / "src" / "minimal_project" / f"{mod}.py").write_text(
             f'"""{mod}."""\n\n\nclass Duplicated:\n    """From {mod}."""\n', encoding="utf-8"
         )
-    hooks = _load_hooks(project_dir, "collision")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "collision")
+    _reset_hook_caches(markers)
 
-    lookup = hooks._get_api_name_lookup(project_dir)
+    lookup = markers._api_pages._get_api_name_lookup(project_dir)
 
     assert "Duplicated" not in lookup, (
         f"an ambiguous short name resolved to {lookup.get('Duplicated')!r} instead of being refused"
@@ -3142,10 +3097,10 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
     bug rather than catching it. Both forms are checked now.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "gallery_url")
-    hooks._GALLERY_PAGE_CACHE = None
+    markers = _load_markers(project_dir, "gallery_url")
+    markers._GALLERY_PAGE_CACHE = None
 
-    url = hooks._get_gallery_page_url(project_dir)
+    url = markers._get_gallery_page_url(project_dir)
 
     assert url, "gallery page not found by its GALLERY placeholder"
     docs = project_dir / "docs"
@@ -3159,67 +3114,46 @@ def test_gallery_overflow_link_targets_the_real_gallery_page(copie_session_defau
     assert "<!-- GALLERY -->" in served.read_text(encoding="utf-8"), "located page is not the gallery"
 
 
-def test_see_also_leaves_description_text_alone(copie_session_minimal):
-    """A colon-terminated word in an entry's DESCRIPTION is not linked.
+def test_docs_engine_watches_only_its_own_source_dir(copie_session_default):
+    """The engine watches `docs/` only; the supervisor owns `src/`.
 
-    Entry names sit at the start of their line. Without anchoring there, any
-    "Word:" in prose is treated as another entry -- so "Target : Note: see
-    below" linkifies "Note", rewriting text the spec says is left unchanged.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    # A class whose name also appears, colon-terminated, inside a description.
-    (project_dir / "src" / "minimal_project" / "prose.py").write_text(
-        '"""Prose."""\n\n\nclass Note:\n    """Named Note."""\n', encoding="utf-8"
-    )
-    hooks = _load_hooks(project_dir, "seealso_desc")
-    _reset_hook_caches(hooks)
-
-    html = _see_also_page("minimal_project", "Alpha", "Beta : Note: a colon-terminated word in the description.")
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Beta/">Beta</a>' in out, (
-        "the entry name was not linked"
-    )
-    assert not re.search(r"<a[^>]*>Note</a>", out), "a word in the description was linkified as an entry"
-    assert "Note: a colon-terminated word in the description." in out, "description text was altered"
-
-
-def test_docs_watch_includes_package_source(copie_session_default):
-    """`mkdocs serve` must rebuild when the package source changes.
-
-    The API pages are generated from src/, so without it in `watch` an author
-    adding a class sees nothing until they restart the server -- which is the
-    scenario the per-build cache reset exists to satisfy.
+    This inverts an earlier rule that required `src` in `watch`. Live API
+    regeneration now comes from `docs_build/serve.py`, which watches `src/` and
+    regenerates the pages under `docs/pages/api/` -- and the engine, watching
+    `docs`, rebuilds. The engine must NOT watch `src`: doing so fires a second,
+    stale rebuild before regeneration finishes, and the successor engine cannot
+    watch paths outside the project folder at all, so an engine that watched
+    `src` was never the portable answer.
     """
     config = _mkdocs_config(copie_session_default.project_dir)
-    assert "src" in config["watch"], f"src not watched; serve will not rebuild on source edits: {config['watch']}"
+    watched = config["watch"]
+    assert watched == ["docs"], f"engine should watch only docs/; the supervisor owns src/: {watched}"
+    # The supervisor is what watches src -- assert it exists and does so.
+    serve = (copie_session_default.project_dir / BUILD_DIR / "serve.py").read_text(encoding="utf-8")
+    assert "observer.schedule(handler, str(SRC)" in serve, "serve.py does not watch src/"
+    assert "SRC = PROJECT_ROOT" in serve and '"src"' in serve, "serve.py's SRC is not the package source dir"
 
 
-def test_see_also_does_not_linkify_names_outside_the_section(copie_session_minimal):
-    """A symbol name elsewhere on the page is left alone.
+def test_config_file_does_not_watch_itself(copie_session_default):
+    """`mkdocs.yml` must not appear in its own `watch:` list.
 
-    Symbol names appear throughout rendered docs -- in Notes, parameter tables,
-    source listings. Scoping to the See Also block is what stops the linkifier
-    rewriting all of them.
+    It buys nothing: `mkdocs serve` watches the active config unconditionally
+    (`mkdocs/commands/serve.py` calls `server.watch(config.config_file_path)`
+    independently of this key), so listing it is redundant under MkDocs.
+
+    It is actively destructive under Zensical, the successor engine: a config
+    file naming itself here makes the build emit ZERO html, silently, at exit 0,
+    and `--strict` does not change that. Measured against Zensical 0.0.51, with
+    no open upstream issue tracking it. The template shipped this line, so every
+    generated project would have published an empty site from a green build.
+
+    A comment in `mkdocs.yml` cannot stop the line coming back. This can.
     """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "seealso_scope_name")
-    _reset_hook_caches(hooks)
-
-    html = (
-        '<h2 id="minimal_project.Alpha">Alpha</h2><div class="doc doc-contents">'
-        "<h3>Notes</h3><p>Beta : mentioned in prose, not a See Also entry.</p>"
-        '<div class="doc-section-item doc-admonition-see-also"><p>Gamma : A real entry.</p></div>'
-        '</div><div class="doc doc-children"></div>'
+    config = _mkdocs_config(copie_session_default.project_dir)
+    watched = config.get("watch") or []
+    assert "mkdocs.yml" not in watched, (
+        f"mkdocs.yml watches itself, which builds an empty site at exit 0 under Zensical: {watched}"
     )
-    out = hooks.on_page_content(html, _generated_page("minimal_project", "Alpha"), {}, None)
-
-    assert '<a href="../../../../pages/api/generated/minimal_project.models.Gamma/">Gamma</a>' in out, (
-        "the See Also entry was not linked"
-    )
-    assert not re.search(r"<a[^>]*>Beta</a>", out), "a name outside the See Also section was linkified"
 
 
 def test_companion_card_renders_with_resolved_links(copie_session_default):
@@ -3237,12 +3171,12 @@ def test_companion_card_renders_with_resolved_links(copie_session_default):
         '"title": "Companion NB", "description": "Demo.", "category": "how-to",'
         ' "companion": "pages/how-to/configure.md"',
     )
-    hooks = _load_hooks(project_dir, "companion_render")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "companion_render")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/how-to/configure.md", "pages/how-to/configure/index.html")
     config = {"repo_url": "https://github.com/s/p"}
-    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, config, None)
+    out = markers._inject("<!-- COMPANION_NOTEBOOKS -->", page, config=config)
 
     assert "COMPANION_NOTEBOOKS" not in out, "placeholder was not consumed"
     assert "## Try it interactively" in out, "heading not emitted with the cards"
@@ -3291,11 +3225,11 @@ def test_reexported_symbols_appear_in_the_api_index(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "api_index")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "api_index")
+    _reset_hook_caches(markers)
 
-    prefix = hooks._site_root_prefix(_FakePage("pages/reference/api.md", "pages/reference/api/index.html"))
-    html = hooks._build_api_table_html(project_dir, prefix)
+    prefix = markers._site_root_prefix(_FakePage("pages/reference/api.md", "pages/reference/api/index.html"))
+    html = markers._build_api_table_html(project_dir, prefix)
 
     assert "Circle" in html, "re-exported class absent from the searchable API index"
     assert "area" in html, "re-exported function absent from the searchable API index"
@@ -3333,13 +3267,13 @@ def test_api_index_links_resolve_wherever_the_index_lives(copie_session_minimal,
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, f"api_index_{src_path.count('/')}_{len(prefix)}")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, f"api_index_{src_path.count('/')}_{len(prefix)}")
+    _reset_hook_caches(markers)
 
     page = _FakePage(src_path, dest_path)
-    assert hooks._site_root_prefix(page) == prefix
+    assert markers._site_root_prefix(page) == prefix
 
-    html = hooks._build_api_table_html(project_dir, hooks._site_root_prefix(page))
+    html = markers._build_api_table_html(project_dir, markers._site_root_prefix(page))
     hrefs = re.findall(r'<a href="([^"]+)"', html)
     assert hrefs, "the API table emitted no links at all"
 
@@ -3375,15 +3309,17 @@ def test_module_toc_is_built_and_resolves_wherever_the_page_lives(
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, f"mtoc_{template_name}_{src_path.count('/')}")
-    hooks._api_pages._SURFACE_CACHE = None
+    markers = _load_markers(project_dir, f"mtoc_{template_name}_{src_path.count('/')}")
+    markers._api_pages._SURFACE_CACHE = None
 
     # The submodule pages the TOC points at are generated, not committed.
-    hooks._api_pages._generate_api_pages(project_dir)
+    markers._api_pages._generate_api_pages(project_dir)
 
     page = _FakePage(src_path, dest_path)
     page.meta["template"] = template_name
-    hooks.on_page_content("<p>x</p>", page, {"docs_dir": str(project_dir / "docs")}, None)
+    # _set_module_toc reads the project root from _markers.py's own location and
+    # returns None, writing the sidebar onto page.meta directly.
+    markers._set_module_toc(page)
 
     toc = page.meta.get("module_toc")
     assert toc, f"a page declaring {template_name} got no module_toc"
@@ -3448,10 +3384,10 @@ def test_dependency_reexports_stay_in_the_api(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_dependency_shim(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "depshim")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "depshim")
+    _reset_hook_caches(markers)
 
-    members = hooks._get_public_members(project_dir, "shim")
+    members = markers._get_public_members(project_dir, "shim")
 
     assert {e["name"] for e in members["classes"]} == {"Fraction"}, "a re-exported dependency class was dropped"
     assert {e["name"] for e in members["functions"]} == {"dataclass"}, "a re-exported dependency function was dropped"
@@ -3475,10 +3411,10 @@ def test_plain_module_imports_are_not_api_without_dunder_all(copie_session_minim
     """
     project_dir = copie_session_minimal.project_dir
     _write_dependency_shim(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "depshim_internal")
-    _reset_hook_caches(hooks)
+    markers = _load_markers(project_dir, "depshim_internal")
+    _reset_hook_caches(markers)
 
-    members = hooks._get_public_members(project_dir, "internal")
+    members = markers._get_public_members(project_dir, "internal")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "ratio" in names, "the module's own function is missing"
@@ -3493,9 +3429,9 @@ def test_third_party_import_rejected_without_dunder_all(copie_session_minimal):
     """
     project_dir = copie_session_minimal.project_dir
     _write_reexport_package(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "noall")
+    markers = _load_markers(project_dir, "noall")
 
-    members = hooks._get_public_members(project_dir, "noall")
+    members = markers._get_public_members(project_dir, "noall")
     names = {e["name"] for e in members["classes"] + members["functions"]}
 
     assert "Gadget" in names, "first-party re-export not resolved without __all__"
@@ -3521,8 +3457,8 @@ def test_discovery_imports_nothing(copie_session_minimal, tmp_path):
         encoding="utf-8",
     )
     try:
-        hooks = _load_hooks(project_dir, "noimport")
-        members = hooks._get_public_members(project_dir, "explodes")
+        markers = _load_markers(project_dir, "noimport")
+        members = markers._get_public_members(project_dir, "explodes")
         names = {e["name"] for e in members["classes"] + members["functions"]}
         assert "Survivor" in names, "a class in an unimportable module was not discovered"
     finally:
@@ -3553,9 +3489,9 @@ def test_unresolvable_reexport_warns_rather_than_vanishing(copie_session_minimal
         encoding="utf-8",
     )
     try:
-        hooks = _load_hooks(project_dir, "ghost")
+        markers = _load_markers(project_dir, "ghost")
         with caplog.at_level(logging.WARNING, logger="mkdocs.hooks"):
-            members = hooks._get_public_members(project_dir, "ghost")
+            members = markers._get_public_members(project_dir, "ghost")
         names = {e["name"] for e in members["classes"] + members["functions"]}
         assert "Ghost" not in names, "an unresolvable symbol was published as if it had a page"
         assert any("Ghost" in r.getMessage() for r in caplog.records), (
@@ -3573,11 +3509,11 @@ def test_companion_placeholder_renders_no_dangling_heading(copie_session_default
     removing a notebook's companion cannot leave an empty section behind.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "companion_empty")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "companion_empty")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/how-to/troubleshooting.md", "pages/how-to/troubleshooting/index.html")
-    out = hooks.on_page_markdown("<!-- COMPANION_NOTEBOOKS -->", page, {"repo_url": "https://github.com/s/p"}, None)
+    out = markers._inject("<!-- COMPANION_NOTEBOOKS -->", page, config={"repo_url": "https://github.com/s/p"})
 
     assert out.strip() == "", f"an unmatched placeholder left content behind: {out!r}"
 
@@ -3653,12 +3589,12 @@ def test_generated_project_is_ruff_format_clean(copie, include_examples):
     recognise as Python and never formats in this repo. So unformatted code can
     ship, and because the generated ``pyproject.toml`` enables preview-style
     formatting, a generated project's first ``pre-commit run`` reformats
-    template-owned files (``docs/hooks.py`` chief among them) and reds its CI on
+    template-owned files (``docs_build/_markers.py`` chief among them) and reds its CI on
     arrival -- the fix then drifts the file from the template, guaranteeing a
     conflict at the next update. This checks the emitted code, not the code the
     template happens to be.
 
-    Both include_examples values run: the gallery hooks ship in only one variant,
+    Both include_examples values run: the gallery code ships in only one variant,
     so a formatting slip behind that gate is invisible to the other.
 
     Runs ruff via the project's own config (discovered from its pyproject.toml),
@@ -3834,74 +3770,18 @@ def test_companion_marker_that_resolves_to_nothing_warns(copie_session_default):
     to close, left open on the template's own default.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "companion_resolves_to_nothing")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "companion_resolves_to_nothing")
+    _reset_gallery_caches(markers)
     page = _FakePage("pages/tutorials/named-by-nobody.md", "pages/tutorials/named-by-nobody/index.html")
 
     with caplog_at_warning() as records:
-        out = hooks.on_page_markdown(
-            "# T\n\n<!-- COMPANION_NOTEBOOKS -->\n\n## Body\n", page, {"repo_url": "https://x/y"}, []
+        out = markers._inject(
+            "# T\n\n<!-- COMPANION_NOTEBOOKS -->\n\n## Body\n", page, config={"repo_url": "https://x/y"}
         )
 
     assert records, "a page asked for companion cards, got none, and said nothing"
     assert "named-by-nobody" in " ".join(records), "the warning does not name the offending page"
     assert "<!-- COMPANION_NOTEBOOKS -->" not in out, "the marker leaked into the page"
-
-
-def test_multiple_see_also_entries_render_one_per_line(copie_session_minimal):
-    """See Also entries become a list, not a run-on paragraph.
-
-    numpydoc puts each entry on its own source line inside one paragraph, and
-    HTML collapses those newlines to spaces -- so every reference runs together
-    on a single line, and the more references a symbol has the worse it reads.
-    An author can dodge it by hand-writing markdown bullets (yohou does, which is
-    why its pages look right and nobody else's do), but plain numpydoc is what
-    the other 145 blocks across the fleet are written in.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "see_also_listify")
-
-    entries = "Alpha : The first one.\nBeta : The second one.\nGamma : The third one."
-    html = _see_also_page("minimal_project", "Widget", entries)
-    out = hooks._linkify_see_also(html, "../../../../")
-
-    items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
-    assert len(items) == 3, f"3 See Also entries rendered as {len(items)} list item(s); they run together on one line"
-    for name in ("Alpha", "Beta", "Gamma"):
-        assert any(name in item for item in items), f"{name} is missing from the list"
-    # Each entry keeps its own description rather than absorbing the next.
-    assert any("first one" in i and "second one" not in i for i in items), "entries bled into one another"
-
-
-def test_a_single_see_also_entry_is_not_made_a_list(copie_session_minimal):
-    """One entry stays a paragraph -- a one-item bullet list is noise."""
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "see_also_single")
-
-    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", "Alpha : Only one."), "../../../../")
-    assert "<li>" not in out, "a lone See Also entry was turned into a single-item list"
-    assert "Alpha" in out
-
-
-def test_see_also_description_wrapping_onto_a_second_line_stays_one_entry(copie_session_minimal):
-    """A wrapped description belongs to the entry above, not a new one.
-
-    numpydoc lets a long description continue on an indented line that carries no
-    name. Splitting naively on newlines would turn each of those into its own
-    bullet with no reference in it.
-    """
-    project_dir = copie_session_minimal.project_dir
-    _write_models_module(project_dir, "minimal_project")
-    hooks = _load_hooks(project_dir, "see_also_wrapped")
-
-    entries = "Alpha : A description long enough that it\n    wraps onto a second line.\nBeta : Short."
-    out = hooks._linkify_see_also(_see_also_page("minimal_project", "Widget", entries), "../../../../")
-
-    items = re.findall(r"<li>(.*?)</li>", out, re.DOTALL)
-    assert len(items) == 2, f"a wrapped description split into extra entries: {len(items)} items"
-    assert "wraps onto a second line" in items[0], "the continuation line was detached from its entry"
 
 
 def test_sectioned_gallery_is_still_findable_for_the_overflow_link(copie_session_default):
@@ -3925,18 +3805,18 @@ def test_sectioned_gallery_is_still_findable_for_the_overflow_link(copie_session
     # section pages beside it. This is yohou's shape.
     gallery.write_text("# Examples\n\n- [Alpha](alpha.md)\n", encoding="utf-8")
     (examples / "alpha.md").write_text("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", encoding="utf-8")
-    hooks = _load_hooks(project_dir, "sectioned_gallery_home")
+    markers = _load_markers(project_dir, "sectioned_gallery_home")
     try:
-        _reset_gallery_caches(hooks)
+        _reset_gallery_caches(markers)
         assert "<!-- GALLERY -->" not in gallery.read_text(encoding="utf-8"), "fixture still has a bare marker"
-        url = hooks._get_gallery_page_url(project_dir)
+        url = markers._get_gallery_page_url(project_dir)
         assert url == "/pages/examples/", (
             f"a sectioned gallery has no findable home (got {url!r}); the overflow link is dropped"
         )
     finally:
         (examples / "alpha.md").unlink()
         gallery.write_text(original, encoding="utf-8")
-        _reset_gallery_caches(hooks)
+        _reset_gallery_caches(markers)
 
 
 def test_dropped_overflow_link_warns(copie_session_default):
@@ -3945,18 +3825,18 @@ def test_dropped_overflow_link_warns(copie_session_default):
     The drop happens on an `if`, not a marker, so nothing else can notice it.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "dropped_overflow_warns")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "dropped_overflow_warns")
+    _reset_gallery_caches(markers)
 
     # More notebooks than the cap, all using one symbol, and no gallery page.
     examples_dir = project_dir / "examples"
-    for i in range(hooks._API_EXAMPLES_CAP + 2):
+    for i in range(markers._API_EXAMPLES_CAP + 2):
         _write_sectioned_notebook(examples_dir, f"overflow_{i}", title=f"Overflow {i}", section="s")
-    hooks._NOTEBOOK_API_USAGE_CACHE = {"test_project.Widget": hooks._get_gallery_items(project_dir)}
-    hooks._GALLERY_PAGE_CACHE = ""  # no gallery page anywhere
+    markers._NOTEBOOK_API_USAGE_CACHE = {"test_project.Widget": markers._get_gallery_items(project_dir)}
+    markers._GALLERY_PAGE_CACHE = ""  # no gallery page anywhere
 
     with caplog_at_warning() as records:
-        html = hooks._build_api_examples_html(project_dir, "test_project.Widget")
+        html = markers._build_api_examples_html(project_dir, "test_project.Widget")
 
     assert "See all" not in html, "the fixture did not reproduce the drop"
     assert records, "the overflow link was dropped with nothing said"
@@ -3981,9 +3861,9 @@ def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default)
         "the seeded gallery page carries no <!-- GALLERY --> marker; this test would assert nothing"
     )
 
-    hooks = _load_hooks(project_dir, "gallery_url_index")
-    _reset_gallery_caches(hooks)
-    url = hooks._get_gallery_page_url(project_dir)
+    markers = _load_markers(project_dir, "gallery_url_index")
+    _reset_gallery_caches(markers)
+    url = markers._get_gallery_page_url(project_dir)
 
     assert url == "/pages/examples/", f"the gallery link is {url!r}, which 404s; the page serves at /pages/examples/"
 
@@ -3994,14 +3874,14 @@ def test_gallery_overflow_link_resolves_for_an_index_page(copie_session_default)
     gallery.write_text("# Moved\n", encoding="utf-8")
     other.write_text(gallery_text, encoding="utf-8")
     try:
-        _reset_gallery_caches(hooks)
-        assert hooks._get_gallery_page_url(project_dir) == "/pages/examples/browse/", (
+        _reset_gallery_caches(markers)
+        assert markers._get_gallery_page_url(project_dir) == "/pages/examples/browse/", (
             "a non-index gallery page lost its own path segment"
         )
     finally:
         other.unlink()
         gallery.write_text(gallery_text, encoding="utf-8")
-        _reset_gallery_caches(hooks)
+        _reset_gallery_caches(markers)
 
 
 def test_docs_use_no_em_or_en_dashes(copie_session_default):
@@ -4106,6 +3986,10 @@ def test_nav_order_is_diataxis_with_reference_last(copie_session_default, copie_
         pass
 
     _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    # `pymdownx.emoji` names its index and generator as callables, which YAML can
+    # only express as `!!python/name:`. That is a global tag, so the `!` handler
+    # above does not catch it and a bare SafeLoader raises ConstructorError.
+    _Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda loader, suffix, node: suffix)
 
     def _top_level(project_dir):
         nav = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)["nav"]
@@ -4146,6 +4030,10 @@ def test_examples_are_a_top_level_section(copie_session_default):
         pass
 
     _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    # `pymdownx.emoji` names its index and generator as callables, which YAML can
+    # only express as `!!python/name:`. That is a global tag, so the `!` handler
+    # above does not catch it and a bare SafeLoader raises ConstructorError.
+    _Loader.add_multi_constructor("tag:yaml.org,2002:python/name:", lambda loader, suffix, node: suffix)
     nav = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)["nav"]
 
     top_level = [key for entry in nav if isinstance(entry, dict) for key in entry]
@@ -4201,20 +4089,20 @@ def test_misspelled_marker_warns_instead_of_shipping_blank_space(copie_session_d
     would have reported it never saw it.
     """
     project_dir = copie_session_default.project_dir
-    hooks = _load_hooks(project_dir, "unhandled_markers")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "unhandled_markers")
+    _reset_gallery_caches(markers)
     page = _FakePage("pages/examples/x.md", "pages/examples/x/index.html")
 
     for marker in ("<!-- GALLERY:quickstart -->", "<!-- SUBPAGES_FOR:x -->", "<!-- EXAMPLES_FOR -->"):
         with caplog_at_warning() as records:
-            out = hooks.on_page_markdown(f"# X\n\n{marker}\n", page, {"repo_url": "https://x/y"}, [])
+            out = markers._inject(f"# X\n\n{marker}\n", page, config={"repo_url": "https://x/y"})
         assert records, f"{marker} shipped silently; it renders as blank space and nothing says so"
         assert marker in out, f"{marker} was consumed without being understood"
 
     # An ordinary comment is not in the marker namespace and must stay quiet, or
     # the warning becomes noise and gets ignored -- which is how this started.
     with caplog_at_warning() as records:
-        hooks.on_page_markdown("# X\n\n<!-- prettier-ignore -->\n", page, {"repo_url": "https://x/y"}, [])
+        markers._inject("# X\n\n<!-- prettier-ignore -->\n", page, config={"repo_url": "https://x/y"})
     assert not records, "an ordinary HTML comment was flagged as a broken marker"
 
 
@@ -4234,9 +4122,9 @@ def test_nested_notebook_playground_link_keeps_its_subdirectory(copie_session_de
     nested = project_dir / "examples" / "data-features"
     _write_sectioned_notebook(nested, "nested_demo", title="Nested Demo", section="data-features")
     try:
-        hooks = _load_hooks(project_dir, "nested_playground")
-        _reset_gallery_caches(hooks)
-        item = next(i for i in hooks._get_gallery_items(project_dir) if i["stem"] == "nested_demo")
+        markers = _load_markers(project_dir, "nested_playground")
+        _reset_gallery_caches(markers)
+        item = next(i for i in markers._get_gallery_items(project_dir) if i["stem"] == "nested_demo")
 
         assert item["open_path"] == "/examples/data-features/nested_demo/edit/", (
             f"playground url is {item['open_path']!r}; it drops the subdirectory and 404s"
@@ -4263,11 +4151,13 @@ def test_duplicate_notebook_stems_are_reported(copie_session_default):
     _write_sectioned_notebook(a, "collide", title="A", section="a")
     _write_sectioned_notebook(b, "collide", title="B", section="b")
     try:
-        hooks = _load_hooks(project_dir, "stem_collision")
-        _reset_gallery_caches(hooks)
+        # A fresh build module loads fresh, empty-cache build steps, so prebuild
+        # scans the notebooks from scratch -- no gallery-cache reset is needed here,
+        # and the caches build.py owns are not the marker gallery caches anyway.
+        build = _load_build(project_dir, "stem_collision")
         os.environ["MKDOCS_SKIP_NOTEBOOKS"] = "1"
         with caplog_at_warning() as records:
-            hooks.on_pre_build({"docs_dir": str(project_dir / "docs")})
+            build.prebuild()
         assert any("collide" in r for r in records), (
             "two notebooks share a stem and overwrite each other's export, and nothing said so"
         )
@@ -4305,14 +4195,14 @@ def test_api_table_module_links_point_at_pages_that_exist(copie_session_minimal)
         '__all__ = ["BaseThing", "Widget"]\n',
         encoding="utf-8",
     )
-    hooks = _load_hooks(project_dir, "api_module_links")
-    hooks._api_pages._SURFACE_CACHE = None
-    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
+    markers = _load_markers(project_dir, "api_module_links")
+    markers._api_pages._SURFACE_CACHE = None
+    markers._api_pages._API_NAME_LOOKUP_CACHE = None
 
-    html = hooks._build_api_table_html(project_dir, "")
+    html = markers._build_api_table_html(project_dir, "")
     assert "BaseThing" in html, "no root export rendered; this test would assert nothing"
 
-    generated = {mod["module_name"] for mod in hooks._get_submodules(project_dir)}
+    generated = {mod["module_name"] for mod in markers._get_submodules(project_dir)}
     assert generated, "no submodules found; this test would assert nothing"
 
     # The Name cell links too, at pages/api/generated/<qualified>/, and wraps its
@@ -4349,24 +4239,24 @@ def test_root_only_exports_reach_the_api(copie_session_minimal):
         '__all__ = ["BaseThing", "Widget"]\n',
         encoding="utf-8",
     )
-    hooks = _load_hooks(project_dir, "root_exports")
-    hooks._api_pages._SURFACE_CACHE = None
-    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
+    markers = _load_markers(project_dir, "root_exports")
+    markers._api_pages._SURFACE_CACHE = None
+    markers._api_pages._API_NAME_LOOKUP_CACHE = None
 
-    html = hooks._build_api_table_html(project_dir, "")
+    html = markers._build_api_table_html(project_dir, "")
     assert "BaseThing" in html, "a symbol exported only from the package root is missing from the API table"
     assert "minimal_project.BaseThing" in html, "the root export is not published at its public path"
 
     # A name a real submodule publishes keeps its module path -- root adoption is
     # for the homeless only, not a second home for everything.
-    roots = hooks._get_root_members(project_dir)
+    roots = markers._get_root_members(project_dir)
     assert [c["name"] for c in roots["classes"]] == ["BaseThing"], (
         f"root adoption swallowed a symbol that has a module: {[c['name'] for c in roots['classes']]}"
     )
 
-    hooks._api_pages._SURFACE_CACHE = None
-    hooks._api_pages._API_NAME_LOOKUP_CACHE = None
-    assert hooks._get_api_name_lookup(project_dir).get("BaseThing") == "minimal_project.BaseThing", (
+    markers._api_pages._SURFACE_CACHE = None
+    markers._api_pages._API_NAME_LOOKUP_CACHE = None
+    assert markers._api_pages._get_api_name_lookup(project_dir).get("BaseThing") == "minimal_project.BaseThing", (
         "See Also cannot resolve a root-exported symbol"
     )
 
@@ -4381,18 +4271,25 @@ def test_subpages_reports_a_sibling_missing_from_the_nav(copie_session_default):
     every other guard passed it.
     """
     project_dir = copie_session_default.project_dir
-    docs = project_dir / "docs"
-    hooks = _load_hooks(project_dir, "subpages_orphan")
-    page = _FakePage("pages/how-to/index.md", "pages/how-to/index.html")
-    files = [
-        _FakeFile(f"pages/how-to/{n}.md", f"pages/how-to/{n}/index.html", str(docs / "pages" / "how-to" / f"{n}.md"))
-        for n in ("configure", "troubleshooting")
-    ]
+    # Real sibling files in a directory of their own: the index scans its own
+    # directory off the filesystem, so the siblings have to exist on disk (both
+    # carry an H1 so it is the nav miss, not a missing title, that flags them).
+    subdir = project_dir / "docs" / "pages" / "orphan-index"
+    subdir.mkdir(parents=True, exist_ok=True)
+    (subdir / "configure.md").write_text("# Configure\n\nHow to configure.\n", encoding="utf-8")
+    (subdir / "troubleshooting.md").write_text("# Troubleshooting\n\nWhen things break.\n", encoding="utf-8")
+
+    markers = _load_markers(project_dir, "subpages_orphan")
+    page = _FakePage("pages/orphan-index/index.md", "pages/orphan-index/index.html")
     # troubleshooting is deliberately absent from the nav.
-    config = {"nav": [{"How-to Guides": ["pages/how-to/index.md", {"Configuration": "pages/how-to/configure.md"}]}]}
+    config = {
+        "nav": [
+            {"How-to Guides": ["pages/orphan-index/index.md", {"Configuration": "pages/orphan-index/configure.md"}]}
+        ]
+    }
 
     with caplog_at_warning() as records:
-        hooks.on_page_markdown("# H\n\n<!-- SUBPAGES -->\n", page, config, files)
+        markers._inject("# H\n\n<!-- SUBPAGES -->\n", page, config=config)
 
     assert any("troubleshooting" in r for r in records), (
         "a page missing from the nav is still listed by the index, and nothing reports it"
@@ -4414,11 +4311,11 @@ def test_gallery_section_marker_renders_only_that_section(copie_session_default)
     _write_sectioned_notebook(examples, "sec_alpha_two", title="Alpha Two", section="alpha")
     _write_sectioned_notebook(examples, "sec_beta_one", title="Beta One", section="beta")
 
-    hooks = _load_hooks(project_dir, "gallery_section")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "gallery_section")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/examples/alpha.md", "pages/examples/alpha/index.html")
-    out = hooks.on_page_markdown("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", page, {"repo_url": "https://x/y"}, None)
+    out = markers._inject("# Alpha\n\n<!-- GALLERY:section:alpha -->\n", page, config={"repo_url": "https://x/y"})
 
     assert "<!-- GALLERY:section:alpha -->" not in out, "the sectioned marker was left in the page as a dead comment"
     assert "Alpha One" in out and "Alpha Two" in out, "the section's own notebooks are missing from its page"
@@ -4435,12 +4332,12 @@ def test_unknown_gallery_section_warns_instead_of_rendering_nothing(copie_sessio
     project_dir = copie_session_default.project_dir
     _write_sectioned_notebook(project_dir / "examples", "sec_real", title="Real", section="real")
 
-    hooks = _load_hooks(project_dir, "gallery_section_unknown")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "gallery_section_unknown")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/examples/typo.md", "pages/examples/typo/index.html")
     with caplog.at_level(logging.WARNING, logger="mkdocs.hooks"):
-        hooks.on_page_markdown("# T\n\n<!-- GALLERY:section:typoed -->\n", page, {"repo_url": "https://x/y"}, None)
+        markers._inject("# T\n\n<!-- GALLERY:section:typoed -->\n", page, config={"repo_url": "https://x/y"})
 
     assert "typoed" in caplog.text, "a gallery section matching no notebook rendered silently; --strict cannot catch it"
 
@@ -4461,11 +4358,11 @@ def test_companion_cards_render_without_a_marker_on_the_page(copie_session_defau
         companion="pages/how-to/configure.md",
     )
 
-    hooks = _load_hooks(project_dir, "companion_no_marker")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "companion_no_marker")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/how-to/configure.md", "pages/how-to/configure/index.html")
-    out = hooks.on_page_markdown("# Configure\n\nProse.\n", page, {"repo_url": "https://x/y"}, None)
+    out = markers._inject("# Configure\n\nProse.\n", page, config={"repo_url": "https://x/y"})
 
     assert "Unmarked Companion" in out, "a notebook naming this page as its companion is nowhere on it"
 
@@ -4487,12 +4384,12 @@ def test_companion_cards_stay_inside_an_indented_marker(copie_session_default):
         companion="pages/how-to/troubleshooting.md",
     )
 
-    hooks = _load_hooks(project_dir, "companion_indented")
-    _reset_gallery_caches(hooks)
+    markers = _load_markers(project_dir, "companion_indented")
+    _reset_gallery_caches(markers)
 
     page = _FakePage("pages/how-to/troubleshooting.md", "pages/how-to/troubleshooting/index.html")
     source = '# Troubleshooting\n\n!!! tip "Try it interactively"\n    <!-- COMPANION_NOTEBOOKS -->\n'
-    out = hooks.on_page_markdown(source, page, {"repo_url": "https://x/y"}, None)
+    out = markers._inject(source, page, config={"repo_url": "https://x/y"})
 
     assert "Indented Companion" in out, "the companion card vanished"
     body = out.split('!!! tip "Try it interactively"\n', 1)[1]
@@ -4511,26 +4408,19 @@ def test_index_page_lists_its_subpages(copie_session_default):
     used to describe its Diataxis quadrant and then name none of its own pages.
     """
     project_dir = copie_session_default.project_dir
-    docs = project_dir / "docs"
-    hooks = _load_hooks(project_dir, "subpages")
+    # Real sibling files, plus a page nested one directory deeper. The index
+    # scans its own directory off the filesystem, so the direct children have to
+    # exist and the nested one proves the scan does not descend into subsections.
+    subdir = project_dir / "docs" / "pages" / "subpages-order"
+    (subdir / "nested").mkdir(parents=True, exist_ok=True)
+    (subdir / "configure.md").write_text("# How to Configure the Thing\n\nDetails.\n", encoding="utf-8")
+    (subdir / "troubleshooting.md").write_text("# Troubleshooting\n\nDetails.\n", encoding="utf-8")
+    (subdir / "contribute.md").write_text("# Contributing to the Project\n\nDetails.\n", encoding="utf-8")
+    # A nested section owns its own index; the how-to index must not reach into it.
+    (subdir / "nested" / "deep.md").write_text("# Deep Nested Page\n\nDetails.\n", encoding="utf-8")
 
-    page = _FakePage("pages/how-to/index.md", "pages/how-to/index.html")
-    files = [
-        _FakeFile(
-            f"pages/how-to/{name}.md", f"pages/how-to/{name}/index.html", str(docs / "pages" / "how-to" / f"{name}.md")
-        )
-        for name in ("configure", "troubleshooting", "contribute")
-    ]
-    # A page from a different quadrant. mkdocs hands the hook every file in the
-    # site, so an index that does not filter by directory lists the whole docs
-    # tree under its own heading.
-    files.append(
-        _FakeFile(
-            "pages/tutorials/getting-started.md",
-            "pages/tutorials/getting-started/index.html",
-            str(docs / "pages" / "tutorials" / "getting-started.md"),
-        )
-    )
+    markers = _load_markers(project_dir, "subpages")
+    page = _FakePage("pages/subpages-order/index.md", "pages/subpages-order/index.html")
     # Troubleshooting is deliberately the nav's only entry AND the last of the
     # three by title ("Contributing to..." < "How to Configure..." <
     # "Troubleshooting"). Asserting it leads therefore fails if nav order is
@@ -4538,10 +4428,15 @@ def test_index_page_lists_its_subpages(copie_session_default):
     # either way and assert nothing.
     config = {
         "nav": [
-            {"How-to Guides": ["pages/how-to/index.md", {"Troubleshooting": "pages/how-to/troubleshooting.md"}]},
+            {
+                "How-to Guides": [
+                    "pages/subpages-order/index.md",
+                    {"Troubleshooting": "pages/subpages-order/troubleshooting.md"},
+                ]
+            },
         ]
     }
-    out = hooks.on_page_markdown("# How-to\n\n<!-- SUBPAGES -->\n", page, config, files)
+    out = markers._inject("# How-to\n\n<!-- SUBPAGES -->\n", page, config=config)
 
     assert "<!-- SUBPAGES -->" not in out, "the marker was left in the page as a dead comment"
     for name, title in (("configure", "Configure"), ("troubleshooting", "Troubleshoot"), ("contribute", "Contribut")):
@@ -4551,7 +4446,9 @@ def test_index_page_lists_its_subpages(copie_session_default):
     assert out.index("(troubleshooting.md)") < out.index("(contribute.md)"), (
         "subpages ignore the configured nav order; the index contradicts the sidebar beside it"
     )
-    assert "getting-started" not in out, "the how-to index lists a tutorials page; it is not filtering by directory"
+    assert "deep.md" not in out and "Deep Nested" not in out, (
+        "the index lists a page from a nested subsection; the scan is not limited to direct children"
+    )
 
 
 def test_subpage_with_no_h1_falls_back_to_its_nav_title(copie_session_default):
@@ -4569,14 +4466,10 @@ def test_subpage_with_no_h1_falls_back_to_its_nav_title(copie_session_default):
     (docs_dir / "changelog.md").write_text('--8<-- "CHANGELOG.md"\n', encoding="utf-8")
     (docs_dir / "orphan.md").write_text("Body with no heading and no nav entry.\n", encoding="utf-8")
 
-    hooks = _load_hooks(project_dir, "subpages_navfallback")
+    markers = _load_markers(project_dir, "subpages_navfallback")
     page = _FakePage("pages/navfallback/index.md", "pages/navfallback/index.html")
-    files = [
-        _FakeFile(f"pages/navfallback/{n}.md", f"pages/navfallback/{n}/index.html", str(docs_dir / f"{n}.md"))
-        for n in ("changelog", "orphan")
-    ]
     config = {"nav": [{"Reference": [{"Changelog": "pages/navfallback/changelog.md"}]}]}
-    out = hooks.on_page_markdown("# Nav\n\n<!-- SUBPAGES -->\n", page, config, files)
+    out = markers._inject("# Nav\n\n<!-- SUBPAGES -->\n", page, config=config)
 
     assert "[Changelog](changelog.md)" in out, (
         "a page whose H1 comes from a snippet include was dropped from its own index"
@@ -4605,13 +4498,9 @@ def test_subpage_index_summarises_each_page_from_its_own_source(copie_session_de
         encoding="utf-8",
     )
 
-    hooks = _load_hooks(project_dir, "subpages_desc")
+    markers = _load_markers(project_dir, "subpages_desc")
     page = _FakePage("pages/subtest/index.md", "pages/subtest/index.html")
-    files = [
-        _FakeFile(f"pages/subtest/{n}.md", f"pages/subtest/{n}/index.html", str(docs_dir / f"{n}.md"))
-        for n in ("frontmatter", "prose")
-    ]
-    out = hooks.on_page_markdown("# Sub\n\n<!-- SUBPAGES -->\n", page, {}, files)
+    out = markers._inject("# Sub\n\n<!-- SUBPAGES -->\n", page, config={})
 
     assert "Summary from frontmatter." in out, "a frontmatter description was not used as the summary"
     assert "The first real paragraph." in out, "the first prose paragraph was not used as the summary"
@@ -4686,25 +4575,30 @@ def test_nightly_tests_the_pythons_the_project_supports(copie):
 
 
 def test_hooks_docstrings_read_as_instructions(copie_session_default):
-    """docs/hooks.py survives a docstring linter, because projects lint it.
+    """The docs_build modules survive a docstring linter, because projects lint them.
 
     The template does not `select = ["D"]`, so a pristine render lints clean and the
     template cannot see this. Projects can: yohou selects D, and v0.25.0's new
     _module_source docstring ("The file backing a submodule...") tripped D401 there,
     reddening a repo for a file the template owns and Tier 1 forbids it editing. The
     repo's only outs were a local ignore that drifts forever, or a fork of a Tier 1
-    file. Neither should be the price of a template docstring.
+    file. Neither should be the price of a template docstring. hooks.py split into
+    _markers.py, build.py and _git_ref.py, so all three are linted.
     """
-    hooks = copie_session_default.project_dir / "docs" / "hooks.py"
-    assert hooks.is_file(), "no hooks.py generated; this test would assert nothing"
+    build_dir = copie_session_default.project_dir / BUILD_DIR
+    modules = [build_dir / name for name in ("_markers.py", "build.py", "_git_ref.py")]
+    for module in modules:
+        assert module.is_file(), f"no {module.name} generated; this test would assert nothing"
 
     result = subprocess.run(
-        ["uvx", "ruff", "check", "--select", "D401", "--no-cache", str(hooks)],
+        ["uvx", "ruff", "check", "--select", "D401", "--no-cache", *[str(m) for m in modules]],
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == 0, f"docs/hooks.py fails D401 in any project that lints docstrings:\n{result.stdout}"
+    assert result.returncode == 0, (
+        f"a docs_build module fails D401 in any project that lints docstrings:\n{result.stdout}"
+    )
 
 
 def test_the_two_skill_mirrors_stay_byte_identical():
@@ -4810,28 +4704,18 @@ def test_seeded_reference_index_lists_the_headingless_changelog(copie_session_de
         "the seeded changelog grew an H1; this test no longer reproduces the shipped bug"
     )
 
-    import yaml
-
-    class _Loader(yaml.SafeLoader):
-        pass
-
-    _Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
-    config = yaml.load((project_dir / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_Loader)
-
     docs = project_dir / "docs"
-    hooks = _load_hooks(project_dir, "seeded_reference_index")
+    markers = _load_markers(project_dir, "seeded_reference_index")
     page = _FakePage("pages/reference/index.md", "pages/reference/index.html")
-    files = [
-        _FakeFile(
-            f"pages/reference/{n}.md", f"pages/reference/{n}/index.html", str(docs / "pages" / "reference" / f"{n}.md")
-        )
-        for n in ("api", "changelog")
-    ]
     source = (docs / "pages" / "reference" / "index.md").read_text(encoding="utf-8")
     assert "<!-- SUBPAGES -->" in source, "the seeded reference index no longer asks for its subpages"
 
+    # No config passed: the extension reads the real mkdocs.yml nav itself and
+    # scans the real reference/ directory for api.md and changelog.md. The other
+    # SUBPAGES fixtures give their pages an H1; this one is driven through the real
+    # seeded pages and real nav, which is how the headingless-changelog bug shipped.
     with caplog_at_warning() as records:
-        out = hooks.on_page_markdown(source, page, config, files)
+        out = markers._inject(source, page)
 
     assert "(changelog.md)" in out, "the seeded reference index drops its own changelog"
     assert not records, f"the seeded docs warn on their own marker, which fails --strict: {records}"
@@ -4857,8 +4741,8 @@ def test_headingless_changelog_still_gets_a_summary(copie_session_default):
         "the seeded changelog grew its own H1; it would duplicate the one inside CHANGELOG.md"
     )
 
-    hooks = _load_hooks(project_dir, "changelog_summary")
-    title, description = hooks._page_title_and_description(str(changelog))
+    markers = _load_markers(project_dir, "changelog_summary")
+    title, description = markers._page_title_and_description(str(changelog))
     assert title is None, "a bare include has no H1 of its own; the nav supplies the title"
     assert description, "the changelog frontmatter yields no summary"
 
