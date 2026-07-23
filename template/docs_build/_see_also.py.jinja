@@ -134,9 +134,16 @@ class SeeAlsoExtension(Extension):
         - A project class or function resolves to its qualified path.
         - `Class.member` resolves the class, then appends the member, so a method
           named in a See Also block links to its anchor on the class page.
-        - A dotted external name (`numpy.ndarray`) is handed to autorefs by
-          identifier; if no inventory resolves it, autorefs leaves it as text
-          rather than failing a strict build.
+        - A dotted name qualified with THIS package resolves to itself; a wrong
+          path there (`pkg.config.logging.X` where the class is `pkg.config.X`) is
+          a real broken reference and SHOULD red the strict build.
+        - A dotted name from ANOTHER top-level package (`numpy.ndarray`,
+          `yohou.point.Base`) is left unlinked. At collection time we cannot know
+          whether an inventory will resolve it, and an autoref that fails to
+          resolve is a FATAL warning under `--strict`, not the harmless plain text
+          this once assumed -- so a legitimate cross-reference to a dependency
+          symbol reddened the whole build. Plain text is what the old HTML hook
+          produced for these, and it never failed.
         - A bare name that is not a project symbol is left unlinked: a wrong link
           to an unrelated same-named symbol is worse than no link.
         """
@@ -145,8 +152,8 @@ class SeeAlsoExtension(Extension):
         if "." in name:
             head, rest = name.split(".", 1)
             if head == self._package.split(".", 1)[0]:
-                return name  # already package-qualified
+                return name  # already package-qualified (internal; a wrong path here is a real bug)
             if head in self._paths:
                 return f"{self._paths[head]}.{rest}"
-            return name  # external dotted name: let autorefs try, harmless if it cannot
+            return None  # foreign-package dotted name: an unresolvable autoref is fatal under --strict
         return None
