@@ -59,6 +59,16 @@ class Wrapped:
     Beta : A description that wraps onto
         a second indented line.
     """
+
+
+class NameOnly:
+    """NameOnly.
+
+    See Also
+    --------
+    Beta
+    Gamma
+    """
 '''
 
 
@@ -108,13 +118,20 @@ def test_member_entry_resolves_through_its_class(rewritten):
     assert "[`Gamma.fit`][test_project.models.Gamma.fit]" in rewritten("models.Alpha")
 
 
-def test_external_dotted_name_is_handed_to_autorefs(rewritten):
-    """An external dotted name becomes a reference for autorefs to resolve later.
+def test_external_dotted_name_is_left_as_plain_code(rewritten):
+    """A See Also name from another package renders as plain code, not an autoref.
 
-    autorefs leaves it as text if no inventory resolves it, so a docstring naming
-    an undocumented external type does not fail a strict build.
+    At collection time there is no way to know an inventory will resolve a
+    dependency symbol, and an unresolved autoref is a FATAL warning under mkdocs
+    ``--strict`` -- not the harmless plain text this once assumed. yohou-nixtla's
+    ``See Also: yohou.point.BasePointForecaster`` reddened check_docs this way,
+    while the identical source built clean before the rewrite existed (the old
+    HTML hook rendered these as plain text). Only same-package and known project
+    names link; a foreign-package dotted name is left unlinked.
     """
-    assert "[`numpy.ndarray`][numpy.ndarray]" in rewritten("models.Alpha")
+    out = rewritten("models.Alpha")
+    assert "`numpy.ndarray`" in out
+    assert "[`numpy.ndarray`]" not in out
 
 
 def test_bare_unresolvable_name_is_left_unlinked(rewritten):
@@ -132,6 +149,20 @@ def test_multiple_entries_become_a_markdown_list(rewritten):
     out = rewritten("models.Alpha")
     assert "- [`Beta`][test_project.models.Beta]" in out
     assert out.count("\n- ") >= 3
+
+
+def test_name_only_entries_each_become_a_linked_list_item(rewritten):
+    """Name-only See Also targets (no description) each get their own list item.
+
+    numpydoc allows a target with no ``: description``, one per line. Splitting on
+    a colon collapsed such a block onto a single, unlinked line -- yohou's See Also
+    (written name-only) rendered exactly that way. Splitting by indentation gives
+    each target its own linked list item instead.
+    """
+    out = rewritten("models.NameOnly")
+    assert "- [`Beta`][test_project.models.Beta]" in out
+    assert "- [`Gamma`][test_project.models.Gamma]" in out
+    assert "Beta Gamma" not in out  # not collapsed onto one flowed line
 
 
 def test_single_entry_stays_a_paragraph(rewritten):
