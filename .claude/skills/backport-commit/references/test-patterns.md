@@ -97,7 +97,7 @@ def test_option_combo(copie, include_examples, include_actions):
 | New template option values | `tests/test_template_options.py` or `tests/test_option_values.py` |
 | Docs content | `tests/test_docs_content.py` |
 | GitHub workflow changes | `tests/test_github_workflows.py` |
-| Hook script changes | `tests/test_hooks.py` |
+| Docs build tooling changes (`docs_build/` extensions + `build.py`) | `tests/test_hooks.py`, `tests/test_template.py`, `tests/test_see_also.py`, `tests/test_source_links.py` |
 | Feature propagation (variable in multiple files) | `tests/test_propagated_features.py` |
 
 ## Running Tests
