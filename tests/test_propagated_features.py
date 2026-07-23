@@ -53,7 +53,9 @@ class TestPyprojectNewDeps:
         # hooks.py is gone, and the successor build scripts implement no mkdocs event
         # signatures, so the per-hooks.py SIM105/ARG001 exemptions are gone with it.
         assert f"{BUILD_DIR}/hooks.py" not in ignores, "hooks.py is gone; its per-file-ignores should be too"
-        assert not any("ARG001" in v for v in ignores.values()), "no build script needs an unused-argument exemption now"
+        assert not any("ARG001" in v for v in ignores.values()), (
+            "no build script needs an unused-argument exemption now"
+        )
         # `docs/*.py` is kept too, for a project's own scripts under docs/.
         assert "T201" in ignores["docs/*.py"]
         # SIM108 is deliberately absent: nothing under docs/ trips it since the

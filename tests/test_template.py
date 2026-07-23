@@ -215,7 +215,9 @@ def test_pyproject_ruff_ignores_docs_directory(copie):
     build_ignores = content.split('"docs_build/*.py"')[1].split("\n")[0]
     assert "T201" in build_ignores, "the build scripts lost their print exemption"
     assert "PLW0603" in build_ignores, "the build scripts lost their cache-global exemption"
-    assert "ARG001" not in build_ignores, "no build script needs an unused-argument exemption now that the hooks are gone"
+    assert "ARG001" not in build_ignores, (
+        "no build script needs an unused-argument exemption now that the hooks are gone"
+    )
     # `docs/*.py` is the project-scripts glob, kept for scripts a project adds; it
     # must not carry the unused-argument exemption.
     docs_ignores = content.split('"docs/*.py"')[1].split("\n")[0]
@@ -2298,7 +2300,9 @@ def test_docs_markers_and_glossary_extensions_are_registered(copie, include_exam
     result = copie.copy(extra_answers={"include_examples": include_examples})
     names = [e for e in _mkdocs_config(result.project_dir)["markdown_extensions"] if isinstance(e, str)]
 
-    assert "docs_build._markers" in names, "the marker Preprocessor is not registered; markers would ship as blank space"
+    assert "docs_build._markers" in names, (
+        "the marker Preprocessor is not registered; markers would ship as blank space"
+    )
     assert "docs_build._glossary" in names, "the glossary Preprocessor is not registered; glossary links would vanish"
 
 
@@ -2925,6 +2929,19 @@ def test_section_headings_reach_the_table_of_contents(copie, include_examples, t
     if (project_dir / "examples").exists():
         sync += ["--group", "examples"]
     assert subprocess.run(sync, cwd=project_dir, env=env, capture_output=True, check=False).returncode == 0
+    # Generate the API pages before the build. mkdocs no longer does this itself:
+    # the on_pre_build hook that generated them is gone, replaced by an explicit
+    # `build.py prebuild` step. MKDOCS_SKIP_NOTEBOOKS (in env) skips the slow
+    # notebook export while still generating the pages this test reads.
+    prebuild = subprocess.run(
+        ["uv", "run", "--no-sync", "python", "docs_build/build.py", "prebuild"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert prebuild.returncode == 0, prebuild.stderr[-2000:]
     build = subprocess.run(
         ["uv", "run", "--no-sync", "mkdocs", "build", "--clean", "--strict"],
         cwd=project_dir,
@@ -4266,7 +4283,9 @@ def test_subpages_reports_a_sibling_missing_from_the_nav(copie_session_default):
     page = _FakePage("pages/orphan-index/index.md", "pages/orphan-index/index.html")
     # troubleshooting is deliberately absent from the nav.
     config = {
-        "nav": [{"How-to Guides": ["pages/orphan-index/index.md", {"Configuration": "pages/orphan-index/configure.md"}]}]
+        "nav": [
+            {"How-to Guides": ["pages/orphan-index/index.md", {"Configuration": "pages/orphan-index/configure.md"}]}
+        ]
     }
 
     with caplog_at_warning() as records:
