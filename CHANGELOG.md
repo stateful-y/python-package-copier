@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.4] - 2026-07-23
+
+This **patch release** includes 3 commits.
+
+
+### Features
+- Render numpydoc References sections as a markdown list  ([#216](https://github.com/stateful-y/python-package-copier/pull/216)) by @gtauzin
+
+### Documentation
+- Correct the See Also '0 unlinked' invariant  ([#214](https://github.com/stateful-y/python-package-copier/pull/214)) by @gtauzin
+- Drop the stale 'yohou documents pre-commit' claim  ([#215](https://github.com/stateful-y/python-package-copier/pull/215)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.29.3] - 2026-07-23
 
 This **patch release** includes 1 commit.
