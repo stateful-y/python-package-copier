@@ -73,4 +73,7 @@ class SourceLinkExtension(Extension):
         relative = obj.relative_filepath
         if relative is None:
             return
-        obj.extra[_EXTRA_NS][_SOURCE_URL_KEY] = f"{self._base}/{relative}"
+        # `.as_posix()`, not `str()`: `relative_filepath` is a Path, so on Windows
+        # `str()` renders backslashes into the URL (`.../blob/main/src\pkg\x.py`),
+        # a broken link. A URL is always forward slashes on every platform.
+        obj.extra[_EXTRA_NS][_SOURCE_URL_KEY] = f"{self._base}/{relative.as_posix()}"
