@@ -265,7 +265,9 @@ watch:
   # exit 0, even under `--strict`. Re-adding it would publish an empty site
   # from a green build, in every repo at once.
   - docs
-{#- No examples/src entries: the examples/notebooks are exported at build time
-    (and once at serve startup), not live-watched, because executing a notebook
-    on every edit is too slow; and src/ is owned by the docs_build/serve.py
-    watcher, not the engine. -#}
+{# No examples/src entries: the examples/notebooks are exported at build time
+   (and once at serve startup), not live-watched, because executing a notebook
+   on every edit is too slow; and src/ is owned by the docs_build/serve.py
+   watcher, not the engine. The comment opens with `{#`, NOT `{#-`: the leading
+   dash would strip the newline after `- docs` above and render a file with no
+   trailing newline, failing end-of-file-fixer in every generated project. -#}
