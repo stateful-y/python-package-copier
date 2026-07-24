@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.30.0] - 2026-07-24
+
+This **minor release** includes 3 commits.
+
+
+### Features
+- Migrate docs from MkDocs to Zensical  ([#224](https://github.com/stateful-y/python-package-copier/pull/224)) by @gtauzin
+
+### Documentation
+- Record bespoke setup-uv workflows in fan-out fleet table  ([#222](https://github.com/stateful-y/python-package-copier/pull/222)) by @gtauzin
+- Require fan-out PRs be opened ready-for-review  ([#223](https://github.com/stateful-y/python-package-copier/pull/223)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.29.6] - 2026-07-24
 
 This **patch release** includes 1 commit.
