@@ -53,6 +53,11 @@ plugins:
 
 markdown_extensions:
   - admonition
+  # attr_list applies the `{width=800}` image sizing on the home page (and the
+  # `#only-dark`/`#only-light` logo toggle); without it the `{width=800}` renders
+  # as literal text. md_in_html lets Markdown run inside the HTML grid cards.
+  - attr_list
+  - md_in_html
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true
@@ -91,6 +96,9 @@ nav:
     - Commands: pages/reference/commands.md
     - GitHub Workflows: pages/reference/github-workflows.md
     - Configuration Files: pages/reference/configuration.md
+
+extra_css:
+  - stylesheets/theme.css
 
 extra_javascript:
   - javascripts/readthedocs.js

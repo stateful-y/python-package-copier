@@ -1,0 +1,13 @@
+/* Python Package Copier — theme overrides.
+ *
+ * The header background is black in both light (default) and dark (slate)
+ * schemes. `palette.primary: black` is set in mkdocs.yml, but Zensical's classic
+ * theme does not always resolve the named `black` primary to a black header, so
+ * pin the colour token the header background is drawn from directly.
+ */
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #000000;
+  --md-primary-fg-color--light: #000000;
+  --md-primary-fg-color--dark: #000000;
+}
