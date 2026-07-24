@@ -1202,6 +1202,9 @@ def test_copier_answers_stores_all_user_inputs(copie):
     assert "package_name: my_test_pkg" in content
     assert "project_name: My Test Package" in content
     assert "project_slug: my-test-package" in content
+    # uv_version must persist so a project's pinned uv survives `copier update`
+    # (the workflow files regenerate from it); it is recorded unconditionally.
+    assert "uv_version: '0.10.0'" in content or "uv_version: 0.10.0" in content
 
 
 def test_max_python_version_in_classifiers(copie):

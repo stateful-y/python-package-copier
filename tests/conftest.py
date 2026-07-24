@@ -32,6 +32,7 @@ class CopierTestFixture:
             "license": "MIT",
             "include_actions": True,
             "include_examples": True,
+            "uv_version": "0.10.0",
         }
 
         # Override with extra answers
@@ -118,6 +119,7 @@ def copie_session_default(session_projects_dir):
         "license": "MIT",
         "include_actions": True,
         "include_examples": True,
+        "uv_version": "0.10.0",
     }
 
     # Generate project once
@@ -163,6 +165,7 @@ def copie_session_minimal(session_projects_dir):
         "license": "MIT",
         "include_actions": False,
         "include_examples": False,
+        "uv_version": "0.10.0",
     }
 
     # Generate project once
@@ -209,6 +212,7 @@ def copie_session_custom(session_projects_dir):
         "license": "Apache-2.0",
         "include_actions": True,
         "include_examples": True,
+        "uv_version": "0.10.0",
     }
 
     # Generate project once
