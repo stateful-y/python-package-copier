@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.6] - 2026-07-24
+
+This **patch release** includes 1 commit.
+
+
+### Bug Fixes
+- Pin exact uv version in all setup-uv steps  ([#220](https://github.com/stateful-y/python-package-copier/pull/220)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.29.5] - 2026-07-24
 
 This **patch release** includes 1 commit.
