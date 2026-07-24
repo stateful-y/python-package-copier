@@ -93,6 +93,17 @@ class ResidualRst:
     ----------
     [1] An entry embedding a stray .. [note] directive mid-text.
     """
+
+
+class FlushLeft:
+    """Flush left.
+
+    References
+    ----------
+    [1] Akiba, T. (2019). Optuna: A Next-generation Framework.
+    In Proceedings of the 25th ACM SIGKDD International Conference.
+    https://doi.org/10.1145/3292500.3330701
+    """
 '''
 
 
@@ -171,6 +182,23 @@ def test_body_citation_reference_loses_its_underscore(rewritten):
     out = rewritten("models.BodyCite")
     assert "the method [1] described below." in out
     assert "[1]_" not in out
+
+
+def test_flush_left_multiline_citation_is_one_item(rewritten):
+    """A bare-bracket citation whose continuations are NOT indented stays one item.
+
+    numpydoc recommends indenting a wrapped continuation, but many docstrings write
+    it flush with the `[1]` marker. Splitting entries by indentation turned such a
+    citation into one list item per physical line; splitting on the citation marker
+    folds it back into a single entry.
+    """
+    out = rewritten("models.FlushLeft")
+    assert (
+        "1. Akiba, T. (2019). Optuna: A Next-generation Framework. "
+        "In Proceedings of the 25th ACM SIGKDD International Conference. "
+        "https://doi.org/10.1145/3292500.3330701" in out
+    )
+    assert "2." not in out  # not split into multiple numbered items
 
 
 def test_section_boundary_stops_at_the_next_section(rewritten):
