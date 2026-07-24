@@ -5,18 +5,13 @@ site_url: https://python-package-copier.readthedocs.io/
 repo_url: https://github.com/stateful-y/python-package-copier
 edit_uri: edit/main/docs/
 
-# The Material theme override in docs/material/overrides/ lives inside docs_dir,
-# so mkdocs would copy it into the built site as a static asset (main.html served
-# 200). It is a theme template, not a page. `exclude_docs` keeps it out. Under the
-# successor engine (Zensical) `exclude_docs` is ignored, but main.html is a
-# Material `base.html` override with no meaning there -- it rides with the theme
-# migration, which is out of scope for this change.
-exclude_docs: |
-  material/overrides/*.html
-
+# The theme override moved out of docs_dir to docs_theme/, so no build tooling
+# lives under docs/ and there is nothing for exclude_docs to suppress. The
+# successor engine (Zensical) ignores exclude_docs anyway, so location -- not a
+# config key -- is what keeps the override unpublished, under either engine.
 theme:
   name: material
-  custom_dir: docs/material/overrides
+  custom_dir: docs_theme/overrides
   favicon: assets/favicon.png
   logo: assets/logo.png
 

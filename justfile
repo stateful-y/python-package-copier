@@ -40,12 +40,12 @@ link:
 
 # Build documentation
 build:
-    uv run mkdocs build --clean
+    uv run zensical build
 
 # Serve documentation locally
 serve:
     @echo "###### Starting local server. Press Control+C to stop server ######"
-    uv run mkdocs serve -a localhost:8080
+    uv run zensical serve -a localhost:8080
 
 # Clean build artifacts
 clean:

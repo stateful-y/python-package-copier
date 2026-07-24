@@ -7,19 +7,21 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.13"
-  jobs:
-    pre_create_environment:
-      # Install uv via asdf (or system package) before creating the venv
-      - asdf plugin add uv || true
-      - asdf install uv latest
-      - asdf global uv latest
-    create_environment:
-      # Create the virtual environment using uv
-      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
-    install:
-      # Sync doc-dependencies (the group "docs") without installing the project
-      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --group docs --no-install-project
-
-# MkDocs configuration
-mkdocs:
-  configuration: mkdocs.yml
+  # Zensical is not one of Read the Docs' built-in builders (only `mkdocs:` and
+  # `sphinx:` exist), so the build runs as explicit commands. This repo's own
+  # docs have no API-page prebuild step, so the commands are simpler than the
+  # ones the template ships to generated projects.
+  #
+  # VERIFY ON A LIVE READ THE DOCS BUILD. Read the Docs rejects a malformed
+  # config outright; every item below is a plain, unquoted scalar for that reason.
+  commands:
+    - asdf plugin add uv || true
+    - asdf install uv latest
+    - asdf global uv latest
+    # Docs deps only; this repo's docs do not import the project.
+    - uv sync --group docs --no-install-project
+    # Zensical has no site-dir flag: it builds to the default `site/`. Read the
+    # Docs publishes whatever is under $READTHEDOCS_OUTPUT/html.
+    - uv run --no-sync zensical build
+    - mkdir -p $READTHEDOCS_OUTPUT/html
+    - cp -r site/. $READTHEDOCS_OUTPUT/html/
