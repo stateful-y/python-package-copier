@@ -923,7 +923,6 @@ dev = [
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "prek" },
-    { name = "pymdown-extensions" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
@@ -936,7 +935,6 @@ docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
-    { name = "pymdown-extensions" },
     { name = "zensical" },
 ]
 fix = [
@@ -969,7 +967,6 @@ dev = [
     { name = "mkdocs-material", specifier = ">=9.7.7" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
     { name = "prek", specifier = ">=0.4.10" },
-    { name = "pymdown-extensions", specifier = ">=11.0.1" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.14" },
@@ -982,7 +979,6 @@ docs = [
     { name = "mkdocs", specifier = ">=1.6.0" },
     { name = "mkdocs-material", specifier = ">=9.7.7" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
-    { name = "pymdown-extensions", specifier = ">=11.0.1" },
     { name = "zensical", specifier = ">=0.0.51" },
 ]
 fix = [{ name = "prek", specifier = ">=0.4.10" }]

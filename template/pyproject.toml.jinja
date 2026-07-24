@@ -85,11 +85,12 @@ docs = [
     # package. `mkdocs`/`mkdocs-material` above are kept so CI can still run a
     # MkDocs build as a comparison during the engine transition.
     "zensical>=0.0.51",
-    # Zensical requires pymdown-extensions 11+, so the whole markdown-extension
-    # config is exercised under that major; mkdocs-material 9.7 accepts it too, so
-    # both engines resolve to the same pymdownx. A changed extension default is a
-    # silent content regression, so this is pinned to the major, not left to drift.
-    "pymdown-extensions>=11.0.1",
+    # Floor matches Zensical's own requirement (pymdown-extensions>=10.21.3).
+    # Do NOT pin to >=11: the examples group's notebook runtime caps
+    # pymdown-extensions at <11, so a project with examples must resolve it in
+    # [10.21.3, 11). Zensical works with either major; forcing 11 makes the
+    # docs-plus-examples sync unsatisfiable.
+    "pymdown-extensions>=10.21.3",
     # Also a direct import of docs_build/_api_pages.py, which reads mkdocstrings'
     # `preload_modules` out of mkdocs.yml so that list has one definition rather
     # than two. Same argument as griffe above: it arrives via mkdocs anyway, but

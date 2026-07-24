@@ -49,7 +49,6 @@ docs = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",
-    "pymdown-extensions>=11.0.1",
 ]
 fix = [
   # prek runs the hooks. Pinned here, never invoked via `uvx`: prek substitutes its
