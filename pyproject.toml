@@ -43,6 +43,9 @@ lint = [
     "rumdl>=0.2.38",
 ]
 docs = [
+    # Zensical (successor to Material for MkDocs) builds this repo's own docs;
+    # mkdocs-material is kept for the CI comparison build during the transition.
+    "zensical>=0.0.51",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",

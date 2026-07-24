@@ -60,17 +60,18 @@ def test_repo_docs_have_no_engine_hooks_or_in_source_build_tooling():
     assert not stray, f"build-tooling .py under docs/ would be published as a static asset: {stray}"
 
 
-def test_repo_docs_theme_override_is_excluded_from_publishing():
-    """The Material theme override must not be published as a site asset.
+def test_repo_docs_theme_override_is_excluded_by_location():
+    """The theme override is kept out of the built site by living outside docs_dir.
 
-    `docs/material/overrides/main.html` sits inside `docs_dir`, so without an
-    `exclude_docs` entry mkdocs copies it to `site/material/overrides/main.html`.
+    `main.html` moved from `docs/material/overrides/` to `docs_theme/overrides/`,
+    a sibling of `docs/`. The successor engine ignores `exclude_docs`, so location
+    -- not that key -- is what keeps the override unpublished, under either engine.
     """
+    assert not (_REPO / "docs" / "material").exists(), "the theme override still sits under docs_dir"
+    assert (_REPO / "docs_theme" / "overrides" / "main.html").is_file(), "the relocated override is missing"
     config = _repo_mkdocs_config()
-    excluded = config.get("exclude_docs") or ""
-    assert "material/overrides/*.html" in excluded, (
-        "the theme override is not excluded; it would publish as site/material/overrides/main.html"
-    )
+    assert config.get("theme", {}).get("custom_dir") == "docs_theme/overrides"
+    assert "exclude_docs" not in config, "no exclude_docs is needed once the override is outside docs_dir"
 
 
 @pytest.mark.slow

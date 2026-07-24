@@ -125,11 +125,19 @@ class TestMkdocsYmlFeatures:
         assert "not_in_nav" in content
         assert "pages/api/*.md" in content
 
-    def test_exclude_docs_has_api_submodule(self, copie_session_default):
-        """Test that exclude_docs excludes api-submodule.html."""
+    def test_api_submodule_scaffold_is_excluded_by_location(self, copie_session_default):
+        """The api-submodule scaffold is kept out of the built site by location.
+
+        It moved from ``docs/`` to ``docs_build/`` so the successor engine, which
+        ignores ``exclude_docs``, cannot publish it. So it must not sit under
+        ``docs_dir`` and must not need an ``exclude_docs`` entry to be safe.
+        """
         result = copie_session_default
+        assert not (result.project_dir / "docs" / "api-submodule.html").exists()
         content = (result.project_dir / "mkdocs.yml").read_text()
-        assert "api-submodule.html" in content
+        assert "api-submodule.html" not in content, (
+            "the scaffold is excluded by living outside docs_dir, not by exclude_docs"
+        )
 
     def test_nav_uses_api_reference(self, copie_session_default):
         """Test that nav points to pages/reference/api.md."""
@@ -142,15 +150,15 @@ class TestAPISubmodulePages:
     """Test API submodule page generation infrastructure."""
 
     def test_api_submodule_template_exists(self, copie_session_default):
-        """Test that api-submodule.html template file exists."""
+        """Test that api-submodule.html template file exists (in docs_build/)."""
         result = copie_session_default
-        template = result.project_dir / "docs" / "api-submodule.html"
+        template = result.project_dir / "docs_build" / "api-submodule.html"
         assert template.is_file()
 
     def test_api_submodule_template_has_placeholders(self, copie_session_default):
         """Test that api-submodule.html has the expected placeholders."""
         result = copie_session_default
-        content = (result.project_dir / "docs" / "api-submodule.html").read_text()
+        content = (result.project_dir / "docs_build" / "api-submodule.html").read_text()
         assert "{package_name}" in content
         assert "{module_name}" in content
         assert "{module_doc}" in content

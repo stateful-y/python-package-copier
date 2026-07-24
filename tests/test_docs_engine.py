@@ -1,0 +1,154 @@
+"""End-to-end guards for the documentation engine (Zensical).
+
+These build a generated project's docs through the same ``build_docs`` nox
+session a contributor and CI run, and assert on the *rendered HTML*, not on the
+build's exit status. That distinction is the whole point: the failure modes this
+migration had to survive -- page-context markers silently rendering empty, and
+build tooling leaking into the site -- both pass a green ``--strict`` build. A
+test that trusts the exit code would not catch either.
+
+``build_docs`` runs Zensical (the maintained successor to Material for MkDocs).
+If these fail with an *empty* site on a developer machine, suspect exhausted
+inotify instances rather than a real regression: the engine's file collector
+needs them even for a one-shot build. See the contributor guide. CI runs in a
+fresh environment and is unaffected.
+"""
+
+import subprocess
+
+import pytest
+
+
+@pytest.fixture(scope="module")
+def built_site(session_projects_dir, request):
+    """Render a project and build its docs once, returning the ``site/`` dir.
+
+    ``include_examples=False`` keeps the build fast (no notebook execution) while
+    still exercising the API index, the section-index subpages, the mkdocstrings
+    member pages and the theme overrides -- everything this migration touches.
+    """
+    from copier import run_copy
+
+    project_dir = session_projects_dir / "engine-project"
+    if not project_dir.exists():
+        run_copy(
+            str(request.config.rootpath),
+            str(project_dir),
+            data={
+                "project_name": "Test Project",
+                "project_slug": "test-project",
+                "package_name": "test_project",
+                "description": "A test project",
+                "author_name": "Test Author",
+                "author_email": "test@example.com",
+                "github_username": "testuser",
+                "version": "0.1.0",
+                "min_python_version": "3.11",
+                "max_python_version": "3.14",
+                "license": "MIT",
+                "include_actions": True,
+                "include_examples": False,
+            },
+            defaults=True,
+            overwrite=True,
+            unsafe=True,
+            vcs_ref="HEAD",
+        )
+        build = subprocess.run(  # noqa: S603
+            ["uvx", "nox", "-s", "build_docs"],  # noqa: S607
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        assert build.returncode == 0, f"build_docs failed:\n{build.stdout}\n{build.stderr}"
+    return project_dir / "site"
+
+
+def test_mkdocs_config_points_at_the_relocated_theme(copie_session_default):
+    """The config references ``docs_theme/`` and drops the tooling exclusions (task 7.3).
+
+    A fast, build-free check: ``custom_dir``/``custom_templates`` must point at the
+    relocated theme directory, and the old build-tooling ``exclude_docs`` entries
+    (which the successor engine ignores anyway) must be gone.
+    """
+    content = (copie_session_default.project_dir / "mkdocs.yml").read_text(encoding="utf-8")
+    assert "custom_dir: docs_theme/overrides" in content
+    assert "custom_templates: docs_theme/templates" in content
+    assert "docs/material" not in content, "config still references the pre-relocation theme path"
+    assert "material/overrides/*.html" not in content, "the tooling exclude_docs entry should be gone"
+
+
+def _real_pages(site):
+    """Every rendered page, excluding the 404 stub."""
+    return [p for p in site.rglob("*.html") if p.name != "404.html"]
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_api_index_renders_a_populated_table(built_site):
+    """The API index resolves ``<!-- API_TABLE -->`` to a real table (task 7.1).
+
+    Before the seam fix this page rendered empty under Zensical -- the raw marker
+    survived and there were zero rows -- at a green ``--strict`` build.
+    """
+    index = built_site / "pages" / "reference" / "api" / "index.html"
+    assert index.is_file(), "the API index page was not generated"
+    html = index.read_text(encoding="utf-8")
+    assert "<!-- API_TABLE -->" not in html, "the API_TABLE marker did not resolve (rendered empty)"
+    assert "<tr" in html, "the API index table has no rows"
+    assert "test_project" in html, "the API index does not list the package's symbols"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_no_page_context_marker_survives_unresolved(built_site):
+    """No raw marker comment is left in any rendered page (task 7.1).
+
+    Catches the whole family (API_TABLE, SUBPAGES, GALLERY, companion) in one
+    assertion: a surviving marker means a page rendered blank where it should
+    have content.
+    """
+    markers = ("<!-- API_TABLE", "<!-- SUBPAGES", "<!-- GALLERY", "<!-- COMPANION")
+    offenders = []
+    for page in _real_pages(built_site):
+        html = page.read_text(encoding="utf-8")
+        if any(m in html for m in markers):
+            offenders.append(page.relative_to(built_site).as_posix())
+    assert not offenders, f"unresolved markers left in rendered pages: {offenders}"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_build_tooling_does_not_leak_into_the_site(built_site):
+    """The theme overrides, mkdocstrings templates and scaffold stay unpublished (task 7.2).
+
+    They live outside ``docs_dir`` (``docs_theme/`` and ``docs_build/``), so no
+    engine can publish them -- the successor ignores ``exclude_docs``, so this is
+    enforced by location, not configuration.
+    """
+    leaked = [
+        p.relative_to(built_site).as_posix()
+        for p in built_site.rglob("*")
+        if p.is_file()
+        and ("material" in p.parts or "docs_theme" in p.parts or p.suffix == ".jinja" or p.name == "api-submodule.html")
+    ]
+    assert not leaked, f"build tooling leaked into the built site: {leaked}"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_api_member_page_renders_at_parity(built_site):
+    """A member page shows its Parameters, Returns and Source sections (task 7.6).
+
+    mkdocstrings renders the API through Zensical's compatibility layer. This is
+    the durable guard for the "renders at parity" requirement: a one-time manual
+    comparison is not a regression test.
+    """
+    page = built_site / "pages" / "api" / "generated" / "test_project.hello.Greeter" / "index.html"
+    assert page.is_file(), "the Greeter member page was not generated"
+    html = page.read_text(encoding="utf-8")
+    assert "Parameters" in html, "the member page is missing its Parameters section"
+    assert "Returns" in html, "the member page is missing its Returns section"
+    assert "Source code" in html, "the member page is missing its Source code section"
