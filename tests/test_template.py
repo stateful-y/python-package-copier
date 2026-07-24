@@ -2888,7 +2888,7 @@ def test_mkdocstrings_template_overrides_ship(request, fixture_name):
     import yaml
 
     project_dir = request.getfixturevalue(fixture_name).project_dir
-    templates = project_dir / "docs" / "material" / "templates" / "python" / "material"
+    templates = project_dir / "docs_theme" / "templates" / "python" / "material"
     for rel in ("docstring.html.jinja", "class.html.jinja", "function.html.jinja", "docstring/admonition.html.jinja"):
         assert (templates / rel).is_file(), f"missing override: {rel}"
 
@@ -2902,7 +2902,7 @@ def test_mkdocstrings_template_overrides_ship(request, fixture_name):
     _loader.add_constructor("!ENV", lambda _l, _n: None)
     config = yaml.load(raw, Loader=_loader)
     plugin = next(p["mkdocstrings"] for p in config["plugins"] if isinstance(p, dict) and "mkdocstrings" in p)
-    assert plugin.get("custom_templates") == "docs/material/templates", (
+    assert plugin.get("custom_templates") == "docs_theme/templates", (
         "custom_templates must sit at plugin level, not under handlers.python.options"
     )
     assert "custom_templates" not in plugin["handlers"]["python"].get("options", {}), (
@@ -3624,8 +3624,10 @@ _CLASSIFICATION_PATTERNS = (
     ".claude/skills/",
     # mkdocstrings template overrides. A whole tree rather than a line per file:
     # its shape follows mkdocstrings' own template layout, so it changes when
-    # that does, and a per-file list would go stale on every handler bump.
-    "docs/material/templates/",
+    # that does, and a per-file list would go stale on every handler bump. Lives
+    # under docs_theme/ (outside docs_dir) so the successor engine cannot publish
+    # it, since that engine ignores exclude_docs.
+    "docs_theme/templates/",
 )
 
 
@@ -4767,7 +4769,7 @@ def test_docs_warnings_are_fatal_somewhere_automated(copie_session_default):
     assert "def check_docs" in noxfile, "no nox session builds the docs with warnings fatal"
     session = noxfile[noxfile.index("def check_docs") :]
     session = session[: session.find("@nox.session", 1) if session.find("@nox.session", 1) > 0 else len(session)]
-    assert '"--strict"' in session, "check_docs builds the docs without --strict, so warnings stay advisory"
+    assert '"-s"' in session, "check_docs builds the docs without strict mode (-s), so warnings stay advisory"
     assert "MKDOCS_SKIP_NOTEBOOKS" in session, (
         "check_docs executes every notebook; that is too slow to run per-PR and it will be dropped from CI"
     )

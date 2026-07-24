@@ -157,9 +157,11 @@ def test_readthedocs_config_consistency(copie):
     # Should use uv for installation
     assert "uv sync" in content
 
-    # Should configure mkdocs (RTD handles the build automatically)
-    assert "mkdocs:" in content
-    assert "configuration: mkdocs.yml" in content
+    # The build runs Zensical via explicit commands: Read the Docs has no
+    # zensical builder, so the former `mkdocs:` builder is gone.
+    assert "commands:" in content
+    assert "zensical build" in content
+    assert "configuration: mkdocs.yml" not in content, "the mkdocs: builder cannot invoke Zensical"
 
 
 def test_justfile_commands_comprehensive(copie):
