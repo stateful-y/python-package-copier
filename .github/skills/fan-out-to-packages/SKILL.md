@@ -223,6 +223,11 @@ Group a section index under `##` headings only when it is big enough to need it 
 - **`gh pr edit` silently fails here** (GraphQL Projects-classic deprecation). Use
   `gh api -X PATCH repos/OWNER/REPO/pulls/N -f title=... -F body=@file` and **read it back**.
 - **A CONFLICTING PR runs no Actions.** "0 failures" out of ~1 check is meaningless.
+- **A DRAFT PR skips draft-gated jobs.** Many jobs in this fleet carry
+  `if: ... pull_request.draft == false` (the full test matrix, compat, and the
+  `tests-versions` matrix). On a draft PR they show `skipping`, so `gh pr checks` reports
+  green over a thin subset — the heaviest jobs, and any job a CI-touching change most needs
+  to exercise, never ran. Open PRs ready-for-review, not draft (see §7).
 - **`gh pr checks` does not accept `--json` on this machine** — it exits with
   `unknown flag: --json`. An earlier version of this file called it a *silent* empty return;
   re-measured, it is a hard error, and the "empty result" agents watched for ~10 minutes was
@@ -485,3 +490,10 @@ it when the repo would otherwise block on something unrelated.
   to a scratch branch, or copy files aside.
 - **Push to the existing branch; do not open a second PR.** These are long-lived
   `template-update/*` PRs that advance across releases.
+- **Open the PR ready-for-review, never draft.** "Held for review" means *do-not-merge*,
+  stated in the body and left to the user — it does NOT mean draft. Draft PRs skip every
+  `pull_request.draft == false` job (the full matrix, compat, `tests-versions`), which are
+  the jobs a fan-out most needs to see green; a CI-touching change (e.g. pinning
+  `tests-versions.yml`) is then verified by nothing but the YAML walker while the PR sits
+  draft. Create with `gh pr create` WITHOUT `--draft`; if a PR already exists as a draft,
+  `gh pr ready <N>` before reporting it done. Leave the actual merge to the user.
