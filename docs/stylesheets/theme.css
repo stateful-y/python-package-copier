@@ -1,0 +1,32 @@
+/* Python Package Copier — theme overrides.
+ *
+ * The header background is black in both light (default) and dark (slate)
+ * schemes. `palette.primary: black` is set in mkdocs.yml, but Zensical's classic
+ * theme does not always resolve the named `black` primary to a black header, so
+ * pin the colour token the header background is drawn from directly.
+ */
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #000000;
+  --md-primary-fg-color--light: #000000;
+  --md-primary-fg-color--dark: #000000;
+}
+
+/* Make the header ACTUALLY black. The classic theme hardcodes the header to a
+ * dark gray for `palette.primary: black` via
+ *   [data-md-color-primary=black] .md-header { background: hsla(...,9%,1) }
+ * which the `--md-primary-fg-color` token above does NOT reach. Override that rule
+ * head-on: same selector specificity (0,2,0), and this sheet loads after
+ * palette.css, so it wins the cascade. */
+[data-md-color-primary="black"] .md-header,
+[data-md-color-primary="black"] .md-header__inner {
+  background-color: #000000;
+}
+
+/* The search box keeps the dark gray the header used before, so it reads as a
+ * distinct box against the now-black header. #14151a is that gray
+ * (the classic theme's `black` primary, hsla(var(--md-hue), 15%, 9%, 1)). */
+[data-md-color-primary="black"] .md-search__button,
+[data-md-color-primary="black"] .md-search__form {
+  background-color: #14151a;
+}

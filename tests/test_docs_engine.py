@@ -14,6 +14,8 @@ needs them even for a one-shot build. See the contributor guide. CI runs in a
 fresh environment and is unaffected.
 """
 
+import posixpath
+import re
 import subprocess
 
 import pytest
@@ -78,6 +80,10 @@ def test_mkdocs_config_points_at_the_relocated_theme(copie_session_default):
     assert "custom_templates: docs_theme/templates" in content
     assert "docs/material" not in content, "config still references the pre-relocation theme path"
     assert "material/overrides/*.html" not in content, "the tooling exclude_docs entry should be gone"
+    # Zensical defaults to its "modern" theme variant; "classic" is the one that
+    # reproduces the Material for MkDocs look the custom palette was written for.
+    # Without it every generated site silently changes appearance.
+    assert "variant: classic" in content, "theme.variant: classic is required so Zensical keeps the Material look"
 
 
 def _real_pages(site):
@@ -135,6 +141,43 @@ def test_build_tooling_does_not_leak_into_the_site(built_site):
         and ("material" in p.parts or "docs_theme" in p.parts or p.suffix == ".jinja" or p.name == "api-submodule.html")
     ]
     assert not leaked, f"build tooling leaked into the built site: {leaked}"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_api_table_links_resolve(built_site):
+    """Every API-table link points at a page that actually exists.
+
+    The API table is injected as raw HTML, which the strict build never
+    validates, so a wrong relative prefix 404s every row silently. The two
+    engines resolve an injected relative href against different bases (MkDocs
+    against the output url, Zensical against the source dir), so a prefix correct
+    for one is off-by-one under the other. This resolves each link against the
+    page's directory and asserts the target file exists.
+    """
+    # Sweep every rendered page, not just the API index: the module_toc sidebar
+    # emits the same api links on every API submodule page, and the two engines
+    # rewrite content links (the table) and template links (the sidebar)
+    # differently, so a fix for one can break the other.
+    checked = 0
+    broken = []
+    for page in _real_pages(built_site):
+        html = page.read_text(encoding="utf-8")
+        hrefs = re.findall(r'href="(\.\./[^"]*(?:pages/api|generated)[^"]*)"', html)
+        if not hrefs:
+            continue
+        # the page's rendered url dir, e.g. site/pages/api/hello/index.html -> pages/api/hello/
+        page_url_dir = page.parent.relative_to(built_site).as_posix() + "/"
+        for href in hrefs:
+            checked += 1
+            target = posixpath.normpath(posixpath.join(page_url_dir, href.split("#")[0]))
+            if target.startswith(".."):  # escaped above the site root -- always broken
+                broken.append(f"{page_url_dir} -> {href}")
+                continue
+            if not (built_site / target / "index.html").exists() and not (built_site / target).exists():
+                broken.append(f"{page_url_dir} -> {href}")
+    assert checked, "no API links found in any page -- the table/sidebar did not render"
+    assert not broken, f"api links 404 (target missing): {sorted(set(broken))[:8]}"
 
 
 @pytest.mark.integration
