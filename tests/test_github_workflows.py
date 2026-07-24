@@ -402,6 +402,74 @@ class TestWorkflowConsistency:
         # They should all be consistent
         assert len(set(uses_action_values)) <= 2, f"Inconsistent uv setup: {uv_setup_patterns}"
 
+    def test_all_setup_uv_steps_pin_exact_version(self, copie):
+        """Every astral-sh/setup-uv step pins the same exact uv version.
+
+        Resolving "latest" is an un-retried GitHub API call and the point at which a
+        transient network blip fails CI before any real work (the "fetch failed"
+        flake). An exact X.Y.Z pin skips that resolve; a range like "0.10" would still
+        resolve over the network, so asserting the version is merely non-empty is not
+        enough. This also guards that the pin is uniform (no step left on "latest"),
+        that the previously-untested commit-message workflow is covered, and that the
+        cache configuration of each step is preserved rather than disturbed.
+        """
+        import re
+
+        import yaml
+
+        result = copie.copy(extra_answers={"include_actions": True})
+        assert result.exit_code == 0
+
+        workflows_dir = result.project_dir / ".github" / "workflows"
+        exact_semver = re.compile(r"^\d+\.\d+\.\d+$")
+
+        # Collect every setup-uv step across all generated workflows, wherever it
+        # appears, so a step added to any workflow is covered without editing the test.
+        setup_uv_steps = []  # (workflow_file, with_block)
+        for workflow_path in sorted(workflows_dir.glob("*.yml")):
+            workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+            for job in (workflow.get("jobs") or {}).values():
+                for step in job.get("steps") or []:
+                    if str(step.get("uses", "")).startswith("astral-sh/setup-uv"):
+                        setup_uv_steps.append((workflow_path.name, step.get("with") or {}))
+
+        assert setup_uv_steps, "no astral-sh/setup-uv steps found in generated workflows"
+
+        # R1: every step pins an *exact* X.Y.Z version, never a range or "latest".
+        pinned_versions = set()
+        for workflow_file, with_block in setup_uv_steps:
+            version = with_block.get("version")
+            assert version, f"{workflow_file}: setup-uv step does not pin a uv version"
+            assert exact_semver.match(str(version)), (
+                f"{workflow_file}: uv version {version!r} is not an exact X.Y.Z pin; "
+                "a range still resolves over the network and reintroduces the flake"
+            )
+            pinned_versions.add(str(version))
+
+        # R2: the pin is uniform. The expected value is read from the rendered project,
+        # not hardcoded, so bumping the copier default does not break this test.
+        assert len(pinned_versions) == 1, f"setup-uv steps pin differing uv versions: {sorted(pinned_versions)}"
+        covered_files = {f for f, _ in setup_uv_steps}
+        assert "commit-message.yml" in covered_files, "commit-message.yml setup-uv step is not covered by the pin"
+
+        # R3: cache configuration preserved. A step that enables the cache must also set
+        # the dependency glob (never half-configured); the dependency-installing test
+        # steps keep their cache; the commit-message step (which installs nothing) gets
+        # no cache fabricated onto it.
+        for workflow_file, with_block in setup_uv_steps:
+            if with_block.get("enable-cache"):
+                assert with_block.get("cache-dependency-glob") == "pyproject.toml", (
+                    f"{workflow_file}: setup-uv enables the cache without the glob"
+                )
+        tests_steps = [w for f, w in setup_uv_steps if f == "tests.yml"]
+        assert tests_steps and all(w.get("enable-cache") for w in tests_steps), (
+            "tests.yml setup-uv steps should retain enable-cache (they install deps)"
+        )
+        commit_steps = [w for f, w in setup_uv_steps if f == "commit-message.yml"]
+        assert commit_steps and all("enable-cache" not in w for w in commit_steps), (
+            "commit-message.yml setup-uv step should pin version only, with no cache"
+        )
+
     def test_all_workflows_install_nox_consistently(self, copie):
         """Test that all workflows that need nox install it the same way."""
         result = copie.copy(extra_answers={"include_actions": True})
