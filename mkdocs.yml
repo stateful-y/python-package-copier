@@ -11,6 +11,11 @@ edit_uri: edit/main/docs/
 # config key -- is what keeps the override unpublished, under either engine.
 theme:
   name: material
+  # Zensical defaults to its "modern" theme variant (different fonts/colours);
+  # "classic" reproduces the Material for MkDocs look the custom palette in
+  # stylesheets/theme.css was written for. MkDocs ignores this key; Zensical
+  # reads it. Without it the published site silently changes appearance.
+  variant: classic
   custom_dir: docs_theme/overrides
   favicon: assets/favicon.png
   logo: assets/logo.png

@@ -14,6 +14,8 @@ needs them even for a one-shot build. See the contributor guide. CI runs in a
 fresh environment and is unaffected.
 """
 
+import posixpath
+import re
 import subprocess
 
 import pytest
@@ -78,6 +80,10 @@ def test_mkdocs_config_points_at_the_relocated_theme(copie_session_default):
     assert "custom_templates: docs_theme/templates" in content
     assert "docs/material" not in content, "config still references the pre-relocation theme path"
     assert "material/overrides/*.html" not in content, "the tooling exclude_docs entry should be gone"
+    # Zensical defaults to its "modern" theme variant; "classic" is the one that
+    # reproduces the Material for MkDocs look the custom palette was written for.
+    # Without it every generated site silently changes appearance.
+    assert "variant: classic" in content, "theme.variant: classic is required so Zensical keeps the Material look"
 
 
 def _real_pages(site):
@@ -135,6 +141,34 @@ def test_build_tooling_does_not_leak_into_the_site(built_site):
         and ("material" in p.parts or "docs_theme" in p.parts or p.suffix == ".jinja" or p.name == "api-submodule.html")
     ]
     assert not leaked, f"build tooling leaked into the built site: {leaked}"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_api_table_links_resolve(built_site):
+    """Every API-table link points at a page that actually exists.
+
+    The API table is injected as raw HTML, which the strict build never
+    validates, so a wrong relative prefix 404s every row silently. The two
+    engines resolve an injected relative href against different bases (MkDocs
+    against the output url, Zensical against the source dir), so a prefix correct
+    for one is off-by-one under the other. This resolves each link against the
+    page's directory and asserts the target file exists.
+    """
+    index = built_site / "pages" / "reference" / "api" / "index.html"
+    html = index.read_text(encoding="utf-8")
+    hrefs = re.findall(r'href="(\.\./[^"]*(?:pages/api|generated)[^"]*)"', html)
+    assert hrefs, "no API-table links found -- the table did not render its rows"
+    page_url_dir = "pages/reference/api/"  # the API index page's rendered url
+    broken = []
+    for href in hrefs:
+        target = posixpath.normpath(posixpath.join(page_url_dir, href))
+        if target.startswith(".."):  # escaped above the site root -- always broken
+            broken.append(href)
+            continue
+        if not (built_site / target / "index.html").exists() and not (built_site / target).exists():
+            broken.append(href)
+    assert not broken, f"API-table links 404 (target missing): {sorted(set(broken))[:5]}"
 
 
 @pytest.mark.integration
