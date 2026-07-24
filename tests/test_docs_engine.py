@@ -155,20 +155,29 @@ def test_api_table_links_resolve(built_site):
     for one is off-by-one under the other. This resolves each link against the
     page's directory and asserts the target file exists.
     """
-    index = built_site / "pages" / "reference" / "api" / "index.html"
-    html = index.read_text(encoding="utf-8")
-    hrefs = re.findall(r'href="(\.\./[^"]*(?:pages/api|generated)[^"]*)"', html)
-    assert hrefs, "no API-table links found -- the table did not render its rows"
-    page_url_dir = "pages/reference/api/"  # the API index page's rendered url
+    # Sweep every rendered page, not just the API index: the module_toc sidebar
+    # emits the same api links on every API submodule page, and the two engines
+    # rewrite content links (the table) and template links (the sidebar)
+    # differently, so a fix for one can break the other.
+    checked = 0
     broken = []
-    for href in hrefs:
-        target = posixpath.normpath(posixpath.join(page_url_dir, href))
-        if target.startswith(".."):  # escaped above the site root -- always broken
-            broken.append(href)
+    for page in _real_pages(built_site):
+        html = page.read_text(encoding="utf-8")
+        hrefs = re.findall(r'href="(\.\./[^"]*(?:pages/api|generated)[^"]*)"', html)
+        if not hrefs:
             continue
-        if not (built_site / target / "index.html").exists() and not (built_site / target).exists():
-            broken.append(href)
-    assert not broken, f"API-table links 404 (target missing): {sorted(set(broken))[:5]}"
+        # the page's rendered url dir, e.g. site/pages/api/hello/index.html -> pages/api/hello/
+        page_url_dir = page.parent.relative_to(built_site).as_posix() + "/"
+        for href in hrefs:
+            checked += 1
+            target = posixpath.normpath(posixpath.join(page_url_dir, href.split("#")[0]))
+            if target.startswith(".."):  # escaped above the site root -- always broken
+                broken.append(f"{page_url_dir} -> {href}")
+                continue
+            if not (built_site / target / "index.html").exists() and not (built_site / target).exists():
+                broken.append(f"{page_url_dir} -> {href}")
+    assert checked, "no API links found in any page -- the table/sidebar did not render"
+    assert not broken, f"api links 404 (target missing): {sorted(set(broken))[:8]}"
 
 
 @pytest.mark.integration
