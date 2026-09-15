@@ -97,7 +97,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install git-cliff
-        uses: taiki-e/install-action@v2.87.6
+        uses: taiki-e/install-action@v2.87.9
         with:
           # renovate: datasource=github-releases depName=orhun/git-cliff
           tool: git-cliff@2.14.1
@@ -134,7 +134,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.0.1
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
-          version: "0.12.12"
+          version: "0.12.14"
 
       - name: Run hooks on generated CHANGELOG
         run: |
