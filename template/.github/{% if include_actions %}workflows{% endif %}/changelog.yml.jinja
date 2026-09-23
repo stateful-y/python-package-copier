@@ -97,7 +97,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install git-cliff
-        uses: taiki-e/install-action@v2.87.17
+        uses: taiki-e/install-action@v2.87.19
         with:
           # renovate: datasource=github-releases depName=orhun/git-cliff
           tool: git-cliff@2.14.2
@@ -131,7 +131,7 @@ jobs:
           echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.12.18"
