@@ -46,6 +46,26 @@ def test_codeql_and_scorecard_ship_for_public(copie):
     assert (public.project_dir / ".github/workflows/scorecard.yml").exists()
 
 
+def test_scanner_jobs_can_check_out_a_private_repo(copie):
+    """CodeQL and Scorecard jobs list the reads a private repository needs.
+
+    New repositories start private and are made public once set up, while the copier
+    answer already says public. A job-level ``permissions`` block replaces the
+    workflow-level one, so a job listing only ``security-events: write`` loses
+    ``contents: read``: checkout then fails with "repository not found" on the private
+    repo, and the required ``Analyze (Python)`` check blocks every PR until the flip.
+    ``actions: read`` is what CodeQL needs to read its own run there.
+    """
+    import yaml
+
+    result = copie.copy(extra_answers={"repo_visibility": "public", "include_actions": True})
+    for name, job in (("codeql.yml", "analyze"), ("scorecard.yml", "analysis")):
+        workflow = yaml.safe_load(_read(result.project_dir, f".github/workflows/{name}"))
+        permissions = workflow["jobs"][job]["permissions"]
+        assert permissions.get("contents") == "read", f"{name}: job {job} cannot check out a private repo"
+        assert permissions.get("actions") == "read", f"{name}: job {job} cannot read its run on a private repo"
+
+
 def test_codeql_analyses_source_and_not_the_test_harness(copie):
     """CodeQL ships a config scoping the scan to shipped code, and the workflow reads it.
 
