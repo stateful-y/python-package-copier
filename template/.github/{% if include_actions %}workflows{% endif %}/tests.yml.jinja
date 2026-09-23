@@ -152,7 +152,7 @@ jobs:
 {% endif %}          file: {% raw %}'${{ github.workspace }}/.artifacts/junit.xml'{% endraw %}
 
       - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v7.1.0
+        uses: codecov/codecov-action@v7.1.1
         if: {% raw %}${{ matrix.python-version == '{% endraw %}{{ min_python_version }}{% raw %}'{% endraw %}{% if repo_visibility != 'public' %}{% raw %} && env.CODECOV_TOKEN != ''{% endraw %}{% endif %}{% raw %} }}{% endraw %}
         with:
 {% if repo_visibility == 'public' %}          use_oidc: true
