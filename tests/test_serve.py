@@ -55,7 +55,10 @@ def _api_page_states(project_dir):
     regeneration did not touch the file.
     """
     api_dir = project_dir / "docs" / "pages" / "api"
-    return {str(p.relative_to(api_dir)): (p.stat().st_ino, p.stat().st_mtime_ns) for p in sorted(api_dir.rglob("*.md"))}
+    return {
+        p.relative_to(api_dir).as_posix(): (p.stat().st_ino, p.stat().st_mtime_ns)
+        for p in sorted(api_dir.rglob("*.md"))
+    }
 
 
 def _event(event_type, src_path, dest_path="", is_directory=False):
