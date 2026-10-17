@@ -4,6 +4,7 @@ Validates: MathJax, stylesheets, rumdl, autorefs, hypothesis,
 API auto-gen, gallery system, justfile recipes, lfs, and bug fixes.
 """
 
+import pytest
 from _build_layout import BUILD_DIR
 
 
@@ -370,17 +371,22 @@ class TestWorkflowFixes:
         """Test that tests.yml lint job no longer uses undefined {{ python_version }}."""
         result = copie.copy(extra_answers={"include_actions": True})
         content = (result.project_dir / ".github" / "workflows" / "tests.yml").read_text()
+        assert "python_version" not in content
 
-        # The lint job should use 'uv python install' (no version arg)
-        # not 'uv python install <undefined>'
-        lines = content.split("\n")
-        for i, line in enumerate(lines):
-            if "Set up Python" in line and i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
-                if next_line.startswith("run: uv python install"):
-                    # Should be exactly 'uv python install' for lint step
-                    # or 'uv python install ${{ matrix.python-version }}' for matrix steps
-                    assert "python_version" not in next_line or "${{" in next_line
+    @pytest.mark.parametrize("workflow", ["tests.yml", "commit-message.yml"])
+    def test_python_install_is_pinned(self, copie, workflow):
+        """Test that no job installs Python without a version, the max one for commit-message.
+
+        A bare `uv python install` takes the newest CPython release, which
+        dependencies may not ship wheels for yet (loro on 3.15).
+        """
+        result = copie.copy(extra_answers={"include_actions": True, "max_python_version": "3.13"})
+        content = (result.project_dir / ".github" / "workflows" / workflow).read_text()
+        installs = [line.strip() for line in content.splitlines() if "run: uv python install" in line]
+        assert installs
+        assert "run: uv python install" not in installs
+        if workflow == "commit-message.yml":
+            assert installs == ["run: uv python install 3.13"]
 
     def test_tests_yml_has_lfs(self, copie):
         """Test that checkout steps in tests.yml have lfs: true."""
