@@ -81,10 +81,12 @@ def test_conditional_content(copie, include_examples):
     [(True, True), (True, False), (False, True), (False, False)],
 )
 def test_option_combo(copie, include_examples, include_actions):
-    result = copie.copy(extra_answers={
-        "include_examples": include_examples,
-        "include_actions": include_actions,
-    })
+    result = copie.copy(
+        extra_answers={
+            "include_examples": include_examples,
+            "include_actions": include_actions,
+        }
+    )
     # assertions vary by combination
 ```
 
