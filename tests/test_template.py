@@ -840,6 +840,20 @@ def test_github_actions_when_enabled(copie):
     assert (result.project_dir / ".git-cliff.toml").is_file(), ".git-cliff.toml not created"
 
 
+def test_issue_chooser_links_use_the_repository_slug(copie):
+    """The issue chooser links the repository and docs site by slug, as every other link does.
+
+    The package name differs from the slug whenever the project name has a separator
+    (``test_project`` against ``test-project``), and a link built from it points at a
+    repository and docs site that do not exist.
+    """
+    result = copie.copy()
+    config = (result.project_dir / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text(encoding="utf-8")
+    assert "https://github.com/testuser/test-project/discussions" in config
+    assert "https://test-project.readthedocs.io/" in config
+    assert "test_project" not in config, "issue chooser links the package name instead of the repository slug"
+
+
 def test_renovate_config_self_contained_by_default(copie):
     """With no preset, renovate.json is a full self-contained, valid config.
 
