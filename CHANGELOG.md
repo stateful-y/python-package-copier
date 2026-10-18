@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.44.1] - 2026-10-18
+
+This **patch release** includes 10 commits.
+
+
+### Bug Fixes
+- Let the drain workflow survive a missing workflows permission  ([#323](https://github.com/stateful-y/python-package-copier/pull/323)) by @gtauzin
+- Pin the uv version Read the Docs installs, and stop prescribing --conflict rej  ([#324](https://github.com/stateful-y/python-package-copier/pull/324)) by @gtauzin
+- Let the CodeQL and Scorecard jobs check out a private repo  ([#427](https://github.com/stateful-y/python-package-copier/pull/427)) by @gtauzin
+- Bump vulnerable transitive dependencies  ([#444](https://github.com/stateful-y/python-package-copier/pull/444)) by @gtauzin
+- Keep the live preview running when the API pages are regenerated  ([#446](https://github.com/stateful-y/python-package-copier/pull/446)) by @gtauzin
+- Pin the CI Python version and format Markdown code blocks for ruff 0.17  ([#467](https://github.com/stateful-y/python-package-copier/pull/467)) by @gtauzin
+- Link the issue chooser to private vulnerability reporting and the right repository  ([#474](https://github.com/stateful-y/python-package-copier/pull/474)) by @gtauzin
+
+### Documentation
+- Record the --conflict rej hazard and three stale claims  ([#325](https://github.com/stateful-y/python-package-copier/pull/325)) by @gtauzin
+- Add yohou-mlflow to the fan-out fleet  ([#428](https://github.com/stateful-y/python-package-copier/pull/428)) by @gtauzin
+
+### Testing
+- Compare API page paths in POSIX form  ([#447](https://github.com/stateful-y/python-package-copier/pull/447)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.44.0] - 2026-08-13
 
 This **minor release** includes 1 commit.
