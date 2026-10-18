@@ -86,7 +86,7 @@ jobs:
       # one without a long-lived personal access token.
       - name: Generate a token from the fleet automation GitHub App
         id: app-token
-        uses: actions/create-github-app-token@v3.2.0
+        uses: actions/create-github-app-token@v3.3.0
         with:
           app-id: {% raw %}${{ secrets.APP_ID }}{% endraw %}
           private-key: {% raw %}${{ secrets.APP_PRIVATE_KEY }}{% endraw %}
@@ -97,7 +97,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install git-cliff
-        uses: taiki-e/install-action@v2.87.22
+        uses: taiki-e/install-action@v2.87.29
         with:
           # renovate: datasource=github-releases depName=orhun/git-cliff
           tool: git-cliff@2.14.2
@@ -131,7 +131,7 @@ jobs:
           echo "version=${TAG_NAME}" >> $GITHUB_OUTPUT
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.1"
