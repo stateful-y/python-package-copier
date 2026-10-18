@@ -185,6 +185,7 @@ exclude = ["CHANGELOG.md", ".artifacts", ".venv"]
 ".claude/skills/**" = ["MD007"]
 "README.md" = ["MD041"]  # README starts with badges, not heading
 "docs/index.md" = ["MD041"]  # Landing page starts with logo, not heading
+"docs/pages/how-to/update-template.md" = ["MD092"]  # documents `copier update` conflict markers in a code block
 
 [tool.commitizen]
 name = "cz_conventional_commits"
