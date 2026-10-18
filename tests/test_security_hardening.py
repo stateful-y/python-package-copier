@@ -187,6 +187,22 @@ def test_governance_files_ship_for_every_repo(copie):
         assert not (result.project_dir / "CODEOWNERS").exists()
 
 
+def test_issue_chooser_offers_private_vulnerability_reporting(copie):
+    """The issue chooser links the private advisory form that SECURITY.md points to.
+
+    Without it, a reporter who goes straight to "New issue" never sees the private
+    channel and files the vulnerability publicly. The link must use the repository
+    slug, as SECURITY.md does, not the package name.
+    """
+    result = copie.copy()
+    config = _read(result.project_dir, ".github/ISSUE_TEMPLATE/config.yml")
+    url = "https://github.com/testuser/test-project/security/advisories/new"
+    assert url in config, "issue chooser does not link private vulnerability reporting"
+    assert url in _read(result.project_dir, "SECURITY.md"), "issue chooser and SECURITY.md disagree"
+    # Listed first, ahead of Discussions, so it is the first option a reporter sees.
+    assert config.index(url) < config.index("/discussions")
+
+
 def test_publish_flow_is_self_contained_with_sbom(copie):
     """The publish path builds and publishes in one run, with no third-party broker, plus an SBOM."""
     result = copie.copy(extra_answers={"include_actions": True})
