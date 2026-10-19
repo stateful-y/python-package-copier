@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.45.0] - 2026-10-19
+
+This **minor release** includes 2 commits.
+
+
+### Features
+- Sign GitHub Release files with Sigstore  ([#478](https://github.com/stateful-y/python-package-copier/pull/478)) by @gtauzin
+
+### Documentation
+- Correct the fan-out notes the v0.44.1 round disproved  ([#476](https://github.com/stateful-y/python-package-copier/pull/476)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.44.1] - 2026-10-18
 
 This **patch release** includes 10 commits.
