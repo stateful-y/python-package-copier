@@ -217,6 +217,33 @@ def test_publish_flow_is_self_contained_with_sbom(copie):
     assert "sbom" in publish.lower()
 
 
+def test_release_files_are_signed_with_sigstore(copie):
+    """Every GitHub Release file gets a Sigstore bundle attached next to it.
+
+    PyPI attestations cover the PyPI copy only, so a download from the GitHub Release
+    had nothing to verify against and Scorecard's Signed-Releases check scored 0 on
+    every generated repo. Signing runs in `create-release`, the job that uploads, which
+    is the one that needs `id-token: write`; `build` runs the project's own build hooks
+    and must not hold it.
+    """
+    import yaml
+
+    result = copie.copy(extra_answers={"include_actions": True})
+    publish = _read(result.project_dir, ".github/workflows/publish-release.yml")
+    jobs = yaml.safe_load(publish)["jobs"]
+
+    assert jobs["create-release"]["permissions"].get("id-token") == "write"
+    assert "id-token" not in (jobs["build"].get("permissions") or {})
+    runs = [step.get("run", "") for step in jobs["create-release"]["steps"]]
+    assert any("sigstore" in run and " sign dist/* sbom/sbom.cdx.json" in run for run in runs), (
+        "the release files are no longer signed before upload"
+    )
+    # The bundles land next to the files they sign, so both upload paths must take the
+    # whole directories rather than naming the unsigned files one by one.
+    assert publish.count("dist/* sbom/*") == 2
+    assert "sbom/sbom.cdx.json --clobber" not in publish
+
+
 def test_changelog_uses_app_token_not_pat(copie):
     """The changelog PR is opened with a short-lived GitHub App token, not a long-lived PAT."""
     result = copie.copy(extra_answers={"include_actions": True})
