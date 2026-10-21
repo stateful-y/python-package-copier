@@ -961,6 +961,29 @@ def test_renovate_automerge_workflow_does_not_hardcode_a_bot_login(copie_session
     )
 
 
+def test_renovate_automerge_refuses_a_base_branch_without_required_checks(copie_session_default):
+    """Nothing is approved or merged unless the base branch requires a status check.
+
+    `gh pr merge --auto` merges immediately when the pull request is already mergeable,
+    and a branch with no required checks is mergeable the moment it is approved. When the
+    org ruleset stopped covering two repositories, their uv bumps merged 13 seconds after
+    Renovate opened them, before any CI ran. The guard must run before the approval, and
+    must read both rulesets and classic branch protection, or a repository on either one
+    alone would be refused.
+    """
+    workflow = copie_session_default.project_dir / ".github" / "workflows" / "renovate-automerge.yml"
+    text = workflow.read_text(encoding="utf-8")
+
+    assert "rules/branches/$BASE" in text, "the guard does not read the branch rulesets"
+    assert ".protection.required_status_checks.contexts" in text, (
+        "the guard ignores classic branch protection, so a repository using it would be refused"
+    )
+    steps = text.split("steps:", 1)[1]
+    assert steps.index("Refuse to merge into a branch that requires no checks") < steps.index(
+        "name: Approve the update"
+    ), "the required-checks guard runs after the approval, so an unprotected branch still gets approved"
+
+
 def test_drain_workflow_does_not_update_branches_with_github_token(copie_session_default):
     """The queue drainer mints an App token, and never falls back to `GITHUB_TOKEN`.
 
