@@ -984,6 +984,33 @@ def test_renovate_automerge_refuses_a_base_branch_without_required_checks(copie_
     ), "the required-checks guard runs after the approval, so an unprotected branch still gets approved"
 
 
+def test_renovate_automerge_enables_auto_merge_as_the_app(copie_session_default):
+    """Auto-merge is enabled with the App token, never GITHUB_TOKEN.
+
+    GitHub performs an auto-merge as whoever enabled it. Enabled with GITHUB_TOKEN, the
+    merge is made by github-actions[bot], its push to main triggers no workflow, and
+    drain-automerge-queue.yml never runs, so every other automerge PR stays behind main
+    indefinitely. It only showed on the days this step beat Renovate to enabling it.
+    """
+    import yaml
+
+    workflow = copie_session_default.project_dir / ".github" / "workflows" / "renovate-automerge.yml"
+    steps = yaml.safe_load(workflow.read_text(encoding="utf-8"))["jobs"]["automerge"]["steps"]
+    by_name = {step["name"]: step for step in steps}
+
+    token_step = by_name["Generate a token from the fleet automation GitHub App"]
+    assert token_step["uses"].startswith("actions/create-github-app-token@")
+    merge_step = by_name["Hand the PR to GitHub auto-merge"]
+    assert "steps.app-token.outputs.token" in merge_step["env"]["GH_TOKEN"], (
+        "auto-merge is enabled with GITHUB_TOKEN, so the merge pushes to main as "
+        "github-actions[bot] and the drain workflow never runs"
+    )
+    names = [step["name"] for step in steps]
+    assert names.index("Generate a token from the fleet automation GitHub App") < names.index(
+        "Hand the PR to GitHub auto-merge"
+    )
+
+
 def test_drain_workflow_does_not_update_branches_with_github_token(copie_session_default):
     """The queue drainer mints an App token, and never falls back to `GITHUB_TOKEN`.
 
