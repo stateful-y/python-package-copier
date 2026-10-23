@@ -36,7 +36,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -50,7 +50,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python {% raw %}${{ matrix.python-version }}{% endraw %}
         run: uv python install {% raw %}${{ matrix.python-version }}{% endraw %}
@@ -76,7 +76,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -85,7 +85,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python {{ min_python_version }}
         run: uv python install {{ min_python_version }}
@@ -121,7 +121,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -130,7 +130,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python {% raw %}${{ matrix.python-version }}{% endraw %}
         run: uv python install {% raw %}${{ matrix.python-version }}{% endraw %}
@@ -178,7 +178,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -187,7 +187,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python
         # Pin the newest supported Python: a bare `uv python install` takes the newest
@@ -210,7 +210,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -219,7 +219,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python
         run: uv python install {{ min_python_version }}
@@ -239,7 +239,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -248,7 +248,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python
         run: uv python install {{ min_python_version }}
@@ -316,7 +316,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -345,7 +345,7 @@ jobs:
           lfs: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -354,7 +354,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       - name: Set up Python
         run: uv python install {{ min_python_version }}

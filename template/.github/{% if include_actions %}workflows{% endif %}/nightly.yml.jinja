@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
@@ -45,7 +45,7 @@ jobs:
 
       - name: Install nox
         # renovate: datasource=pypi depName=nox
-        run: uv tool install nox==2026.8.17
+        run: uv tool install nox==2026.10.20
 
       # `test_coverage` is pinned to the minimum Python, so `nox -s test_coverage`
       # runs that interpreter whatever the matrix entry says. Asking for it on every
@@ -103,7 +103,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           # renovate: datasource=github-releases depName=astral-sh/uv
           version: "0.13.5"
