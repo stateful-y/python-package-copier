@@ -8,8 +8,10 @@ does not run it, and a recopy, which copier also reports as "copy", is stopped b
 the generator's placeholder check), and when it fails it says how to opt out.
 
 Most of the suite copies with `generate_logos=False` (see conftest.py). The tests
-here that render are marked `integration`: they run `uv run --script`, which needs
-uv and, on a cold cache, the network to resolve Pillow.
+here that render run the real task, `uv run --script`, so they need uv and, on a cold
+cache, the network to resolve Pillow -- both of which the fast tier already has. They
+stay in the fast tier on purpose: a few seconds each, and the only place a regression
+in the copy-time behaviour would show on a pull request.
 """
 
 import importlib.util
@@ -201,7 +203,6 @@ def test_generator_failure_names_the_opt_out(tmp_path, capsys):
 # --- copy, update, recopy ---------------------------------------------------
 
 
-@pytest.mark.integration
 def test_copy_renders_the_project_wordmark(tmp_path):
     """A fresh copy replaces both placeholders with the project's own wordmark."""
     project = tmp_path / "project"
@@ -240,7 +241,6 @@ def test_opt_out_keeps_the_placeholders(copie):
     assert "generate_logos" not in (result.project_dir / ".copier-answers.yml").read_text(encoding="utf-8")
 
 
-@pytest.mark.integration
 def test_generator_failure_fails_the_copy(tmp_path, capfd):
     """With the font gone the task fails, the copy aborts, and the hint is shown."""
     template = _snapshot_template(tmp_path / "template", drop=("brand/fonts/KarmaFuture.otf",))
@@ -250,12 +250,17 @@ def test_generator_failure_fails_the_copy(tmp_path, capfd):
     assert "generate_logos=false" in capfd.readouterr().err
 
 
-@pytest.mark.integration
 def test_update_never_runs_the_generator(tmp_path, capfd):
-    """An update leaves the project's logo alone and neither asks nor runs anything."""
+    """An update leaves the project's logo alone and neither asks nor runs anything.
+
+    The copy opts out, so the test needs no rendering; the update then runs with
+    `generate_logos` at its default (on), so only the operation guard keeps the task
+    from running.
+    """
     template = _snapshot_template(tmp_path / "template")
     project = tmp_path / "project"
-    run_copy(str(template), str(project), data=ANSWERS, defaults=True, unsafe=True, vcs_ref="HEAD")
+    opted_out = {**ANSWERS, "generate_logos": False}
+    run_copy(str(template), str(project), data=opted_out, defaults=True, unsafe=True, vcs_ref="HEAD")
     own = b"THIS-PROJECT-OWN-LOGO-LIGHT"
     (project / "docs" / "assets" / "logo_light.png").write_bytes(own)
     _point_answers_at(project, template)
@@ -272,12 +277,14 @@ def test_update_never_runs_the_generator(tmp_path, capfd):
     worker = run_update(str(project), defaults=True, overwrite=True, unsafe=True, vcs_ref="HEAD")
 
     assert (project / "docs" / "assets" / "logo_light.png").read_bytes() == own
-    assert "Running task" not in capfd.readouterr().err, "the logo task ran during an update"
+    # Copier does not announce tasks during an update, so look for the generator's own
+    # report: it prints "wrote" or "kept existing" for every logo it considers.
+    captured = capfd.readouterr()
+    assert "docs/assets/logo_" not in captured.out + captured.err, "the logo task ran during an update"
     assert "logo_text" in worker.answers.hidden, "logo_text was asked during an update"
     assert "logo_text" not in (project / ".copier-answers.yml").read_text(encoding="utf-8")
 
 
-@pytest.mark.integration
 def test_recopy_keeps_a_project_logo(tmp_path):
     """Copier reports a recopy as "copy"; the placeholder check is what holds."""
     template = _snapshot_template(tmp_path / "template")
@@ -295,7 +302,6 @@ def test_recopy_keeps_a_project_logo(tmp_path):
         assert assets.joinpath(name).read_bytes() == content, f"recopy replaced the project's {name}"
 
 
-@pytest.mark.integration
 def test_recopy_fixes_a_project_still_on_the_placeholder(tmp_path):
     """A project that never got its logo gets it on recopy."""
     template = _snapshot_template(tmp_path / "template")
