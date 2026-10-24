@@ -13,8 +13,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## Create Your Package
 
 ```bash
-uvx copier copy gh:stateful-y/python-package-copier my-package
+uvx copier copy --trust gh:stateful-y/python-package-copier my-package
 ```
+
+`--trust` lets the template run its one task: drawing your project's logo. That step uses uv, which you
+installed above, and needs network access the first time. Add `--data generate_logos=false` to skip it.
 
 Answer the prompts about your project. You'll be asked for:
 
@@ -31,6 +34,7 @@ Answer the prompts about your project. You'll be asked for:
 - `max_python_version`: Maximum Python version (default: 3.14, choices: 3.11-3.14)
 - `include_actions`: Include GitHub Actions CI/CD workflows? (default: true)
 - `include_examples`: Include interactive [marimo](https://marimo.io/) notebooks in `examples/`? (default: true)
+- `logo_text`: Logo wordmark; brackets mark the highlighted part (auto-derived, e.g., "my-awesome[package]_")
 
 See [Template Variables](../reference/template-variables.md) in the Reference for detailed descriptions.
 

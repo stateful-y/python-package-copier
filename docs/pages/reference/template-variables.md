@@ -1,6 +1,6 @@
 # Template Variables
 
-When creating a new project with `uvx copier copy gh:stateful-y/python-package-copier my-package`, you'll be prompted for these variables:
+When creating a new project with `uvx copier copy --trust gh:stateful-y/python-package-copier my-package`, you'll be prompted for these variables:
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -17,6 +17,8 @@ When creating a new project with `uvx copier copy gh:stateful-y/python-package-c
 | `max_python_version` | str | `3.14` | Maximum Python version. Choices: 3.11, 3.12, 3.13, 3.14<br>Must be ≥ `min_python_version` |
 | `include_actions` | bool | `true` | Include GitHub Actions CI/CD workflows (tests, changelog, releases) |
 | `include_examples` | bool | `true` | Include `examples/` directory with [marimo](https://marimo.io/) interactive notebooks |
+| `logo_text` | str | *derived* | Logo wordmark in bracket notation (e.g., `sklearn[wrap]_`)<br>Auto-generated from `project_slug`. Asked on copy only |
+| `generate_logos` | bool | `true` | Render the wide logos at copy time. Never prompted; pass `--data generate_logos=false` to skip |
 
 **Note**: Derived variables (`package_name`, `project_slug`) are auto-generated but can be overridden during setup.
 
@@ -48,6 +50,35 @@ When `true`, generates the following in `.github/workflows/`:
 - `nightly.yml` - Daily dependency testing with issue creation on failure
 
 See [GitHub Workflows](github-workflows.md) for full details on each workflow.
+
+### `logo_text`
+
+The wordmark drawn into `docs/assets/logo_light.png` and `docs/assets/logo_dark.png` when the project is created.
+Square brackets mark the highlighted part, drawn in the brand purple; a trailing `_` is drawn in teal.
+The answer must contain exactly one `[...]` pair.
+
+| `project_slug` | Default `logo_text` |
+|----------------|---------------------|
+| `sklearn-wrap` | `sklearn[wrap]_` |
+| `python-package-copier` | `python-package[copier]_` |
+| `yohou` | `[yohou]_` |
+
+The question is asked by `copier copy` only. It is not stored in `.copier-answers.yml`, and `copier update` never asks
+it or redraws the logos. To change a logo later, see [Regenerate Your Logos](../how-to/regenerate-logos.md).
+
+### `generate_logos`
+
+When `true` (the default), `copier copy` runs a task that renders the two wide logos from `logo_text`. The task needs
+copier 9.17.0 or later, the `--trust` flag, [uv](https://docs.astral.sh/uv/) on `PATH`, and network access the first
+time uv resolves Pillow. If rendering fails, the copy fails.
+
+The task only writes a logo that is missing or still identical to the template's placeholder, so a `copier recopy`
+never replaces a logo the project owns.
+
+When `false`, the project keeps the template's placeholder logos. Set it with `--data generate_logos=false` when
+working offline or without uv.
+
+`docs/assets/logo.png` and `docs/assets/favicon.png` are the shared stateful-y mark and are never generated.
 
 ### `include_examples`
 

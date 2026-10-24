@@ -4,6 +4,11 @@ _subdirectory: template
 
 _templates_suffix: .jinja
 
+# The logo task's `when` reads `_copier_operation`. A copier that predates it would
+# evaluate the condition as false and skip generation without a word, shipping the
+# placeholder wordmark; a declared minimum makes it refuse the template instead.
+_min_copier_version: "9.17.0"
+
 _exclude:
   - ".git"
   - "__pycache__"
@@ -27,6 +32,12 @@ _exclude:
 # them "local-owned" in the update skill does not help: that is a convention for
 # whoever resolves the update, and this never reaches a resolution step.
 # _skip_if_exists is the only thing copier itself honours here.
+#
+# The wide logos are no longer left as the template's wordmark: the `_tasks` entry
+# below renders them from `logo_text` when a project is created. They stay listed
+# here all the same, because the task writes after rendering and so bypasses this
+# list; what protects a project's own logo from the task is the generator's
+# placeholder check (see brand/generate_logos.py).
 _skip_if_exists:
   - "docs/assets/logo.png"
   - "docs/assets/logo_dark.png"
@@ -206,3 +217,49 @@ include_examples:
   type: bool
   help: "Include examples/ directory with marimo notebooks?"
   default: true
+
+logo_text:
+  type: str
+  # Asked on copy only: the logo is drawn once, when the project is created, so on an
+  # update the question would do nothing. A side effect is that copier drops the
+  # answer from .copier-answers.yml on the first update; nothing reads it afterwards.
+  when: "{{ _copier_operation == 'copy' }}"
+  help: >-
+    Logo wordmark; [brackets] mark the highlighted part (e.g. 'sklearn[wrap]_').
+    Rendering needs uv; pass -d generate_logos=false to skip it
+  # Brackets the last hyphen-separated word: sklearn-wrap -> sklearn[wrap]_,
+  # python-package-copier -> python-package[copier]_, yohou -> [yohou]_.
+  default: >-
+    {%- set parts = project_slug.rsplit('-', 1) -%}
+    {%- if parts | length == 2 -%}{{ parts[0] }}[{{ parts[1] }}]_
+    {%- else -%}[{{ project_slug }}]_{%- endif -%}
+  validator: >-
+    {%- if logo_text.count('[') != 1 or logo_text.count(']') != 1
+          or logo_text.index('[') > logo_text.index(']') -%}
+    Use exactly one [highlighted] part, e.g. 'sklearn[wrap]_'
+    {%- endif -%}
+
+generate_logos:
+  type: bool
+  # Never prompted. `-d generate_logos=false` skips logo rendering deliberately:
+  # offline, without uv, or in the test suite. Hidden answers are not recorded.
+  when: false
+  default: true
+
+# Renders docs/assets/logo_light.png and logo_dark.png from `logo_text`. Runs from the
+# template source, so the script and font never land in the project. A recopy also
+# reports itself as "copy", so this `when` alone would let it overwrite a project's
+# own logo; the script only replaces a file still identical to the placeholder.
+_tasks:
+  - command:
+      - uv
+      - run
+      - --script
+      - "{{ _copier_conf.src_path }}/brand/generate_logos.py"
+      - --text
+      - "{{ logo_text }}"
+      - --out
+      - docs/assets
+      - --placeholder-dir
+      - "{{ _copier_conf.src_path }}/template/docs/assets"
+    when: "{{ generate_logos and _copier_operation == 'copy' }}"

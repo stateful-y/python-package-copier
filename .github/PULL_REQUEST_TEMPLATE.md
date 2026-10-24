@@ -26,7 +26,7 @@ Fixes #
 <!-- Provide instructions so we can reproduce -->
 
 - [ ] Tested locally with `uv run pytest`
-- [ ] Tested template generation with `copier copy . /tmp/test-project`
+- [ ] Tested template generation with `copier copy --trust --vcs-ref=HEAD . /tmp/test-project`
 - [ ] Verified generated project works as expected
 - [ ] Added/updated tests
 - [ ] All tests pass

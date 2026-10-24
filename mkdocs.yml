@@ -89,6 +89,7 @@ nav:
     - Set Up CI/CD Services: pages/how-to/setup-cicd.md
     - Customize Your Project: pages/how-to/customize-template.md
     - Update from Template: pages/how-to/update-template.md
+    - Regenerate Your Logos: pages/how-to/regenerate-logos.md
     - Add Dependencies: pages/how-to/add-dependencies.md
     - Contribute to the Template: pages/how-to/contribute.md
   - Explanation:

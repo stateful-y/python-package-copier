@@ -79,7 +79,7 @@ gen +recipe:
     set -euo pipefail
     dest="$(pwd)/{{ generated_dir }}"
     rm -rf "$dest"
-    uvx copier copy --defaults \
+    uvx copier copy --trust --defaults \
         --data project_name="Test Project" \
         --data package_name="test_project" \
         --data description="Generated test project" \
@@ -88,6 +88,7 @@ gen +recipe:
         --data github_username="testuser" \
         --data include_examples="{{ examples }}" \
         --data include_actions=true \
+        --data generate_logos=false \
         --vcs-ref=HEAD \
         . "$dest"
     cd "$dest"
