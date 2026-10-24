@@ -51,6 +51,7 @@ def built_site(session_projects_dir, request):
                 "license": "MIT",
                 "include_actions": True,
                 "include_examples": False,
+                "generate_logos": False,
             },
             defaults=True,
             overwrite=True,

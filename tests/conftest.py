@@ -34,6 +34,10 @@ class CopierTestFixture:
             "repo_visibility": "public",
             "include_actions": True,
             "include_examples": True,
+            # Logo rendering runs `uv run --script` and resolves Pillow on every copy.
+            # Off here so the suite does not pay for it hundreds of times;
+            # tests/test_logo_generation.py turns it back on where it is the subject.
+            "generate_logos": False,
             "include_codecov": True,
             "renovate_preset": "",
         }
@@ -160,6 +164,7 @@ def copie_session_default(session_projects_dir):
         "repo_visibility": "public",
         "include_actions": True,
         "include_examples": True,
+        "generate_logos": False,
         "include_codecov": True,
         "renovate_preset": "",
     }
@@ -208,6 +213,7 @@ def copie_session_minimal(session_projects_dir):
         "repo_visibility": "public",
         "include_actions": False,
         "include_examples": False,
+        "generate_logos": False,
         "renovate_preset": "",
     }
 
@@ -256,6 +262,7 @@ def copie_session_custom(session_projects_dir):
         "repo_visibility": "public",
         "include_actions": True,
         "include_examples": True,
+        "generate_logos": False,
         "include_codecov": True,
         "renovate_preset": "",
     }

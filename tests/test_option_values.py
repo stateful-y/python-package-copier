@@ -189,6 +189,7 @@ class TestProjectNameDerivation:
                 "license": "MIT",
                 "include_actions": True,
                 "include_examples": True,
+                "generate_logos": False,
             }
 
             run_copy(

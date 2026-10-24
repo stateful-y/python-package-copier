@@ -20,7 +20,7 @@ A modern, production-ready Python package template using [Copier](https://copier
 
 ```bash
 # Create a new package
-uvx copier copy gh:stateful-y/python-package-copier my-package
+uvx copier copy --trust gh:stateful-y/python-package-copier my-package
 
 # Initialize
 cd my-package

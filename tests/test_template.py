@@ -3053,6 +3053,7 @@ def test_project_branding_survives_a_second_template_run(tmp_path):
         "license": "MIT",
         "include_actions": True,
         "include_examples": True,
+        "generate_logos": False,
     }
     template_dir = str(Path(__file__).parent.parent)
     project = tmp_path / "brand-project"
@@ -5543,6 +5544,7 @@ def test_claude_md_survives_a_later_template_run(tmp_path):
         "license": "MIT",
         "include_actions": True,
         "include_examples": True,
+        "generate_logos": False,
     }
     template_dir = str(Path(__file__).parent.parent)
     project = tmp_path / "seeded-project"
