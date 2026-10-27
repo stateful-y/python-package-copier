@@ -179,6 +179,19 @@ def test_generated_pyproject_uses_correct_tools(copie_session_default):
     )
 
 
+def test_ty_is_pinned_exactly_so_lockfile_refreshes_cannot_move_it(copie_session_default):
+    """ty is pinned with `==` and annotated for Renovate's regex manager.
+
+    A `>=` floor lets the automerged weekly lockfile refresh upgrade ty, and a ty patch
+    release that adds a check then turns that refresh red with nothing to merge it.
+    """
+    content = (copie_session_default.project_dir / "pyproject.toml").read_text(encoding="utf-8")
+
+    match = re.search(r'# renovate: datasource=pypi depName=ty\n\s*"ty==(\d[^"\s]*)"', content)
+    assert match, "ty must be pinned with == directly under its `# renovate:` annotation"
+    assert not re.search(r'"ty\s*>=', content), "a >= floor on ty lets lockfile maintenance move it"
+
+
 def test_pyproject_has_interrogate_config(copie_session_default):
     """Test that pyproject.toml includes interrogate configuration."""
     result = copie_session_default
