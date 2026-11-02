@@ -283,6 +283,30 @@ def test_noxfile_configuration(copie_session_default):
     assert "ty" in content, "ty not found in noxfile.py"
 
 
+def test_every_uv_nox_session_names_its_python(copie_session_default):
+    """Each uv-backed nox session pins `python=`, so none falls back to uv's newest CPython.
+
+    On a runner image with no system Python, an unpinned session runs on the newest
+    uv-managed interpreter, and a project whose `requires-python` stops below it fails
+    `uv sync` before any test runs.
+    """
+    import ast
+
+    tree = ast.parse((copie_session_default.project_dir / "noxfile.py").read_text(encoding="utf-8"))
+    unpinned = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        for deco in node.decorator_list:
+            if not (isinstance(deco, ast.Call) and getattr(deco.func, "attr", None) == "session"):
+                continue
+            kwargs = {kw.arg: kw.value for kw in deco.keywords}
+            backend = kwargs.get("venv_backend")
+            if isinstance(backend, ast.Constant) and backend.value == "uv" and "python" not in kwargs:
+                unpinned.append(node.name)
+    assert not unpinned, f"uv nox sessions without python=: {unpinned}"
+
+
 def test_noxfile_test_coverage_uses_pytest_cov(copie_session_default):
     """Test that test_coverage session uses pytest-cov instead of manual coverage."""
     result = copie_session_default
