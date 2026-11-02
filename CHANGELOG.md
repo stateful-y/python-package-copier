@@ -19,6 +19,25 @@ This **patch release** includes 1 commit.
 Thanks to all contributors for this release:
 - @gtauzin
 
+## [0.45.3] - 2026-10-31
+
+This **patch release** includes 3 commits.
+
+
+### Features
+- Generate project logos at copy time  ([#493](https://github.com/stateful-y/python-package-copier/pull/493)) by @gtauzin
+
+### Bug Fixes
+- Pin ty so lockfile refreshes cannot move it  ([#498](https://github.com/stateful-y/python-package-copier/pull/498)) by @gtauzin
+
+### Documentation
+- Correct the fan-out logo notes for yohou-mlflow and yohou-nixtla  ([#494](https://github.com/stateful-y/python-package-copier/pull/494)) by @gtauzin
+
+### Contributors
+
+Thanks to all contributors for this release:
+- @gtauzin
+
 ## [0.45.2] - 2026-10-23
 
 This **patch release** includes 1 commit.
