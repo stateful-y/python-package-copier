@@ -49,6 +49,10 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Run fast tests (excluding slow/integration tests)
+        env:
+          # Same reason as the full suite below. Python's tempfile reads TMPDIR before
+          # TEMP on every OS, so this also holds on the Windows and macOS legs.
+          TMPDIR: ${{ runner.temp }}
         # renovate: datasource=pypi depName=nox
         run: uvx nox@2026.10.20 -s test_fast-${{ matrix.python-version }}
 
@@ -79,6 +83,15 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Run all tests
+        env:
+          # Keep pytest's tmp_path trees and copier's template clones off /tmp. pytest
+          # holds every test's directory until the session ends, and the docs-build
+          # tests each leave a 200-400 MB virtualenv in theirs, so the suite peaks near
+          # 2 GB. Since ubuntu-latest moved to the 26.04 image that is more than /tmp
+          # allows: the full suite started failing about 85s in with "Disk quota
+          # exceeded" on whichever tests ran next. runner.temp is on the work disk and
+          # is emptied between jobs.
+          TMPDIR: ${{ runner.temp }}
         # renovate: datasource=pypi depName=nox
         run: uvx nox@2026.10.20 -s test-${{ matrix.python-version }}
 
