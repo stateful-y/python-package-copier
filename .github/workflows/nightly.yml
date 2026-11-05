@@ -49,6 +49,11 @@ jobs:
       # actually breaks. A fast-only nightly would be green through exactly the
       # failures this job exists to catch.
       - name: Run the full test suite
+        env:
+          # Same reason as the full suite in tests.yml: the suite peaks near 2 GB of temp
+          # files, more than /tmp allows on the ubuntu-latest 26.04 image, so it failed
+          # with "Disk quota exceeded". runner.temp is on the work disk.
+          TMPDIR: ${{ runner.temp }}
         # renovate: datasource=pypi depName=nox
         run: uvx nox@2026.10.20 -s test-${{ matrix.python-version }}
 
