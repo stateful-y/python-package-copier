@@ -56,10 +56,13 @@ a template bug: report it, do not accommodate it.
    `Downgrades are not supported`, not as a no-op. Verify the tag resolves and actually
    contains the change:
    `git rev-list -n1 vX.Y.Z` and grep the changed file out of `git show vX.Y.Z:<path>`.
+
 2. **Any release that adds a generated file also changes `.claude/skills/update-from-template/references/file-classification.md`** (its update tier), and its `.github/skills/` twin — which is **gitignored in every repo**, so copier writes it to disk untracked and no one reviews it. List it in the brief; three v0.40.1 agents reported it as a delta item I had missed.
+
 3. **Diff the two pristine renders across the version pair, per `include_examples` value.**
    This tells you what each repo will actually receive, and it is the only thing that makes
    a later "untouched!" result meaningful. Do it before writing the briefs.
+
 4. **Give agents the expected DELTA, not an expected absolute count.** An absolute
    ("expect 56 symbols") goes stale the moment the repo merges anything: in one round a
    package merged a PR adding a public class between the fan-out's measurement and the
@@ -67,6 +70,7 @@ a template bug: report it, do not accommodate it.
    were right; only the delta was durable. State the delta, name the symbols expected to
    appear or vanish, and tell the agent to re-derive its own baseline — an agent that
    trusts a stale absolute either reports a phantom regression or, worse, "fixes" it.
+
 5. **Measure local drift in EVERY file the release touches, by CONTENT, before briefing.**
    Not the one file you think is risky, and never by line count. In the v0.28.4 round I
    compared `wc -l`, found three repos matching pristine exactly, and told their agents
@@ -81,6 +85,7 @@ a template bug: report it, do not accommodate it.
     (git/Myers), 186 (git/histogram) and 272 (Python `difflib`) changed lines. Net line
     change agrees; the +/- total is algorithm-dependent. Counting drift estimates **risk**.
     Only a whole-file pre→post diff establishes **loss**.
+
 6. **Write the per-repo briefs from THIS FILE, re-read now — not from working memory.**
    §1 is the corrected record; your recollection of it is a stale copy. In the v0.28.1 round
    I briefed kedro-azureml to "preserve its local `inventories` list" — a claim §1 already
@@ -89,18 +94,21 @@ a template bug: report it, do not accommodate it.
    which I passed to an agent as an unfixed bug two releases after it was fixed. Both cost
    an agent real work, and both were one `grep` away. **A brief is a copy of this file's
    claims; copies drift.**
+
 7. **Give each agent a scratch directory unique to its repo, and tell it to keep every file
    it writes inside that directory.** A unique directory is necessary but not sufficient:
    agents have still collided at the shared scratchpad root. One had a sibling overwrite its
    script mid-run, and the rewritten script cheerfully reported `LOST: NONE` — out of two
    empty lists. Another found a foreign script pointed at a different repo's clone and
    correctly refused to run it. Tell each agent to distrust any file it did not write.
+
 8. **Do not assume the scratchpad is empty, and do not assume it is wiped.** It is *not*
    wiped between sessions — agents have found their previous clones intact, at the previous
    release's ref. That is the more dangerous direction: a stale clone updates from the wrong
    baseline and every later measurement is against a fiction. Have each agent clone fresh,
    and verify the ref it actually landed on rather than the ref it asked for. The work lives
    on GitHub, not on disk.
+
 9. **`git show origin/main:...` in a local clone reads whatever that clone last fetched.**
    Read the baseline from GitHub, not from a working copy. In the v0.41.1 round I built the
    whole fan-out table by looping `git show origin/main:.copier-answers.yml` across the seven
@@ -112,11 +120,13 @@ a template bug: report it, do not accommodate it.
    `gh api "repos/OWNER/REPO/contents/.copier-answers.yml?ref=main"` is authoritative and takes
    one line per repo. I had already caught this same staleness once in the same session, on one
    repo, and fixed it there without generalising — which is how it survived to reach five briefs.
+
 10. **Check where each repo's PR branch actually sits, not where `main` sits.** This fleet
    carries one long-lived `template-update/*` PR per repo whose branch name is frozen at the
    release that created it; the content advances every release while `main` stays behind. The
    branch name is not evidence of its version — read `_commit` from `.copier-answers.yml` on
    the branch and resolve it against the tag list.
+
 11. **Check whether a repo's `main` already carries the release's payload.** Fixes often reach
    a repo through a local PR before the template ships them. In the v0.44.1 round, the
    `uv python install {{ max_python_version }}` pin was the release's headline CI change, and
@@ -271,6 +281,7 @@ compare their commands before theorising about their repos.**
     the exclusion inline, and `test_every_shipped_binary_is_classified` requires each shipped
     binary to be either skip-listed or explicitly named template-managed, so a **new** binary
     still fails loudly while this one stops being re-reported.
+
 - **The generated `tests/conftest.py` is effectively FROZEN. Any edit to it, including a
   comment, can rewrite a project's own imports.** Measured in the v0.41.4 pre-flight
   against real clones: inserting a comment block between the imports and the settings
@@ -283,6 +294,7 @@ compare their commands before theorising about their repos.**
   sections have no common ancestry with it and the header hunk rejects wholesale. If the
   template ever genuinely needs to change this file, pre-flight the update against every
   repo first and expect to hand-carry it, not diff it.
+
 - **Moving a block within a template file is a whole-file rewrite, and it destroys
   divergent copies.** Measured in the v0.41.3 round: relocating a 15-line settings block
   from the middle of the template's `tests/conftest.py` to the end -- no content change,
@@ -294,10 +306,12 @@ compare their commands before theorising about their repos.**
   introduced *by a fix for a lint warning*. Weigh the two failure modes before moving
   anything in a file projects customise: a lint error surfaces at staging and costs one
   line, a rejected hunk costs whatever the project had written.
+
 - It applies an update as **a diff against the template's version**. Once a local file no
   longer resembles it, one shifted line rejects the whole hunk and the page reverts to the
   stub, content surviving only in a `.rej` nobody reads. A **whitespace-only** template
   change replaced a 244-line curated tutorial with a 74-line placeholder in one release.
+
 - `_skip_if_exists` now covers the 4 logos, `docs/index.md`,
   `docs/pages/tutorials/getting-started.md`, `docs/pages/examples/index.md` and `CLAUDE.md`.
 
@@ -320,10 +334,13 @@ checked.
 
 - Sweep for conflict markers as a **first-class check**, equal to the `.rej` sweep, not as
   a follow-up. `grep -rlE '^(<<<<<<<|>>>>>>>)' --exclude-dir=.git .`
+
 - When `.gitignore` is among the changed files, **`git status` is not evidence of what was
   delivered.** Verify by path on disk and `git ls-files --error-unmatch <path>`.
+
 - Resolve by keeping **both** intents. Here: the template's removal of its block, and the
   project's own `reviews/` entry moved to a section of its own with a comment saying why.
+
 - **`mkdocs.yml` is NOT protected, and a nav-touching release clobbers it every time.**
   Not a risk — a certainty. v0.26.0 removed one nav line and the clobber fired in **7 of 7**
   repos: 227 curated nav leaves collapsed to 87. Once a repo's nav has diverged, the hunk
@@ -338,9 +355,11 @@ checked.
   Resolution is always `git checkout HEAD -- mkdocs.yml`, then hand-apply only what the
   template genuinely changed — usually nothing, and prove that by diffing
   `template/mkdocs.yml.jinja` across the pair rather than assuming.
+
 - A **`.rej` holds the PROJECT's own changes** that could not be re-applied — not the
   template's. That is why local content goes missing and every conflicted file is
   partially applied.
+
 - **A conflict does not always arrive as a `.rej`.** copier 9.17 delivered the same
   hazard as an inline git conflict — `pyproject.toml` in state `UU`, conflict markers in
   the file, **zero `.rej` files anywhere**. Two repos hit it in one round, both where the
@@ -348,6 +367,7 @@ checked.
   sweeping only for `*.rej` sees a clean run and commits the markers. **Check
   `git status --porcelain` for `U` states as well as globbing for `.rej`**, and diff every
   touched file whole-file regardless of what either check says.
+
 - **A `.rej` hunk that bundles a redundant change with load-bearing local work drops
   both, and the `.rej` count does not show it.** The unit of rejection is the hunk, not
   the line. yohou lost its `test_docstrings-${{ matrix.python-version }}` parametrization
@@ -357,6 +377,7 @@ checked.
   yohou-optuna's `mkdocs.yml` hunk bundled the template's intended removal with 4 local
   entries: 5 vanished, the `.rej` showed 4. **Diff every touched file WHOLE-FILE against
   the pre-update baseline.** The update's own hunks always look innocent.
+
 - **Every action pin must match what the fleet runs.** A pin the fleet does not run is not
   a stale version number: dependabot bumps the repo, so the gap becomes a permanent local
   delta copier replays on every release, and each replay is a chance to strand it. CI
@@ -369,6 +390,7 @@ checked.
   alive, and stayed green throughout. `EXPECTED_ACTION_PINS` was **deleted** in v0.40.1
   (#269): Renovate reads the template's `uses:` refs directly, so a stale pin now arrives as
   a pull request instead of a silently-passing assertion.
+
 - **THE FLEET IS DIGEST-PINNED AND THE TEMPLATE IS TAG-PINNED, so every `uses:` line
   conflicts on any release that bumps an action.** This is now the default shape of a
   fan-out conflict, not an edge case. Renovate's `helpers:pinGitHubActionDigests` rewrites
@@ -404,6 +426,7 @@ checked.
     Applying either rule to the whole block silently drops the other half.
     Consequence worth expecting: a workflow whose *only* template delta was the tag bump ends
     the update **byte-identical to before**. That is the correct outcome, not a failed update.
+
 - **`uses:` is not the only local delta in a workflow — `astral-sh/setup-uv`'s `version:`
   input is a second one.** The template seeds `"0.10.0"`; Renovate has moved the fleet to
   `"0.12.1"`, at **13-17 sites per repo across five templated workflows**. Three agents
@@ -411,6 +434,7 @@ checked.
   broke, because the template did not touch those lines that round — but an agent resolving
   by regenerating a workflow from the pristine render rather than by editing conflict blocks
   would have reverted the uv pin in five files, silently. Audit both after any resolution.
+
 - **The `asdf` uv lines in `.readthedocs.yml` are the exception to "keep the local pin".**
   Before v0.44.1 they carried no `# renovate:` annotation, so Renovate never bumped them: a
   local `0.10.0` there is the old template seed left behind, not a value Renovate maintains.
@@ -529,20 +553,25 @@ only after merge. Compare open-to-open.
 **Tooling lies.**
 - **`gh pr edit` silently fails here** (GraphQL Projects-classic deprecation). Use
   `gh api -X PATCH repos/OWNER/REPO/pulls/N -f title=... -F body=@file` and **read it back**.
+
 - **A CONFLICTING PR runs no Actions.** "0 failures" out of ~1 check is meaningless.
+
 - **A DRAFT PR skips draft-gated jobs.** Many jobs in this fleet carry
   `if: ... pull_request.draft == false` (the full test matrix, compat, and the
   `tests-versions` matrix). On a draft PR they show `skipping`, so `gh pr checks` reports
   green over a thin subset — the heaviest jobs, and any job a CI-touching change most needs
   to exercise, never ran. Open PRs ready-for-review, not draft (see §7).
+
 - **`gh pr checks` does not accept `--json` on this machine** — it exits with
   `unknown flag: --json`. An earlier version of this file called it a *silent* empty return;
   re-measured, it is a hard error, and the "empty result" agents watched for ~10 minutes was
   their own script swallowing stderr. Use the plain text form. So "0 checks" has two real
   causes — a conflicting PR runs no Actions, and a swallowed error — and neither is a pass.
+
 - **`gh pr checks` also exits NON-ZERO while checks are still pending.** A poll loop that
   guards on exit status breaks out immediately and reports the partial state as final; mine
   did, on this release. Guard on the *output* (`grep -q pending`), not the exit code.
+
 - **A workflow whose job-level `if` evaluates false still registers a check, as `skipping`.**
   Since v0.42.0 every repo ships `renovate-automerge.yml`, which triggers on `pull_request` and
   guards on Bot-author + `renovate/` branch + the `automerge` label. On any human PR that guard is
@@ -563,6 +592,7 @@ only after merge. Compare open-to-open.
     was never going to be there, and may conclude the update dropped it.
     The rule: **derive the expected check list from each workflow's `on:` block**, not from the
     fact that a workflow exists in the tree.
+
 - **`Compat tests` is hardcoded `if: false` in SEVEN of the eight repos** (yohou-optuna,
   yohou-nixtla, yohou-mlflow, sklearn-optuna, sklearn-wrap, kedro-dagster, **kedro-azureml-pipeline** —
   `# disabled until pins are defined`), and the `ci-passed` roll-up treats `skipped` as
@@ -577,6 +607,7 @@ only after merge. Compare open-to-open.
     where it is not `if: false`" and was wrong. **yohou is the only one that runs it**, and it
     ran and passed there on v0.42.0. A hedge like "at least five" reads as a fleet-wide fact
     and is exactly what stops the next round from checking.
+
 - **`Validate Commit Message` does NOT skip on a multi-commit PR — it PASSES vacuously.**
   The `if: github.event.pull_request.commits == 1` is at **step** level, not job level, so
   the job reports `success` with all its real steps skipped. In `gh pr checks` that is
@@ -598,6 +629,7 @@ only after merge. Compare open-to-open.
     point is unchanged: with two commits GitHub
     takes the squash title from the **PR title**, which `pr-title.yml` validates instead.
     **This makes the PR title load-bearing for the changelog** — update it when you fold.
+
 - **RTD 403s urllib's user-agent** — use `curl`. And in **yohou**, a green RTD preview is
   evidence of nothing about the PR: `.readthedocs.yml` does not build the docs at all, it
   `curl`s the `docs-site` release tarball that `docs-deploy.yml` publishes **from main**
@@ -606,18 +638,24 @@ only after merge. Compare open-to-open.
   commit returned 200 and served a page **without** the paragraph that PR added. §6's
   "fetch RTD state with curl" is a dead control there — use the container build's rendered
   `<article>` instead.
+
 - **`pytest -p no:cacheprovider` now runs ZERO tests and reports success.** The generated
   `pyproject.toml` sets `cache_dir` under `.artifacts/`; disabling the cache plugin makes
   that option unrecognised and the run collapses before collection. An agent used the flag
   while falsifying a check, got "no failures", and nearly concluded the check was broken.
   Never add it, and assert a non-zero test count before believing any clean falsification.
+
 - A stale `.rumdl_cache` gives a **false clean**. Delete it and re-run.
+
 - Cached notebook exports (`.source_hash`) make a docs build **vacuous**. Clear
   `docs/examples/<stem>/` first — but never `rm -rf docs/examples`, which deletes a tracked
   `.gitkeep`.
+
 - `git check-ignore` is silent for **tracked** files; use `--no-index` to test a rule.
+
 - zsh does not word-split unquoted expansions — several "all clean" sweeps were empty-set
   bugs. Prefer Python over shell for any sweep whose result you intend to trust.
+
 - **`grep -r --include=*.html` with the glob UNQUOTED returns 0 for everything.** zsh expands
   it against the *current directory* before grep sees it, so the filter matches nothing and
   every count comes back a confident zero. **Three separate agents hit this same line in the
@@ -625,6 +663,7 @@ only after merge. Compare open-to-open.
   caught it only from a stray "no matches found" on stderr. Quote the glob, or use Python.
   This is the single most repeated checker bug in the fleet's history — if a sweep reports
   zero, reproduce the zero against a deliberately injected instance before believing it.
+
 - **Other sweep scoping traps from the same round**, all producing false all-clears: walking
   the whole repo and counting hits inside `.nox/` or `.venv/` site-packages (scope to
   `git ls-files`); comparing heading text without stripping Material's appended `¶`
