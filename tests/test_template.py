@@ -179,17 +179,18 @@ def test_generated_pyproject_uses_correct_tools(copie_session_default):
     )
 
 
-def test_ty_is_pinned_exactly_so_lockfile_refreshes_cannot_move_it(copie_session_default):
-    """ty is pinned with `==` and annotated for Renovate's regex manager.
+@pytest.mark.parametrize("tool", ["interrogate", "ruff", "rumdl", "ty"])
+def test_linters_are_pinned_exactly_so_lockfile_refreshes_cannot_move_them(copie_session_default, tool):
+    """Each lint tool is pinned with `==` and annotated for Renovate's regex manager.
 
-    A `>=` floor lets the automerged weekly lockfile refresh upgrade ty, and a ty patch
-    release that adds a check then turns that refresh red with nothing to merge it.
+    A `>=` floor lets the automerged weekly lockfile refresh upgrade the tool, and a
+    release that adds a rule then turns that refresh red with nothing to merge it.
     """
     content = (copie_session_default.project_dir / "pyproject.toml").read_text(encoding="utf-8")
 
-    match = re.search(r'# renovate: datasource=pypi depName=ty\n\s*"ty==(\d[^"\s]*)"', content)
-    assert match, "ty must be pinned with == directly under its `# renovate:` annotation"
-    assert not re.search(r'"ty\s*>=', content), "a >= floor on ty lets lockfile maintenance move it"
+    pattern = rf'# renovate: datasource=pypi depName={tool}\n\s*"{tool}==(\d[^"\s]*)"'
+    assert re.search(pattern, content), f"{tool} must be pinned with == directly under its `# renovate:` annotation"
+    assert not re.search(rf'"{tool}\s*>=', content), f"a >= floor on {tool} lets lockfile maintenance move it"
 
 
 def test_pyproject_has_interrogate_config(copie_session_default):

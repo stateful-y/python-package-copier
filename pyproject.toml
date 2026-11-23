@@ -35,15 +35,18 @@ tests = [
     # never sees here, so unformatted code ships and a generated project's first
     # hook run reformats template-owned files and reds its CI. Pinned to
     # match the lint group so the check agrees with what a project would run.
-    "ruff>=0.15.22",
+    "ruff==0.17.6",
     # tests/test_logo_generation.py opens the logos the copy task renders, to check
     # their mode, size and transparency rather than comparing bytes.
     "pillow>=10.1",
 ]
 lint = [
-    "interrogate>=1.7.0",
-    "ruff>=0.15.22",
-    "rumdl>=0.2.38",
+    # Pinned exactly for the reason given on the template's lint group: a `>=` floor
+    # lets the automerged lockfile refresh pull in a linter release whose new rules
+    # fail unchanged files. Pinned, linters move only in the `lint-tools` PR.
+    "interrogate==1.7.0",
+    "ruff==0.17.6",
+    "rumdl==0.3.5",
 ]
 docs = [
     # Zensical (successor to Material for MkDocs) builds this repo's own docs;
