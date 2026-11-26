@@ -46,7 +46,7 @@ lint = [
     # fail unchanged files. Pinned, linters move only in the `lint-tools` PR.
     "interrogate==1.7.0",
     "ruff==0.17.6",
-    "rumdl==0.3.5",
+    "rumdl==0.3.6",
 ]
 docs = [
     # Zensical (successor to Material for MkDocs) builds this repo's own docs;
